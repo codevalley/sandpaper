@@ -45,7 +45,7 @@ h1,h2,h3{font-family:var(--serif);font-weight:600;letter-spacing:-.015em;margin:
 .health .dot{width:9px;height:9px;border-radius:50%;background:var(--moss);box-shadow:0 0 0 3px var(--tint-moss-glow)}
 
 /* NOW hero (inside the plate) */
-.now-line{font-family:var(--serif);font-weight:500;font-size:clamp(20px,3vw,27px);line-height:1.28;color:var(--paper);margin:22px 0 0;max-width:30em}
+.now-line{font-family:var(--serif);font-weight:500;font-size:clamp(17px,2.2vw,21px);line-height:1.34;color:var(--paper);margin:18px 0 0;max-width:34em}
 .now-line strong{color:var(--paper);font-weight:600}
 .now-line em{font-style:italic;color:var(--on-plate-em)}
 .now-line .ref{font-family:var(--mono);font-size:13px;color:var(--clay);white-space:nowrap}
@@ -245,7 +245,7 @@ footer{padding:30px 0 56px;font-family:var(--mono);font-size:11px;color:var(--mu
   border-bottom:2px solid var(--ink);margin:0 -26px;padding:0 26px}
 .shell-id{display:flex;align-items:center;justify-content:space-between;
   gap:12px 18px;flex-wrap:wrap;padding:10px 0 8px}
-.shell-mark{font-family:var(--font-display);font-weight:600;font-size:18px;
+.shell-mark{font-family:var(--font-display);font-weight:600;font-size:23px;
   line-height:1;letter-spacing:-.02em;color:var(--ink);text-decoration:none}
 .shell-mark .a{color:var(--clay)}
 .shell-state{display:flex;align-items:center;gap:8px 14px;flex-wrap:wrap;
@@ -257,12 +257,12 @@ footer{padding:30px 0 56px;font-family:var(--mono);font-size:11px;color:var(--mu
   background:var(--moss);box-shadow:0 0 0 3px var(--tint-moss-glow)}
 .shell-rail{display:flex;align-items:center;gap:2px;flex-wrap:nowrap;
   overflow-x:auto;-webkit-overflow-scrolling:touch;
-  font-family:var(--font-mono);font-size:11.5px;letter-spacing:.08em;text-transform:uppercase}
-.shell-rail a{color:var(--mute);text-decoration:none;padding:8px 13px;
+  font-family:var(--font-mono);font-size:12px;font-weight:600;letter-spacing:.09em;text-transform:uppercase}
+.shell-rail a{color:var(--text);text-decoration:none;padding:9px 13px;
   white-space:nowrap;border-bottom:2px solid transparent}
-.shell-rail a:hover{color:var(--ink)}
-.shell-rail a.here{color:var(--ink);border-bottom-color:var(--clay);font-weight:600}
-.shell-rail .dim{color:var(--mute);opacity:.55;padding:8px 13px;
+.shell-rail a:hover{color:var(--clay);border-bottom-color:var(--rule)}
+.shell-rail a.here{color:var(--ink);border-bottom-color:var(--clay);font-weight:700}
+.shell-rail .dim{color:var(--mute);opacity:.6;padding:9px 13px;
   white-space:nowrap;pointer-events:none}
 @media(max-width:760px){.shell-id{padding:8px 0 6px}.shell-rail{font-size:11px}}
 
@@ -303,14 +303,23 @@ footer{padding:30px 0 56px;font-family:var(--mono);font-size:11px;color:var(--mu
 .portal-foot{display:grid;grid-template-columns:1fr 1fr 1.1fr;gap:20px 26px;
   border-top:2px solid var(--ink);margin-top:26px;padding:24px 0 56px;
   font-family:var(--font-mono);font-size:11px;letter-spacing:.04em;color:var(--mute)}
-.portal-foot .foot-h{font-size:10px;letter-spacing:.16em;text-transform:uppercase;
-  color:var(--mute);margin-bottom:8px}
-.portal-foot a{display:block;color:var(--text-muted);text-decoration:none;padding:2px 0}
+.portal-foot .foot-h{font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--ink);font-weight:600;margin-bottom:10px}
+.portal-foot .foot-h::before{color:var(--clay);margin-right:7px;font-weight:400}
+.portal-foot .foot-col:nth-child(1) .foot-h::before{content:"◉"}
+.portal-foot .foot-col:nth-child(2) .foot-h::before{content:"▤"}
+.portal-foot .foot-col:nth-child(3) .foot-h::before{content:"◆"}
+.portal-foot a{display:block;color:var(--text);text-decoration:none;padding:2.5px 0}
 .portal-foot a:hover{color:var(--clay)}
 .portal-foot a.ext{color:var(--clay)}
-.portal-foot .dim{display:block;opacity:.55;padding:2px 0}
+.portal-foot .dim{display:block;opacity:.6;padding:2.5px 0}
 .portal-foot .foot-meta{margin-top:10px;line-height:1.6;color:var(--mute)}
 @media(max-width:600px){.portal-foot{grid-template-columns:1fr;gap:18px}}
+
+/* the NOW "dateline" pill — a clay anchor on the dark plate (matches the Project door tab) */
+.now-tag{display:inline-block;font-family:var(--font-mono);font-size:10px;font-weight:600;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--paper);background:var(--clay);
+  padding:3px 9px;border-radius:var(--radius-pill);margin-right:5px;vertical-align:baseline}
 
 /* ---- lens-landing template (product/ · engineering/) ---- */
 .lens--product{--lens:var(--ochre)}
