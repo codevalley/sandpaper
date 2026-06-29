@@ -3,11 +3,12 @@
 // toolbar at response time only, relaying page → Claude turns, streaming status over SSE,
 // and live-reloading the affected page when its file changes.
 import { createServer } from 'node:http';
-import { readFile, watch, copyFileSync, mkdirSync, existsSync, realpathSync } from 'node:fs';
+import { readFile, writeFile, watch, copyFileSync, mkdirSync, existsSync, realpathSync } from 'node:fs';
 import { join, dirname, basename, extname, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { runTurn } from './claude.js';
+import { replaceInner } from './edit.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PUBLIC = join(HERE, '..', 'public');
@@ -28,6 +29,7 @@ export function startServer(target, port, opts = {}) {
   let activeTurn = null;
   let activeTurnPage = null;  // the URL path the active turn is editing (for the reload frame)
   let reloadPending = false;  // a file change happened mid-turn; reload once it ends
+  let suppressReloadUntil = 0; // a direct in-place edit we just wrote — the browser already shows it
 
   const broadcast = (obj) => {
     const frame = `data: ${JSON.stringify(obj)}\n\n`;
@@ -142,6 +144,41 @@ export function startServer(target, port, opts = {}) {
       return;
     }
 
+    // --- a direct (no-AI) in-place edit: the browser edited one element; persist it to the file ---
+    // The browser owns the new content; we splice ONLY that element's inner HTML back into the
+    // source by data-cid, leaving the rest of the file untouched. No Claude, no turn, no snapshot.
+    if (path === '/__sandpaper/write' && req.method === 'POST') {
+      let body = '';
+      req.on('data', (d) => { body += d; if (body.length > 2e6) req.destroy(); });
+      req.on('end', () => {
+        let p = {}; try { p = JSON.parse(body || '{}'); } catch {}
+        const pageFile = resolveUnder(typeof p.page === 'string' ? p.page : '/');
+        const cid = typeof p.cid === 'string' ? p.cid : '';
+        if (!pageFile || extname(pageFile) !== '.html' || !existsSync(pageFile) ||
+            !/^[\w:-]{1,64}$/.test(cid) || typeof p.html !== 'string') {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          return res.end('{"error":"bad write request"}');
+        }
+        readFile(pageFile, 'utf8', (err, src) => {
+          if (err) { res.writeHead(404, { 'Content-Type': 'application/json' }); return res.end('{"error":"unreadable"}'); }
+          const next = replaceInner(src, cid, p.html);
+          if (next == null) { res.writeHead(409, { 'Content-Type': 'application/json' }); return res.end('{"error":"element not found"}'); }
+          if (next === src) { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end('{"ok":true,"noop":true}'); }
+          suppressReloadUntil = Date.now() + 800; // our own write — don't bounce the editing browser
+          writeFile(pageFile, next, (werr) => {
+            if (werr) {
+              suppressReloadUntil = 0;
+              res.writeHead(500, { 'Content-Type': 'application/json' });
+              return res.end('{"error":"write failed"}');
+            }
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end('{"ok":true}');
+          });
+        });
+      });
+      return;
+    }
+
     // --- toolbar assets (dev chrome, served from the package; never written to disk) ---
     if (path.startsWith('/__sandpaper/') && (path.endsWith('.js') || path.endsWith('.css'))) {
       return serveFile(join(PUBLIC, basename(path)), res); // toolbar.js / toolbar.css / sp-markdown.js
@@ -171,6 +208,8 @@ export function startServer(target, port, opts = {}) {
     const page = (isDir && rel === defaultDoc) ? '/' : '/' + rel; // map the root doc back to '/' like the URL
     clearTimeout(debounce);
     debounce = setTimeout(() => {
+      // A direct in-place edit we just wrote: the editing browser already shows it — don't reload.
+      if (Date.now() < suppressReloadUntil) return;
       // Defer ONLY the active turn's own edit (so its reply isn't cut mid-stream); reload any
       // other (external) change immediately.
       if (activeTurn && (!isDir || page === activeTurnPage)) { reloadPending = true; return; }

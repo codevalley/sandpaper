@@ -75,6 +75,9 @@
 #sp-pick.sp-on{ background:#C75B39; color:#F4F0E6; border-color:#C75B39; }
 #sp-sling{ flex:none; width:34px; height:34px; border:1px solid rgba(23,21,15,.18); border-radius:8px; background:#EFEADD; color:#3F5247; font-size:15px; cursor:pointer; line-height:1; }
 #sp-sling:hover{ border-color:#3F5247; color:#17150F; }
+#sp-edit{ flex:none; width:34px; height:34px; border:1px solid rgba(23,21,15,.18); border-radius:8px; background:#EFEADD; color:#3F5247; font-size:15px; cursor:pointer; line-height:1; }
+#sp-edit:hover{ border-color:#3F5247; color:#17150F; }
+#sp-edit.sp-on{ background:#3F5247; color:#F4F0E6; border-color:#3F5247; }
 #sp-input{ flex:1; min-width:0; height:34px; border:1px solid rgba(23,21,15,.18); border-radius:8px; background:#fff; color:#17150F; padding:0 10px; font:inherit; font-size:13px; }
 #sp-input:focus{ outline:2px solid rgba(199,91,57,.35); border-color:#C75B39; }
 #sp-input:disabled{ background:#EFEADD; color:#8A8578; }
@@ -85,6 +88,13 @@
 /* element-pick affordances applied to the host document */
 body.sp-picking, body.sp-picking *{ cursor:crosshair !important; }
 .sp-hl{ outline:2px solid #C75B39 !important; outline-offset:2px; background:rgba(199,91,57,.06) !important; }
+
+/* ✎ edit-in-place affordances applied to the host document (only while editing) */
+body.sp-editing .sp-editable{ cursor:text; border-radius:4px; transition:box-shadow .12s, background .12s; }
+body.sp-editing .sp-editable:hover{ box-shadow:0 0 0 1px rgba(63,82,71,.5), 0 0 0 5px rgba(63,82,71,.08); background:rgba(63,82,71,.04); }
+.sp-editable[contenteditable="true"], .sp-editable[contenteditable="true"]:focus{ outline:2px solid #3F5247 !important; outline-offset:3px; background:rgba(63,82,71,.06); cursor:text; }
+@keyframes sp-saved-pulse{ from{ box-shadow:0 0 0 3px rgba(78,124,89,.5);} to{ box-shadow:0 0 0 3px rgba(78,124,89,0);} }
+.sp-saved{ animation:sp-saved-pulse 1.2s ease-out; border-radius:4px; }
 
 /* flash the elements Claude just changed, on the host document */
 .sp-flash{ animation:sp-flash 2.2s ease-out 1; }

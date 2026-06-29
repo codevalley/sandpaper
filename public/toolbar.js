@@ -27,6 +27,7 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
     '<div id="sp-target" hidden></div>' +
     '<form id="sp-form">' +
       '<button type="button" id="sp-pick" title="Select an element to scope your message">⌖</button>' +
+      '<button type="button" id="sp-edit" title="Edit text in place — your words, no AI">✎</button>' +
       '<input id="sp-input" placeholder="Ask, discuss, or describe a change…" autocomplete="off" />' +
       '<button type="button" id="sp-sling" title="Copy a terminal-ready instruction — paste it into your Claude session">⇥</button>' +
       '<button type="submit" id="sp-send">Sand</button>' +
@@ -37,6 +38,7 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
       label = panel.querySelector('#sp-label'), cost = panel.querySelector('#sp-cost'),
       thread = panel.querySelector('#sp-thread'), input = panel.querySelector('#sp-input'),
       sendBtn = panel.querySelector('#sp-send'), pickBtn = panel.querySelector('#sp-pick'),
+      editBtn = panel.querySelector('#sp-edit'),
       targetTag = panel.querySelector('#sp-target'), toggleBtn = panel.querySelector('#sp-toggle');
 
   var turns = Object.create(null);  // turnId -> live turn record
@@ -266,6 +268,63 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
   document.addEventListener('mouseout', onOut, true);
   document.addEventListener('click', onClick, true);
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { stopPick(); clearScope(); } });
+
+  // ---------- ✎ edit-in-place — change text directly, no AI (the "Hands") ----------
+  // Clicking a LEAF record (a data-cid element with no data-cid descendants) makes it editable;
+  // committing splices its new inner HTML straight into the file via /write. No turn, no Claude.
+  var editing = false, current = null; // current = { el, cid, original, onKey, onBlur }
+
+  function markEditables(on) {
+    Array.prototype.forEach.call(document.querySelectorAll('[data-cid]'), function (n) {
+      if (panel.contains(n)) return;
+      var leaf = !n.querySelector('[data-cid]'); // never make a big container editable, only leaf records
+      if (on && leaf) n.classList.add('sp-editable'); else n.classList.remove('sp-editable');
+    });
+  }
+  function startEditMode() { editing = true; editBtn.classList.add('sp-on'); document.body.classList.add('sp-editing'); markEditables(true); if (picking) stopPick(); }
+  function stopEditMode() { if (current) commitEdit(); editing = false; editBtn.classList.remove('sp-on'); document.body.classList.remove('sp-editing'); markEditables(false); }
+  editBtn.addEventListener('click', function () { editing ? stopEditMode() : startEditMode(); });
+
+  function detach(rec) {
+    rec.el.removeEventListener('keydown', rec.onKey);
+    rec.el.removeEventListener('blur', rec.onBlur);
+    rec.el.removeAttribute('contenteditable');
+  }
+  function beginEdit(elm) {
+    if (current) commitEdit();
+    var rec = { el: elm, cid: elm.getAttribute('data-cid'), original: elm.innerHTML };
+    rec.onKey = function (ev) {
+      if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); elm.blur(); }        // Enter commits
+      else if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); cancelEdit(); } // Esc reverts
+    };
+    rec.onBlur = function () { commitEdit(); };
+    elm.setAttribute('contenteditable', 'true');
+    elm.addEventListener('keydown', rec.onKey);
+    elm.addEventListener('blur', rec.onBlur);
+    current = rec; elm.focus();
+  }
+  function cancelEdit() { if (!current) return; var rec = current; current = null; rec.el.innerHTML = rec.original; detach(rec); }
+  function commitEdit() {
+    if (!current) return;
+    var rec = current; current = null; detach(rec);
+    var next = rec.el.innerHTML;
+    if (next === rec.original) return; // nothing changed
+    fetch(API + '/write', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ page: location.pathname, cid: rec.cid, html: next }) })
+      .then(function (r) { if (!r.ok) throw new Error('write rejected'); return r.json(); })
+      .then(function () { setChip({ state: 'done', label: 'Saved · your edit, no AI' }); rec.el.classList.add('sp-saved'); setTimeout(function () { rec.el.classList.remove('sp-saved'); }, 1300); })
+      .catch(function () { rec.el.innerHTML = rec.original; setChip({ state: 'error', label: 'Couldn’t save that edit' }); }); // keep file & page in sync on failure
+  }
+
+  // capture-phase so a click on a leaf record edits it instead of following links / scoping
+  document.addEventListener('click', function (e) {
+    if (!editing || panel.contains(e.target)) return;
+    var elm = e.target.closest ? e.target.closest('[data-cid]') : null;
+    if (!elm || elm.querySelector('[data-cid]')) return; // only leaf records are editable
+    if (current && current.el === elm) return;           // already editing this one — let the caret move
+    e.preventDefault(); e.stopPropagation();
+    beginEdit(elm);
+  }, true);
 
   // ---------- persistence + rehydrate (survive the live-reload) ----------
   function persist() { try { sessionStorage.setItem(SKEY, thread.innerHTML); } catch (e) {} }
