@@ -38,14 +38,55 @@
     <p>How Sandpaper works under the glass: the dumb-pipe bridge that drives <code>claude -p</code> in stream-json, the marker contract the brain stamps against, and the open anchoring problem. The records below are canonical — this page only routes you in.</p>
   </header>
 
+  <section class="zone">
+    <div class="eyebrow">01 · The invariant</div>
+    <h2>The file on disk is the document</h2>
+    <p>One rule governs everything else: the HTML <strong>file on disk is the document</strong>. The server serves it verbatim, Claude edits it with its own tools, the watcher reloads it — and the page always reflects exactly what is on disk, never a step ahead. No server-side document model, no HTML assembled from stdout, no diff-and-patch dance. <a class="ref" href="../../engg-spec.html#invariant">engg →</a></p>
+    <p>Because both you (typing in an editor) and Claude (an <code>Edit</code> call) mutate the <em>same</em> bytes, the two sides converge on one artifact instead of drifting. It is also why memory is cheap: a fresh session rebuilds its whole context by reading the file, so the session id is an accelerator, not a dependency. <a class="ref" href="../decisions.html#d-ssot">decision →</a> · <a class="ref" href="../learnings.html#l-amux">the file is the memory →</a></p>
+    <p class="muted">Everything below is downstream of this one invariant — the bridge, the contract, and the Hands all exist to keep disk authoritative.</p>
+  </section>
+
+  <section class="zone">
+    <div class="eyebrow">02 · The bridge</div>
+    <h2>A dumb pipe over <code>claude -p</code></h2>
+    <p>The bridge is a <strong>dumb pipe</strong>, a few hundred lines: it spawns Claude, streams status to the page, and stays out of the way of the write. It drives the model headlessly with <code>claude -p --output-format stream-json</code> (plus <code>--include-partial-messages</code>, <code>--permission-mode acceptEdits</code>, <code>--allowedTools Read,Edit,Write,MultiEdit</code>, and a <code>--append-system-prompt</code> contract), spawned with <code>cwd = docDir</code> so <code>--resume</code>'s folder-scoped session lookup stays reliable. Never tmux, never screen-scraping a TUI. <a class="ref" href="../../engg-spec.html#s-bridge">engg §03 →</a> · <a class="ref" href="../decisions.html#d-claude-p">why claude -p →</a></p>
+    <p>It is the <em>same</em> Claude as the interactive tool — only its output is a structured event stream. <code>mapEvent()</code> turns each stream-json frame into a chip state — init → thinking → editing → done — riding the same SSE channel as the reload signal. <a class="ref" href="../../engg-spec.html#evtmap">event map →</a></p>
+    <p>Two gotchas here are load-bearing. <strong>Scrub the child env before spawning:</strong> an exported <code>ANTHROPIC_API_KEY</code> silently bills the API even on a plan, so the bridge drops it (and the <code>CLAUDECODE</code> markers) to keep billing the subscription. And <strong>the watcher fires loose:</strong> <code>fs.watch(doc)</code> → a 120&nbsp;ms debounce → <code>broadcast({type:'reload'})</code> → SSE → the page reloads from disk and restores scroll — but the watch event can carry a <em>null</em> filename, so treat null as a match or you silently drop reloads. <a class="ref" href="../learnings.html#l-env-scrub">env scrub →</a> · <a class="ref" href="../learnings.html#l-fswatch">null fname →</a></p>
+  </section>
+
+  <section class="zone">
+    <div class="eyebrow">03 · The contract</div>
+    <h2>How the brain stays current</h2>
+    <p>This brain is not free-form prose — it is regenerated against a fixed contract so an agent can keep it true without drift. Live state sits in <strong>marker-delimited regions</strong> (the <code>&lt;!-- BRAIN:NOW --&gt;</code> block and a <code>brain-state</code> JSON digest on the cover) that get overwritten <em>whole</em>, never prose-edited in place. <a class="ref" href="../../CLAUDE.md">the contract →</a></p>
+    <p>Every durable fact is an <code>.entry</code>: a block carrying <code>data-cid</code> (mirrored to its <code>id</code>), <code>data-kind</code>, <code>data-status</code>, <code>data-date</code>, and at least one <code>data-ref</code> into a canonical anchor — plus an optional <code>data-lens</code> for the three-lens axis. Status is a lifecycle flipped on the block, never a rewrite — a reversal is a new entry that supersedes the old. The governing rule is <strong>link, never copy</strong>: the living books point at <code>sandpaper.html</code> / <code>engg-spec.html</code> rather than restating them. <a class="ref" href="../decisions.html">the ledger →</a> · <a class="ref" href="../map.html">the map →</a></p>
+    <p>Skin is one file. All design tokens live in <code>theme.css</code>; <code>brain.css</code> only <code>@import</code>s and consumes them via <code>var()</code>, so re-skinning a whole Sandpaper is a one-file edit (the injected toolbar keeps its own scoped copy so it renders on any host page). The catch that bit us: <code>@import</code> loads first, so a leftover <code>:root</code> in the consumer silently wins — drop it entirely. <a class="ref" href="../decisions.html#d-theme">decision →</a> · <a class="ref" href="../learnings.html#l-import-root">cascade gotcha →</a></p>
+  </section>
+
+  <section class="zone">
+    <div class="eyebrow">04 · The Hands</div>
+    <h2>Direct manipulation, no model in the loop</h2>
+    <p>Not every edit needs Claude. The <strong>Hands</strong> are the page acting on the document directly — edit text in place, drag to reorder, delete a block — each written <em>straight to the file</em> with no AI call. Editing text in place already ships; drag-and-delete is next. <a class="ref" href="../project/index.html#i-hands">the plan →</a> · <a class="ref" href="../../engg-spec.html#s-next">engg §09 →</a></p>
+    <p>The mechanism falls out of the invariant: the page knows the element's <code>data-cid</code>, so the write locates that one element in the file and replaces only its bytes, leaving everything around it untouched — a byte-preserving slice keyed on the anchor, not a re-serialized DOM or a whole-file rewrite. A pre-turn snapshot backs the <code>undo?</code> the chip already promises. <a class="ref" href="../decisions.html#q-undo">make undo real →</a></p>
+    <p class="muted">This is the third writer on one file — your keystrokes, Claude's tools, and the page's own edits all targeting a single source of truth.</p>
+  </section>
+
+  <section class="zone">
+    <div class="eyebrow">05 · Components &amp; the open problem</div>
+    <h2>A handful of files, and the anchor that has to survive</h2>
+    <p>The whole bridge is a handful of files with one direction of dependency — <code>cli → server → claude</code> at its core, plus the on-page toolbar — and zero runtime dependencies (Node ≥18 built-ins, ESM, nothing to <code>npm install</code>). Roles and live build status live on the component map; the authoritative status stays in the engg spec. <a class="ref" href="../map.html">component map →</a> · <a class="ref" href="../wiki/architecture.html">how the pieces fit →</a></p>
+    <p>The one genuinely <strong>open</strong> engineering problem is anchoring. <code>data-cid</code> is both the brain's link target and the unit of scoping, so when Claude regenerates a document wholesale and drops the cids, every open annotation and brain link dangles. The plan: a <code>CLAUDE.md</code> contract that forbids stripping cids, backed by a text-snippet / selector fallback. Until that lands, durable anchoring is the gating risk for P2. <a class="ref" href="../decisions.html#q-anchoring">open question →</a> · <a class="ref" href="../../sandpaper.html#s-risks">risks §07 →</a></p>
+  </section>
+
   <section class="zone lens-views">
-    <div class="eyebrow">Views</div>
+    <div class="eyebrow">Deeper reading</div>
     <div class="cards">
+      <a class="card" href="../wiki/architecture.html"><div class="k">Architecture</div><h3>How the pieces fit</h3><p>The readable deep-dive — flow, modules, one turn.</p></a>
       <a class="card" href="../map.html"><div class="k">Components</div><h3>The map</h3><p>Modules, build status, glossary.</p></a>
       <a class="card" href="../decisions.html"><div class="k">Decisions</div><h3>Engineering calls</h3><p>The durable ledger — filter “engineering”.</p></a>
-      <a class="card" href="../wiki/architecture.html"><div class="k">Architecture</div><h3>How the pieces fit</h3><p>The readable deep-dive.</p></a>
       <a class="card" href="../learnings.html"><div class="k">Learnings</div><h3>Gotchas</h3><p>Hard-won, never re-learned.</p></a>
-      <a class="card" href="../../engg-spec.html"><div class="k">↗ Canonical</div><h3>Engineering spec</h3><p>The source of truth.</p></a>
+      <a class="card" href="../product/index.html"><div class="k">↘ Lens</div><h3>Product</h3><p>What the bridge serves, and why.</p></a>
+      <a class="card" href="../project/index.html"><div class="k">↘ Lens</div><h3>Project</h3><p>The plan — what's built, what's next.</p></a>
+      <a class="card" href="../../engg-spec.html"><div class="k">↗ Canonical</div><h3>Engineering spec</h3><p>The 600-line source of truth.</p></a>
     </div>
   </section>
 

@@ -38,13 +38,59 @@
     <p>Sandpaper turns a Claude-generated HTML draft into a surface you refine <em>in place</em> — point, say, or edit directly, no terminal round-trip. The pitch, the interaction modes, and the product calls live in the records below; this page routes you in.</p>
   </header>
 
+  <!-- ===== PRODUCT LENS PROSE (project#t-0004) — the reading home. real prose, but link-never-copy: every claim traces to a canonical doc/record. ===== -->
+
+  <section class="zone">
+    <div class="eyebrow">Why it exists · the bet</div>
+    <h2 class="h">The medium got richer; the loop didn't</h2>
+    <p>Claude Code writes your specs as rich HTML — diagrams, tables, mockups — because HTML <em>shows</em> the idea instead of merely describing it. But to change one line you alt-tab to the terminal and re-describe the thing you were just looking at. Claude regenerates a whole new document; you re-read it, find the next thing, alt-tab again. Linear, lossy, one thread. The friction was never the editing — it's the <strong>surface mismatch</strong>. <a class="ref" href="../wiki/overview.html">the loop, side by side →</a></p>
+    <p><strong>The bet:</strong> if you can read the rich document and change it <em>in place</em> — while Claude rewrites the file as the single source of truth and shows its live status — then design collaboration collapses from a terminal monologue into a fast, non-linear conversation on the page, and the artifact stays canonical enough to drive what gets built. It runs on the Claude subscription you already pay for — <code>claude -p</code> still draws from the plan, verified. <a class="ref" href="../../sandpaper.html#s-loop">spec §01 →</a> &nbsp; <a class="ref" href="../decisions.html#d-claude-p">why claude -p →</a></p>
+    <p class="muted">The June-15 billing change that could split the credit pool is paused, not gone — so the brain is kept swappable as insurance. <a class="ref" href="../decisions.html#q-billing">the billing watch →</a></p>
+  </section>
+
+  <section class="zone">
+    <div class="eyebrow">What it is</div>
+    <h2 class="h">Refine the rendered page, in place</h2>
+    <p>Sandpaper is a local tool that turns a Claude-generated HTML document into a surface you refine <em>in the browser</em>. A small Node bridge (a few hundred lines, zero runtime deps) drives <code>claude -p</code> in stream-json; when Claude edits the file, a watcher live-reloads the page, and a calm status chip says what it's doing — thinking · editing · done. No terminal round-trip, no re-describing. <a class="ref" href="../engineering/index.html">how it's built →</a> &nbsp; <a class="ref" href="../../sandpaper.html#s-status">the status chip §04 →</a></p>
+    <p>One invariant carries the whole design: <strong>the document on disk is the single source of truth.</strong> Both you (direct edits) and Claude (Edit/Write) mutate the <em>same</em> file; the page reflects disk, never ahead of it. That rules out a server-side document model, HTML-from-stdout, and diffing — the bridge stays a dumb pipe, never screen-scraping a terminal. And the file you finish with is valid, shareable HTML that opens correctly with Sandpaper <em>not</em> running — the spec your team builds from. <a class="ref" href="../decisions.html#d-ssot">the SSOT call →</a> &nbsp; <a class="ref" href="../map.html">the component map →</a> &nbsp; <a class="ref" href="../learnings.html#l-amux">why not scrape →</a></p>
+  </section>
+
+  <section class="zone">
+    <div class="eyebrow">Input · the ways in</div>
+    <h2 class="h">Point to scope, then choose a hand</h2>
+    <p>Every interaction starts the same way: hover, then click an element or lasso a region, and Sandpaper resolves it to the exact spot in the HTML file. With the target scoped, there are three ways in.</p>
+    <table class="tbl">
+      <tr><th>Way in</th><th>What it does</th><th>Edits via</th></tr>
+      <tr><td class="m">Sand</td><td>Scoped AI edit — say the change (“tighten this, use our clay”) or one-click refine (expand · simplify · shift tone). Claude edits just that block; the page live-reloads.</td><td class="m">Claude</td></tr>
+      <tr><td class="m">✎ Hands</td><td>Direct manipulation — drag to reorder, delete, or edit text in place. Written straight to the file: no AI call, zero latency.</td><td class="m">you</td></tr>
+      <tr><td class="m">⇥ Sling</td><td>Copies a terminal-ready instruction for cross-cutting / multi-file work — you hand it across to the terminal that's already good at it.</td><td class="m">terminal</td></tr>
+    </table>
+    <p>Sand and Hands are the two halves of one invariant — an AI file write and a human file write to the same source of truth. Sling is the deliberate seam: the page is the eyes, deep steering stays in the terminal. Point-and-say Sand shipped with the spine; Hands is in the build now. <a class="ref" href="../../sandpaper.html#s-modes">the modes §03 →</a> &nbsp; <a class="ref" href="../wiki/product.html">modes &amp; promise →</a> &nbsp; <a class="ref" href="../project/index.html#i-hands">Hands on the board →</a></p>
+  </section>
+
+  <section class="zone">
+    <div class="eyebrow">Path · where it's going</div>
+    <h2 class="h">Thin spine first, then the hard modes</h2>
+    <p>The roadmap climbs a thin spine before it widens. <strong>P0 the spine</strong> — live status chip + point-and-say on one HTML doc — is shipped. <strong>P1 the two hard modes</strong> — direct manipulation and paste-a-screenshot — is in flight. <strong>P2–P4</strong> — durable <code>data-cid</code> anchoring, branch &amp; compare, and a long-lived watch session — are planned. The rungs are canonical in the spec; the live state of each is the project board, not this page. <a class="ref" href="../../sandpaper.html#s-road">roadmap §06 →</a> &nbsp; <a class="ref" href="../project/index.html#i-skeleton">the plan board →</a></p>
+    <p class="muted">The one rung that's also a blocker: keeping annotations attached when Claude regenerates the whole HTML. Tracked as an open question and a named spec risk. <a class="ref" href="../decisions.html#q-anchoring">the anchoring question →</a> &nbsp; <a class="ref" href="../../sandpaper.html#s-risks">risks §07 →</a></p>
+  </section>
+
+  <section class="zone">
+    <div class="eyebrow">The wedge · why it earns its place</div>
+    <h2 class="h">The page is state made visible; the terminal stays the mouth</h2>
+    <p>Sandpaper made one hard pivot: <strong>the browser is the eyes, not the chat.</strong> An in-browser chatbox is just a worse terminal, so the wedge isn't chat parity — it's the two things a terminal can't do. The page makes <em>state visible</em>: the rendered artifact, the live status chip, even this project brain. And it makes the <em>artifact touchable</em>: point, Sand, Hands. Deep, cross-cutting steering stays where it's already good — the terminal, the mouth — reached by Sling. <a class="ref" href="../decisions.html#d-pivot">the pivot →</a></p>
+    <p>The discipline is knowing where it stops: a refinement loop for documents, not an IDE, not a Figma. The proof is in the dogfood — this very brain is served by Sandpaper, where <strong>Sand</strong> refines one page in place and <strong>Sling</strong> hands cross-cutting work over. We build Sandpaper with Sandpaper. <a class="ref" href="../../sandpaper.html#s-risks">where it stops →</a> &nbsp; <a class="ref" href="../../sandpaper.html#s-dogfood">the dogfood pledge →</a> &nbsp; <a class="ref" href="../wiki/overview.html">who it's for →</a></p>
+  </section>
+
   <section class="zone lens-views">
-    <div class="eyebrow">Views</div>
+    <div class="eyebrow">Deeper reading</div>
     <div class="cards">
       <a class="card" href="../../sandpaper.html"><div class="k">↗ Canonical</div><h3>The spec</h3><p>The one-pager — pitch, modes, roadmap.</p></a>
-      <a class="card" href="../wiki/product.html"><div class="k">Product</div><h3>Modes &amp; promise</h3><p>The experience, the six modes, status matrix.</p></a>
+      <a class="card" href="../wiki/product.html"><div class="k">Wiki · §B</div><h3>Modes &amp; promise</h3><p>The experience, the modes, the status matrix.</p></a>
+      <a class="card" href="../wiki/overview.html"><div class="k">Wiki · §A</div><h3>The pitch</h3><p>Problem, bet, who it's for, the name.</p></a>
       <a class="card" href="../decisions.html"><div class="k">Decisions</div><h3>Product calls</h3><p>The durable ledger — filter “product”.</p></a>
-      <a class="card" href="../wiki/overview.html"><div class="k">Overview</div><h3>The pitch</h3><p>Problem, bet, and the name.</p></a>
+      <a class="card" href="../engineering/index.html"><div class="k">Lens</div><h3>Engineering</h3><p>How it's built — the bridge, the contracts.</p></a>
+      <a class="card" href="../project/index.html"><div class="k">Lens</div><h3>Project</h3><p>The plan — what's shipped, what's next.</p></a>
     </div>
   </section>
 
