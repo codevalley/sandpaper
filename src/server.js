@@ -39,7 +39,7 @@ export function startServer(target, port, opts = {}) {
   const injectToolbar = (html) => {
     const tag =
       '\n<link rel="stylesheet" href="/__sandpaper/toolbar.css">' +
-      '\n<script src="/__sandpaper/toolbar.js" defer></script>\n';
+      '\n<script type="module" src="/__sandpaper/toolbar.js"></script>\n';
     return html.includes('</body>') ? html.replace('</body>', tag + '</body>') : html + tag;
   };
 
@@ -143,8 +143,8 @@ export function startServer(target, port, opts = {}) {
     }
 
     // --- toolbar assets (dev chrome, served from the package; never written to disk) ---
-    if (path === '/__sandpaper/toolbar.js' || path === '/__sandpaper/toolbar.css') {
-      return serveFile(join(PUBLIC, basename(path)), res);
+    if (path.startsWith('/__sandpaper/') && (path.endsWith('.js') || path.endsWith('.css'))) {
+      return serveFile(join(PUBLIC, basename(path)), res); // toolbar.js / toolbar.css / sp-markdown.js
     }
 
     // --- any file under root: .html gets the toolbar injected, everything else served raw ---

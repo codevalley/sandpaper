@@ -1,6 +1,8 @@
 // toolbar.js — Sandpaper conversation surface (injected into the served document).
 // Holds the back-and-forth with Claude on the page: streams replies, shows what each
 // turn changed (and undo), survives the live-reload, and keeps the document the star.
+import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
+
 (function () {
   'use strict';
   var API = '/__sandpaper';
@@ -88,7 +90,8 @@
     if (rec.raf) return;
     rec.raf = requestAnimationFrame(function () {
       rec.raf = 0;
-      rec.proseEl.textContent = rec.textBuf;
+      rec.proseEl.textContent = '';                               // re-render the accumulated reply (streaming-safe)
+      rec.proseEl.appendChild(renderMarkdown(rec.textBuf));
       if (rec.thinkBuf) { rec.thinkEl.textContent = rec.thinkBuf; rec.thinkWrap.hidden = false; }
       stick();
     });
