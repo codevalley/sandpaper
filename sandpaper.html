@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sandpaper — Sand the rough draft into a finished spec.</title>
+<!--
+  NAME: Sandpaper. Every block carries a stable data-cid="…" anchor: the document
+  can be regenerated and annotations still find their target. This page is itself a
+  Sandpaper document — an artifact of exactly the kind the tool is built to refine.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --paper:#F4F0E6; --paper-2:#EFEADD; --ink:#17150F;
+    --clay:#C75B39; --pine:#3F5247; --ochre:#C98A1E;
+    --rust:#B23A2E; --moss:#4E7C59; --mute:#8A8578;
+    --rule:rgba(23,21,15,.13); --rule-2:rgba(23,21,15,.07);
+    --measure:720px;
+    --serif:'Fraunces',Georgia,'Times New Roman',serif;
+    --sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    --mono:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:var(--sans); font-size:17px; line-height:1.65;
+    -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+  }
+  ::selection{background:rgba(199,91,57,.22)}
+  code{font-family:var(--mono); font-size:.82em; background:rgba(23,21,15,.05); padding:1px 5px; border-radius:3px}
+
+  .wrap{max-width:1080px; margin:0 auto; padding:0 28px}
+  .band{border-top:1px solid var(--rule)}
+  section{padding:54px 0}
+  .grid{display:grid; grid-template-columns:96px minmax(0,var(--measure)) 1fr; gap:0 36px}
+  .num{grid-column:1; font-family:var(--serif); font-weight:500; font-size:40px;
+    color:var(--clay); line-height:1; opacity:.85; font-variant-numeric:lining-nums}
+  .col{grid-column:2; min-width:0}
+  .side{grid-column:3; font-family:var(--mono); font-size:12.5px; line-height:1.55;
+    color:var(--mute); padding-top:8px; max-width:240px}
+  .side b{color:var(--pine); font-weight:600}
+  @media(max-width:880px){
+    .grid{grid-template-columns:1fr; gap:0}
+    .num{grid-column:1; font-size:30px; margin-bottom:6px}
+    .col{grid-column:1}
+    .side{grid-column:1; max-width:none; margin-top:18px;
+      padding:12px 14px; border-left:2px solid var(--rule); background:var(--paper-2)}
+  }
+
+  .eyebrow{font-family:var(--mono); text-transform:uppercase; letter-spacing:.18em;
+    font-size:11.5px; color:var(--mute); font-weight:500}
+  h1{font-family:var(--serif); font-weight:600; letter-spacing:-.02em; margin:0}
+  h2{font-family:var(--serif); font-weight:600; font-size:30px; line-height:1.12;
+    letter-spacing:-.015em; margin:0 0 18px}
+  h3{font-family:var(--serif); font-weight:600; font-size:20px; margin:0 0 6px; letter-spacing:-.01em}
+  p{margin:0 0 16px}
+  p:last-child{margin-bottom:0}
+  a{color:var(--clay); text-underline-offset:3px; text-decoration-thickness:1px}
+  strong{font-weight:600}
+  em{font-style:italic}
+  .lead{font-size:19px; color:#2a2820}
+
+  /* HERO */
+  .hero{padding:46px 0 40px}
+  .specstrip{display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center;
+    font-family:var(--mono); font-size:11.5px; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--mute); padding-bottom:26px}
+  .specstrip .sep{opacity:.4}
+  .specstrip .green{color:var(--moss); font-weight:600}
+  .wordmark{font-size:clamp(60px,13vw,138px); line-height:.9; letter-spacing:-.04em; margin:0}
+  .wordmark .a{color:var(--clay)}
+  .tagline{font-family:var(--mono); font-size:15px; letter-spacing:.02em; color:var(--ink);
+    margin:18px 0 28px}
+  .hero .lead{max-width:670px}
+  .hero-foot{display:flex; flex-wrap:wrap; gap:22px; align-items:center; margin-top:30px}
+  .verdict{display:inline-flex; align-items:center; gap:9px; font-family:var(--mono);
+    font-size:12.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--pine);
+    border:1px solid var(--rule); border-radius:999px; padding:7px 14px; background:var(--paper-2)}
+  .verdict .dot{width:9px;height:9px;border-radius:50%;background:var(--moss)}
+  .kicker{font-family:var(--serif); font-style:italic; font-size:18px; color:var(--mute)}
+  .callout{border:1px solid var(--rule); border-left:3px solid var(--clay);
+    background:var(--paper-2); padding:18px 20px; border-radius:4px; margin:26px 0 0}
+  .callout .eyebrow{color:var(--clay)}
+  .callout p{margin:6px 0 0; font-size:15.5px; color:#3a372e}
+
+  /* LEDGER */
+  .ledger{display:grid; grid-template-columns:1fr 1px 1fr; gap:0 28px; margin-top:6px}
+  .ledger .rule{background:var(--rule)}
+  .ledger h3{font-family:var(--mono); font-size:12px; letter-spacing:.16em; text-transform:uppercase;
+    font-weight:600; margin:0 0 14px}
+  .ledger .today h3{color:var(--mute)}
+  .ledger .now h3{color:var(--clay)}
+  .ledger ul{list-style:none; margin:0; padding:0}
+  .ledger li{padding:11px 0; border-bottom:1px solid var(--rule-2); font-size:15.5px}
+  .ledger .today li{color:#6b675b}
+  .ledger .now li{color:var(--ink)}
+  .ledger li:last-child{border-bottom:0}
+  @media(max-width:680px){.ledger{grid-template-columns:1fr; gap:0}
+    .ledger .rule{display:none} .ledger .now{margin-top:18px;border-top:1px solid var(--rule);padding-top:18px}}
+
+  /* DIAGRAM */
+  .diagram{margin:8px 0 0; border:1px solid var(--rule); border-radius:6px;
+    background:var(--paper-2); padding:26px 22px}
+  .nodes{display:flex; align-items:stretch; gap:0; justify-content:space-between}
+  .node{flex:1; text-align:center; border:1px solid var(--rule); border-radius:5px;
+    background:var(--paper); padding:16px 10px; min-width:0}
+  .node .nm{font-family:var(--mono); font-size:12.5px; letter-spacing:.04em; color:var(--ink); font-weight:600}
+  .node .sub{font-family:var(--mono); font-size:10.5px; color:var(--mute); margin-top:5px; line-height:1.4}
+  .arrow{display:flex; align-items:center; padding:0 10px; color:var(--clay); font-size:20px; font-weight:600}
+  .foundation{margin-top:14px; border:1px dashed var(--rule); border-radius:5px; padding:11px;
+    text-align:center; font-family:var(--mono); font-size:12px; color:var(--pine); background:var(--paper)}
+  .loopback{text-align:center; font-family:var(--mono); font-size:11px; color:var(--mute); margin-top:9px}
+  @media(max-width:620px){.nodes{flex-direction:column} .arrow{justify-content:center;padding:8px 0;transform:rotate(90deg)}}
+
+  /* CARDS */
+  .cards{display:grid; gap:0; margin-top:4px}
+  .card{display:grid; grid-template-columns:40px 1fr; gap:18px; align-items:start;
+    padding:18px 0; border-bottom:1px solid var(--rule-2)}
+  .card:last-child{border-bottom:0}
+  .card .gl{font-family:var(--mono); font-size:13px; color:var(--clay); font-weight:600;
+    border:1px solid var(--rule); border-radius:5px; height:34px; display:flex; align-items:center;
+    justify-content:center; background:var(--paper-2)}
+  .card p{font-size:15.5px; margin:0; color:#3a372e}
+  .card h3{font-size:18px}
+
+  /* STATUS */
+  .rail{border:1px solid var(--rule); border-radius:8px; background:var(--paper-2); padding:22px; margin-top:4px}
+  .chip{display:inline-flex; align-items:center; gap:10px; background:var(--paper);
+    border:1px solid var(--rule); border-radius:999px; padding:9px 16px 9px 13px;
+    font-family:var(--mono); font-size:13.5px; font-weight:500; color:var(--ink);
+    box-shadow:0 1px 0 rgba(23,21,15,.04)}
+  .chip .led{width:10px; height:10px; border-radius:50%; background:var(--mute); transition:background .25s}
+  .chip.pulse .led{animation:pulse 1.25s ease-in-out infinite}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 currentColor; opacity:1}50%{box-shadow:0 0 0 5px transparent; opacity:.55}}
+  .meta{font-family:var(--mono); font-size:11.5px; color:var(--mute); margin-top:11px; letter-spacing:.02em}
+  .meta b{color:var(--pine); font-weight:600}
+  .timeline{display:flex; flex-wrap:wrap; gap:14px 18px; margin-top:20px; padding-top:18px; border-top:1px solid var(--rule)}
+  .tl{display:flex; align-items:center; gap:8px; font-family:var(--mono); font-size:11px; letter-spacing:.04em; color:var(--mute)}
+  .tl .d{width:8px;height:8px;border-radius:50%;background:currentColor;flex:none}
+  .tl.on{color:var(--ink)}
+  .hint{font-family:var(--mono); font-size:11px; color:var(--mute); margin-top:14px}
+
+  /* SPEC SHEET */
+  .spec{border:1px solid var(--rule); border-radius:8px; background:var(--paper-2); padding:6px; margin-top:4px}
+  .spec-inner{border:1px solid var(--rule-2); border-radius:5px; background:var(--paper); padding:26px}
+  .spec-row{padding:16px 0; border-bottom:1px solid var(--rule-2)}
+  .spec-row:last-child{border-bottom:0}
+  .spec-row .lbl{font-family:var(--mono); font-size:11px; letter-spacing:.16em; text-transform:uppercase;
+    color:var(--clay); font-weight:600; margin-bottom:8px}
+  .spec-row p{font-size:15.5px; color:#33302a; margin:0}
+  .spec-row ul{margin:4px 0 0; padding:0; list-style:none}
+  .spec-row li{position:relative; padding:6px 0 6px 20px; font-size:15px; color:#33302a}
+  .spec-row li::before{content:'—'; position:absolute; left:0; color:var(--clay)}
+  .spec-row li.edge::before{content:'!'; color:var(--ochre); font-weight:700}
+  .metric{display:grid; grid-template-columns:90px 1fr; gap:12px; padding:7px 0; align-items:baseline}
+  .metric .k{font-family:var(--mono); font-size:10.5px; letter-spacing:.12em; text-transform:uppercase}
+  .metric.leading .k{color:var(--moss)}
+  .metric.lagging .k{color:var(--clay)}
+  .metric.guard .k{color:var(--ochre)}
+  .metric .v{font-size:15px; color:#33302a}
+
+  /* ROADMAP */
+  .phase{display:grid; grid-template-columns:64px 1fr; gap:18px; padding:16px 0; border-bottom:1px solid var(--rule-2)}
+  .phase:last-child{border-bottom:0}
+  .phase .pk{font-family:var(--mono); font-weight:600; font-size:14px; color:var(--ink)}
+  .phase.committed .pk{color:var(--clay)}
+  .phase .here{display:block; font-family:var(--mono); font-size:9.5px; letter-spacing:.1em;
+    text-transform:uppercase; color:var(--clay); margin-top:4px}
+  .phase h3{font-size:17px; margin-bottom:4px}
+  .phase p{font-size:15px; color:#3a372e; margin:0}
+
+  /* RISKS */
+  .risks{list-style:none; margin:4px 0 0; padding:0}
+  .risks li{display:grid; grid-template-columns:140px 1fr; gap:18px; padding:14px 0; border-bottom:1px solid var(--rule-2)}
+  .risks li:last-child{border-bottom:0}
+  .risks .tag{font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--mute)}
+  .risks .body{font-size:15px; color:#33302a}
+  .risks .body b{color:var(--pine)}
+  .risks .body.good b{color:var(--moss)}
+  @media(max-width:620px){.risks li{grid-template-columns:1fr;gap:4px}}
+
+  /* NAME */
+  .considered{font-family:var(--mono); font-size:12px; color:var(--mute); margin-top:18px; line-height:1.6}
+  .considered s{opacity:.7}
+
+  /* SIGN OFF */
+  .signoff{max-width:560px; margin:8px auto 0; text-align:center; padding-top:28px; border-top:1px solid var(--rule)}
+  .signoff ul{list-style:none;padding:0;margin:0 0 22px;text-align:left;display:inline-block}
+  .signoff li{padding:7px 0; font-size:15.5px; color:#3a372e}
+  .endmark{font-family:var(--serif); font-weight:600; font-size:30px; letter-spacing:-.01em}
+  .endmark .a{color:var(--clay)}
+  footer{padding:40px 0 60px; text-align:center; font-family:var(--mono); font-size:11px; color:var(--mute); letter-spacing:.04em}
+
+  @media(prefers-reduced-motion:reduce){.chip .led{animation:none!important}}
+  @media print{body{background:#fff} .rail,.diagram,.spec,.callout{break-inside:avoid}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ============ HERO ============ -->
+  <header class="hero" data-cid="hero">
+    <div class="specstrip" data-cid="specstrip">
+      <span>Sandpaper</span><span class="sep">·</span>
+      <span>v0.3</span><span class="sep">·</span>
+      <span>Approach + One-Page Spec</span><span class="sep">·</span>
+      <span>2026-06-29</span><span class="sep">·</span>
+      <span class="green">Feasibility ◉ Green</span>
+    </div>
+    <h1 class="wordmark" data-cid="wordmark">Sand<span class="a">paper</span></h1>
+    <p class="tagline" data-cid="tagline">// Sand the rough draft into a finished spec.</p>
+    <p class="lead" data-cid="hero-what">
+      The rich HTML documents Claude Code builds for you become a surface you can shape by talking to it.
+      You chose HTML over flat markdown because it <em>shows</em> the idea — diagrams, tables, mockups.
+      Sandpaper closes the gap: instead of reading <em>here</em> and re-describing changes <em>over there</em>
+      in a terminal, you smooth it out in place — leaving the canonical spec your build rests on.
+    </p>
+    <div class="hero-foot" data-cid="hero-foot">
+      <span class="verdict"><span class="dot"></span>Feasible today · ~200-line bridge · your subscription</span>
+      <span class="kicker">No round-trip. No re-describing what you’re looking at.</span>
+    </div>
+
+    <div class="callout" data-cid="meta-note">
+      <div class="eyebrow">Read this as a demo</div>
+      <p>
+        This page is a Sandpaper document. Right now, to change a line here you’d alt-tab to the terminal
+        and describe it. The whole point of Sandpaper is to point at <em>this sentence</em>, say “tighten
+        this,” and sand it smooth in place — then keep going, non-linearly, without ever leaving the page.
+      </p>
+    </div>
+  </header>
+
+  <!-- ============ 01 THE LOOP ============ -->
+  <section class="band" data-cid="s-loop">
+    <div class="grid">
+      <div class="num">01</div>
+      <div class="col">
+        <div class="eyebrow">The problem</div>
+        <h2>The medium got richer. The loop didn’t.</h2>
+        <div class="ledger" data-cid="ledger">
+          <div class="today">
+            <h3>The loop today</h3>
+            <ul>
+              <li>You brief Claude; it writes a spec — first as markdown. Readable, but flat: no diagrams, no mockups, hard to <em>feel</em> the design.</li>
+              <li>So you moved to HTML. Now the document shows the idea — illustrations, tables, real mockups. Far better at expressing the problem.</li>
+              <li>But to change anything you leave the document, alt-tab to the terminal, and describe in words the thing you were just looking at.</li>
+              <li>Claude often regenerates a whole new HTML; you re-read it, find the next thing, alt-tab again. Linear, lossy, one thread.</li>
+            </ul>
+          </div>
+          <div class="rule"></div>
+          <div class="now">
+            <h3>The loop with Sandpaper</h3>
+            <ul>
+              <li>Read the rich document exactly as you do now.</li>
+              <li>Point at the paragraph, table, or mockup and say the change — or edit it directly, in place.</li>
+              <li>It updates live. Branch a section, annotate it, paste a reference — explore non-linearly.</li>
+              <li>It stays one durable file — the canonical spec your developers build from.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <aside class="side" data-cid="side-loop">
+        The friction was never the editing — Claude is fast. It’s the <b>surface mismatch</b>: you see the
+        work as a rich document, but you steer it as text in another window.
+      </aside>
+    </div>
+  </section>
+
+  <!-- ============ 02 HOW IT WORKS ============ -->
+  <section class="band" data-cid="s-how">
+    <div class="grid">
+      <div class="num">02</div>
+      <div class="col">
+        <div class="eyebrow">Architecture</div>
+        <h2>How it works</h2>
+        <p class="lead">One idea carries the whole design: <strong>the document on disk is the single
+          source of truth</strong> — and both you and Claude simply read and write that same file.</p>
+
+        <div class="diagram" data-cid="diagram">
+          <div class="nodes">
+            <div class="node"><div class="nm">Document</div><div class="sub">you act:<br>point · say · edit · drag</div></div>
+            <div class="arrow">→</div>
+            <div class="node"><div class="nm">Local Bridge</div><div class="sub">~200 lines of Node<br>SSE · localhost</div></div>
+            <div class="arrow">→</div>
+            <div class="node"><div class="nm">Claude Code</div><div class="sub">claude -p --resume<br>edits the file</div></div>
+          </div>
+          <div class="foundation" data-cid="foundation">▤ &nbsp;spec.html — the one file all three read &amp; write · single source of truth · yours forever</div>
+          <div class="loopback">↻ &nbsp;Claude writes spec.html → file watcher live-reloads the Document — the loop closes ↻</div>
+        </div>
+
+        <p style="margin-top:22px">
+          The bridge spawns <code>claude -p --resume &lt;id&gt; --output-format stream-json</code> from the
+          document’s folder and reads its events line by line. Claude edits the HTML with its Edit/Write
+          tools; the watcher refreshes the page. Your direct edits — drag, delete, reorder — write to that
+          <em>same</em> file with no AI call at all: instant, free, exact.
+        </p>
+        <p>
+          <strong>Because the document is the source of truth — not the chat — context survives everything.</strong>
+          If a session drops, a fresh Claude reconstructs the full picture by reading the file (and a short
+          decisions log Sandpaper keeps beside it). The conversation is an accelerator, not a dependency.
+          And the same file is what your developers open next — Sandpaper doesn’t need to be running for the
+          spec to be real.
+        </p>
+        <p>
+          Today that document is a single self-contained HTML file. When a spec graduates into a
+          <em>behaving</em> prototype, the same bridge points at a local Next.js/React project instead —
+          it’s just a directory. Start light; graduate on purpose.
+        </p>
+      </div>
+      <aside class="side" data-cid="side-how">
+        <b>Verified:</b> <code>claude -p</code> still draws from your Claude plan (support.claude.com
+        #15036540 — the June-15 change is paused). Keep the brain swappable as insurance.
+      </aside>
+    </div>
+  </section>
+
+  <!-- ============ 03 INTERACTIONS ============ -->
+  <section class="band" data-cid="s-modes">
+    <div class="grid">
+      <div class="num">03</div>
+      <div class="col">
+        <div class="eyebrow">Input</div>
+        <h2>What you can do on the document</h2>
+        <div class="cards" data-cid="cards">
+          <div class="card"><div class="gl">⌖</div><div>
+            <h3>Point &amp; say</h3>
+            <p>Click an element or lasso a region, then say the change: “tighten this heading, use our brand clay.”</p>
+          </div></div>
+          <div class="card"><div class="gl">❝</div><div>
+            <h3>Chat on the page</h3>
+            <p>An embedded chat for free-form, multi-turn steering — with full memory, so “now make that warmer too” just resolves.</p>
+          </div></div>
+          <div class="card"><div class="gl">⟳</div><div>
+            <h3>One-click refine</h3>
+            <p>Regenerate, expand, simplify, shorten, or shift the tone of any block — no typing required.</p>
+          </div></div>
+          <div class="card"><div class="gl">✥</div><div>
+            <h3>Direct manipulation</h3>
+            <p>Drag to reorder, delete, or edit text in place like a design tool. Written straight to the file — no AI round-trip, zero latency.</p>
+          </div></div>
+          <div class="card"><div class="gl">⌷</div><div>
+            <h3>Paste a screenshot</h3>
+            <p>Drop a Figma frame or a reference shot; Sandpaper saves it into your project so Claude’s Read tool sees it as a real image. “Match this.”</p>
+          </div></div>
+          <div class="card"><div class="gl">⑃</div><div>
+            <h3>Branch &amp; compare</h3>
+            <p>Fork a section into variants and view them side by side — explore directions in parallel instead of one linear thread.</p>
+          </div></div>
+        </div>
+      </div>
+      <aside class="side" data-cid="side-modes">
+        The two hard ones fall out of the invariant: <b>direct manipulation</b> is just a local file write,
+        and a <b>pasted screenshot</b> is just a file path Claude can Read — no undocumented APIs.
+      </aside>
+    </div>
+  </section>
+
+  <!-- ============ 04 STATUS ============ -->
+  <section class="band" data-cid="s-status">
+    <div class="grid">
+      <div class="num">04</div>
+      <div class="col">
+        <div class="eyebrow">Legibility</div>
+        <h2>Claude’s status, on the page</h2>
+        <p class="lead">Sandpaper turns an invisible terminal process into a calm, trustworthy presence — a
+          chip that always says what Claude is doing, and what it’s costing.</p>
+
+        <div class="rail" data-cid="status-rail">
+          <span class="chip pulse" id="statusChip" style="color:var(--mute)">
+            <span class="led" id="statusLed"></span>
+            <span id="statusLabel">Idle — ready when you are</span>
+          </span>
+          <div class="meta" id="statusMeta">Opus · context <b>27%</b> · idle</div>
+          <div class="timeline" id="timeline" data-cid="timeline">
+            <span class="tl" data-st="init"><span class="d"></span>init</span>
+            <span class="tl" data-st="thinking"><span class="d"></span>thinking</span>
+            <span class="tl" data-st="editing"><span class="d"></span>editing</span>
+            <span class="tl" data-st="waiting"><span class="d"></span>waiting</span>
+            <span class="tl" data-st="error"><span class="d"></span>error</span>
+            <span class="tl" data-st="done"><span class="d"></span>done</span>
+            <span class="tl" data-st="idle"><span class="d"></span>idle</span>
+          </div>
+          <div class="hint">↑ live preview — seven states, all derived from the one stream Claude already emits</div>
+        </div>
+
+        <p style="margin-top:22px">
+          <strong>stream-json is the heartbeat.</strong> <code>message_start</code> flips the chip to
+          <em>Thinking</em>; a <code>tool_use</code> block names the file being edited;
+          <code>message_stop</code> settles it to <em>Done</em>. <strong>statusLine</strong> adds model,
+          context %, and cost. <strong>Hooks</strong> surface the one thing the stream can’t — a permission
+          prompt — so a blocked edit shows “Action required” instead of silently hanging.
+        </p>
+      </div>
+      <aside class="side" data-cid="side-status">
+        Every state change reaches the page within <b>~500ms</b> of the underlying event. The chip never
+        lies and never stalls — that’s the whole trust contract.
+      </aside>
+    </div>
+  </section>
+
+  <!-- ============ 05 PRODUCT SPEC ============ -->
+  <section class="band" data-cid="s-spec">
+    <div class="grid">
+      <div class="num">05</div>
+      <div class="col">
+        <div class="eyebrow">For sign-off</div>
+        <h2>The one-page product spec</h2>
+        <div class="spec" data-cid="spec"><div class="spec-inner">
+          <div class="spec-row">
+            <div class="lbl">Problem</div>
+            <p>Your medium for thinking with Claude got richer — you moved from flat markdown to HTML so
+              specs could <em>show</em> diagrams, tables, and mockups, not just describe them. But the
+              collaboration loop didn’t keep up. You still read the document in one window and steer it from
+              another, re-describing in words a change you’re looking right at. For design and spec work
+              that round-trip is the bottleneck: lossy, linear, flow-breaking — and the document you’re
+              shaping isn’t throwaway chat, it’s the spec your build depends on.</p>
+          </div>
+          <div class="spec-row">
+            <div class="lbl">Hypothesis</div>
+            <p>If people can read the rich document and change it <em>in place</em> — pointing, editing, and
+              talking to it while Claude rewrites the file as the single source of truth and shows its live
+              status — then design collaboration collapses from a terminal monologue into a fast, non-linear
+              conversation on the page, and the artifact stays canonical enough to drive what gets built.</p>
+          </div>
+          <div class="spec-row">
+            <div class="lbl">Experience</div>
+            <p>You open the spec Claude made — diagrams, tables, a mockup. You hover; a section highlights.
+              You click, say “make this a three-column comparison and warm the intro,” and hit enter. The
+              chip flips to Thinking, then “Editing spec.html,” the page updates in place, and the chip
+              settles on Done with a one-line undo. Branch a section to compare directions; paste a
+              screenshot as reference; when Claude needs permission the chip asks. No terminal, no
+              re-describing, no lost context — and the file you finish with is the one your team builds from.</p>
+          </div>
+          <div class="spec-row">
+            <div class="lbl">Acceptance criteria</div>
+            <ul>
+              <li>I can select any visible element and Sandpaper resolves it to the exact spot in the HTML file.</li>
+              <li>When I describe a change, the edit lands in the file on disk and updates the document in under ~10 seconds.</li>
+              <li>A direct-manipulation gesture (reorder, delete a block, edit text) is written to the file immediately, with no AI call and no flicker.</li>
+              <li>I can paste a screenshot and Claude references it as real visual context, not a vague description.</li>
+              <li>The status chip reflects Claude’s true state within ~500ms of each event — thinking, editing, waiting, done.</li>
+              <li>The finished document is valid, shareable HTML that opens and reads correctly even with Sandpaper not running.</li>
+              <li class="edge">Edge: on a permission prompt or rate limit, the page shows a clear “Action required” / “retrying” state and never silently hangs.</li>
+              <li class="edge">Edge: if Claude regenerates the document, my open annotations re-anchor to their elements — or tell me honestly that one couldn’t be found.</li>
+            </ul>
+          </div>
+          <div class="spec-row">
+            <div class="lbl">Success metrics</div>
+            <div class="metric leading"><div class="k">Leading</div><div class="v">Median time from point → change-visible-in-document is under 30 seconds across a session.</div></div>
+            <div class="metric lagging"><div class="k">Lagging</div><div class="v">60%+ of refinements happen on the page instead of round-tripping to the terminal, within two weeks of use.</div></div>
+            <div class="metric guard"><div class="k">Guardrail</div><div class="v">Under 2% of Sandpaper edits are undone or reverted on the next turn — the trust-and-quality check.</div></div>
+          </div>
+        </div></div>
+      </div>
+      <aside class="side" data-cid="side-spec">
+        Genre borrowed from your usecoach sample: problem before requirements, user-felt acceptance
+        criteria, and metrics split leading / lagging / guardrail.
+      </aside>
+    </div>
+  </section>
+
+  <!-- ============ 06 ROADMAP ============ -->
+  <section class="band" data-cid="s-road">
+    <div class="grid">
+      <div class="num">06</div>
+      <div class="col">
+        <div class="eyebrow">Path</div>
+        <h2>Roadmap — thin spine first</h2>
+        <div class="road" data-cid="road">
+          <div class="phase committed"><div><div class="pk">P0</div><span class="here">you are here</span></div>
+            <div><h3>The spine</h3><p>Bridge spawns Claude in stream-json, parses the seven states, renders the live status chip. Point-and-say refine on one HTML document, live update. One working loop, zero terminal.</p></div></div>
+          <div class="phase committed"><div class="pk">P1</div>
+            <div><h3>The two hard modes</h3><p>Direct manipulation (drag / delete written straight to the file) and paste-a-screenshot (saved to the project, read as an image). Proves the single-source-of-truth invariant under both human and AI edits.</p></div></div>
+          <div class="phase"><div class="pk">P2</div>
+            <div><h3>Durable canvas</h3><p>Stable <code>data-cid</code> anchoring that survives regeneration, undo / last-good restore, and the decisions-log sidecar that makes the file self-sufficient memory.</p></div></div>
+          <div class="phase"><div class="pk">P3</div>
+            <div><h3>Non-linear</h3><p>Branch &amp; compare variants side by side; threaded annotations and on-page chat as first-class.</p></div></div>
+          <div class="phase"><div class="pk">P4</div>
+            <div><h3>Reach &amp; speed</h3><p>A long-lived watch session to kill cold-start latency; and graduate from a standalone HTML file to a local Next.js/React project when a spec becomes a behaving prototype.</p></div></div>
+        </div>
+      </div>
+      <aside class="side" data-cid="side-road">
+        P0–P1 are committed and small; P2–P4 are planned. Head start: <b>agentation</b> is already on your
+        machine (MCP on :4747, blocking watch tool) — held as the P4 latency escalation.
+      </aside>
+    </div>
+  </section>
+
+  <!-- ============ 07 RISKS ============ -->
+  <section class="band" data-cid="s-risks">
+    <div class="grid">
+      <div class="num">07</div>
+      <div class="col">
+        <div class="eyebrow">Honesty</div>
+        <h2>Open questions &amp; risks</h2>
+        <ul class="risks" data-cid="risks">
+          <li><span class="tag">Continuity</span><span class="body good"><b>Largely dissolved.</b> One document = one folder = one session, and the file itself is the durable memory — so <code>--resume</code> is an accelerator, not a dependency. A fresh session rebuilds context from the file.</span></li>
+          <li><span class="tag">Anchoring</span><span class="body">Keeping annotations attached when Claude regenerates the HTML. <b>Mitigation:</b> a CLAUDE.md contract to never strip <code>data-cid</code>, plus text/selector fallback.</span></li>
+          <li><span class="tag">Latency</span><span class="body">~1–2s cold start per semantic turn. <b>Mitigation:</b> optimistic local edits feel instant; a P4 watch session removes the cold start.</span></li>
+          <li><span class="tag">Security</span><span class="body">The bridge runs Claude with file-write on localhost. <b>Mitigation:</b> bind to loopback only, scope the working directory, never expose the port.</span></li>
+          <li><span class="tag">Scope</span><span class="body">This is a refinement loop for documents, not an IDE or a Figma. The discipline is knowing where Sandpaper stops.</span></li>
+          <li><span class="tag">Billing</span><span class="body">Subscription reuse holds today (verified), but the paused change could return. <b>Mitigation:</b> keep the brain swappable.</span></li>
+          <li><span class="tag">Subtractive</span><span class="body">The name leans toward “smooth / remove,” but the tool also <em>adds</em> richness. <b>Mitigation:</b> keep one-click expand/branch first-class so Sandpaper earns the generative half, not just polish.</span></li>
+        </ul>
+      </div>
+      <aside class="side" data-cid="side-risks">
+        The crux — can a page drive your Claude session and get updated HTML back, on your subscription —
+        is <b>verified feasible</b>. The rest is product craft.
+      </aside>
+    </div>
+  </section>
+
+  <!-- ============ 08 NAME ============ -->
+  <section class="band" data-cid="s-name">
+    <div class="grid">
+      <div class="num">08</div>
+      <div class="col">
+        <div class="eyebrow">Decided</div>
+        <h2>On the name</h2>
+        <p><strong>Sandpaper.</strong> An everyday word with instant recall that rolls off the tongue in the
+          “-paper” family (newspaper, Pied Piper) — and just weird-and-fresh enough to be ownable. More than
+          that, it names the actual job: you take Claude’s rough draft and <em>sand it</em> into a finished,
+          build-ready spec. Tactile, honest craft — the opposite of small.</p>
+        <p>The one thing we’ll stay honest about: sandpaper is <em>subtractive</em> by nature, so the product
+          has to keep earning the “make it richer,” not only the “smooth it.” That’s a feature constraint, not
+          a name problem.</p>
+        <p class="considered">Considered &amp; set aside — <s>Tweaq</s> (too small) · <s>Illume / Gilden</s>
+          (too rare) · <s>Vivid</s> (warm, but less ours). Domain: <code>sandpaper.app</code> is taken, so
+          likely <code>getsandpaper</code> / <code>sandpaper.dev</code>.</p>
+      </div>
+      <aside class="side" data-cid="side-name">
+        You reached for a tactile craft metaphor twice (Claywork, then Sandpaper) — the warm-paper, clay
+        palette of this very page was already living in that world.
+      </aside>
+    </div>
+  </section>
+
+  <!-- ============ 09 DOGFOOD ============ -->
+  <section class="band" data-cid="s-dogfood">
+    <div class="grid">
+      <div class="num">09</div>
+      <div class="col">
+        <div class="eyebrow">Commitment</div>
+        <h2>We’ll build it with itself</h2>
+        <div class="signoff" data-cid="signoff">
+          <ul>
+            <li>We build Sandpaper with Sandpaper — it sands its own spec, this very page.</li>
+            <li>From P0 on, every change to this document goes through point-and-say, so we feel each rough edge before you do.</li>
+            <li>The status chip gets debugged against the very stream it reports on.</li>
+            <li>If we won’t ship a change through Sandpaper, it isn’t ready to ship to you.</li>
+          </ul>
+          <div class="endmark">Sand it <span class="a">smooth</span>.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer data-cid="footer">
+    Sandpaper · approach &amp; one-page spec · drafted in Claude Code · 2026-06-29 · this document is a Sandpaper document
+  </footer>
+</div>
+
+<script>
+(function(){
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var chip=document.getElementById('statusChip'), led=document.getElementById('statusLed');
+  var label=document.getElementById('statusLabel'), meta=document.getElementById('statusMeta');
+  var tls=Array.prototype.slice.call(document.querySelectorAll('#timeline .tl'));
+  var C={mute:'#8A8578',clay:'#C75B39',pine:'#3F5247',ochre:'#C98A1E',rust:'#B23A2E',moss:'#4E7C59'};
+  var seq=[
+    ['idle','Idle — ready when you are',C.mute,'Opus · context <b>27%</b> · idle',2200,false],
+    ['init','Initializing session…',C.mute,'Opus · resuming context',700,true],
+    ['thinking','Composing the change…',C.clay,'Opus · context <b>28%</b> · thinking',2600,true],
+    ['editing','Editing sandpaper.html',C.pine,'Opus · sanding your change into disk · $<b>0.04</b>',2600,true],
+    ['done','Saved to sandpaper.html · undo?',C.moss,'Opus · context <b>29%</b> · done in 5.1s',1900,false],
+    ['idle','Idle — ready when you are',C.mute,'Opus · context <b>29%</b> · idle',2200,false],
+    ['thinking','Composing the change…',C.clay,'Opus · context <b>30%</b> · thinking',1800,true],
+    ['waiting','Action required — approve to continue',C.ochre,'Opus · permission: Write sandpaper.html',2600,true],
+    ['editing','Editing sandpaper.html',C.pine,'Opus · sanding your change into disk · $<b>0.07</b>',2000,true],
+    ['error','API busy — retrying in 20s',C.rust,'Opus · rate limited · auto-retry',2200,true],
+    ['done','Saved to sandpaper.html · undo?',C.moss,'Opus · context <b>31%</b> · done',1900,false]
+  ];
+  var i=0;
+  function paint(s){
+    chip.style.color=s[2]; led.style.background=s[2]; label.textContent=s[1]; meta.innerHTML=s[3];
+    if(s[5] && !reduce){chip.classList.add('pulse');} else {chip.classList.remove('pulse');}
+    tls.forEach(function(t){t.classList.toggle('on',t.getAttribute('data-st')===s[0]);});
+  }
+  function tick(){paint(seq[i]); i=(i+1)%seq.length; setTimeout(tick, seq[i===0?seq.length-1:i-1][4]);}
+  if(reduce){paint(seq[3]);} else {tick();}
+})();
+</script>
+<script>/* mirror data-cid -> id so #anchors from the project brain scroll here */(function(){document.querySelectorAll("[data-cid]").forEach(function(e){if(!e.id)e.id=e.getAttribute("data-cid");});if(location.hash){var t=document.getElementById(location.hash.slice(1));if(t)t.scrollIntoView();}})();</script>
+</body>
+</html>

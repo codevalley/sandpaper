@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sandpaper · Wiki — Product</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../assets/brain.css" />
+</head>
+<body>
+<div class="wrap">
+  <nav class="brain-nav">
+    <a class="home" href="../index.html">Cover</a><a class="here" href="./index.html">Wiki</a>
+    <a href="../log.html">Log</a><a href="../decisions.html">Decisions</a><a href="../map.html">Map</a><a href="../learnings.html">Learnings</a>
+    <span class="grow"></span><a class="ext" href="../../sandpaper.html">spec ↗</a><a class="ext" href="../../engg-spec.html">engg ↗</a>
+  </nav>
+
+  <section class="zone flush col">
+    <div class="eyebrow">Wiki · §B</div>
+    <h1 style="font-size:32px;letter-spacing:-.02em;margin:6px 0 0">Product &amp; features</h1>
+    <p style="font-family:var(--mono);font-size:12px;margin-top:8px"><a href="./overview.html">← §A Overview</a> · <strong>§B Product</strong> · <a href="./architecture.html">§C Architecture</a> · <a href="./rationale.html">§D Rationale →</a></p>
+    <p class="lead" style="max-width:40em;margin-top:12px;color:#2a2820">You open the spec Claude made — diagrams, tables, a mockup. You hover a section, click, say “make this a three-column comparison and warm the intro.” The chip flips Thinking → Editing → Done with a one-line undo. No terminal, no re-describing.</p>
+  </section>
+
+  <section class="zone">
+    <h2 class="h">What you can do on the page</h2>
+    <table class="tbl">
+      <tr><th>Mode</th><th>What it is</th><th>Lands in</th></tr>
+      <tr><td class="m">Point &amp; say</td><td>Click a section, say the change.</td><td><span class="badge done">P0</span></td></tr>
+      <tr><td class="m">One-click refine</td><td>Regenerate / expand / simplify a block.</td><td><span class="badge done">P0/P1</span></td></tr>
+      <tr><td class="m">Direct manipulation</td><td>Drag / delete / edit in place — a local file write, no AI, zero latency.</td><td><span class="badge fixed">P1</span></td></tr>
+      <tr><td class="m">Paste a screenshot</td><td>Drop a reference; saved to the project, read as a real image.</td><td><span class="badge fixed">P1</span></td></tr>
+      <tr><td class="m">Chat on the page</td><td>Free-form steering with memory.</td><td><span class="badge stub">P3</span></td></tr>
+      <tr><td class="m">Branch &amp; compare</td><td>Fork a section into variants, side by side.</td><td><span class="badge stub">P3</span></td></tr>
+    </table>
+    <p class="deeper">Detail → <a href="../../sandpaper.html#s-modes">spec §03</a></p>
+  </section>
+
+  <section class="zone">
+    <h2 class="h">Claude's status, on the page</h2>
+    <p>An invisible terminal process becomes a calm chip that always says what Claude is doing — derived from the stream-json events, not screen-scraping.</p>
+    <table class="matrix">
+      <tr><th>State</th><th>Means</th><th>Triggered by</th></tr>
+      <tr><td class="st"><span class="sdot wip"></span>thinking</td><td>Composing the change.</td><td class="m">message_start</td></tr>
+      <tr><td class="st"><span class="sdot ok"></span>editing</td><td>Writing your change to the file.</td><td class="m">tool_use · Edit</td></tr>
+      <tr><td class="st"><span class="sdot ok"></span>done</td><td>Saved, with a one-line undo.</td><td class="m">result · success</td></tr>
+      <tr><td class="st"><span class="sdot open"></span>waiting</td><td>Reserved — interactive choices (not yet emitted).</td><td class="m">—</td></tr>
+    </table>
+    <p class="deeper">Detail → <a href="../../sandpaper.html#s-status">spec §04</a> · <a href="../../engg-spec.html#evtmap">engg event map</a></p>
+  </section>
+  <footer>Sandpaper · wiki · §B product</footer>
+</div>
+<script src="../assets/brain.js" defer></script>
+</body>
+</html>

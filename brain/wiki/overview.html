@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sandpaper · Wiki — Overview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../assets/brain.css" />
+</head>
+<body>
+<div class="wrap">
+  <nav class="brain-nav">
+    <a class="home" href="../index.html">Cover</a><a class="here" href="./index.html">Wiki</a>
+    <a href="../log.html">Log</a><a href="../decisions.html">Decisions</a><a href="../map.html">Map</a><a href="../learnings.html">Learnings</a>
+    <span class="grow"></span><a class="ext" href="../../sandpaper.html">spec ↗</a><a class="ext" href="../../engg-spec.html">engg ↗</a>
+  </nav>
+
+  <section class="zone flush col">
+    <div class="eyebrow">Wiki · §A</div>
+    <h1 style="font-size:32px;letter-spacing:-.02em;margin:6px 0 0">Overview &amp; pitch</h1>
+    <p style="font-family:var(--mono);font-size:12px;margin-top:8px"><strong>§A Overview</strong> · <a href="./product.html">§B Product</a> · <a href="./architecture.html">§C Architecture</a> · <a href="./rationale.html">§D Rationale →</a></p>
+  </section>
+
+  <section class="zone col">
+    <h2 class="h">The medium got richer. The loop didn't.</h2>
+    <div class="ledger">
+      <div class="a"><h4>Today</h4><ul>
+        <li>Claude writes a spec — first markdown, then HTML for diagrams, tables, mockups.</li>
+        <li>To change anything you alt-tab to the terminal and re-describe what you're looking at.</li>
+        <li>It regenerates; you re-read, find the next thing, alt-tab again. Linear, lossy, one thread.</li>
+      </ul></div>
+      <div class="rule"></div>
+      <div class="b"><h4>With Sandpaper</h4><ul>
+        <li>Read the rich document exactly as now.</li>
+        <li>Point at the section and say the change — or edit it in place.</li>
+        <li>It stays one durable file — the canonical spec your team builds from.</li>
+      </ul></div>
+    </div>
+  </section>
+
+  <section class="zone col">
+    <h2 class="h">The bet</h2>
+    <p>If people can read the rich document and change it <em>in place</em> — while Claude rewrites the file as the single source of truth and shows its live status — then design collaboration collapses from a terminal monologue into a fast, non-linear conversation on the page, and the artifact stays canonical enough to drive what gets built. <a class="ref" href="../../sandpaper.html#s-spec">spec →</a></p>
+  </section>
+
+  <section class="zone col">
+    <h2 class="h">Who it's for — and where it stops</h2>
+    <p>A product-minded founder who designs and conceptualizes with Claude Code and consumes the output as rich HTML. It is a <strong>refinement loop for documents</strong> — not an IDE, not a Figma. Knowing where it stops is the discipline. <a class="ref" href="../../sandpaper.html#s-risks">scope →</a></p>
+    <div class="callout note" style="margin-top:14px"><div class="eyebrow">On the name</div><p><strong>Sandpaper</strong> — sand a rough draft into a finished spec. It's subtractive by nature, so the product has to keep earning the “make it richer,” not only the “smooth it.” <a class="ref" href="../../sandpaper.html#s-name">why →</a></p></div>
+  </section>
+  <footer>Sandpaper · wiki · §A overview</footer>
+</div>
+<script src="../assets/brain.js" defer></script>
+</body>
+</html>

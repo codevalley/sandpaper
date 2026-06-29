@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sandpaper — Project Log Book</title>
+<!-- COVER PLATE of the Sandpaper project brain. Stamped after each substantive turn (CLAUDE.md → "The project brain").
+     Marker-delimited regions; static, zero runtime; links into the canonical docs, never copies them. -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="./assets/brain.css" />
+<!-- BRAIN:DIGEST — machine context for a fresh `claude`: read THIS first (~1KB) to rehydrate. -->
+<script type="application/json" id="brain-state">
+{ "v":1, "project":"Sandpaper", "phase":"P0 → pivoted", "updated":"2026-06-29",
+  "focus":{ "one":"Building the project brain (service manual) as the post-pivot Rung 1", "ref":"decisions.html#d-pivot" },
+  "worklog":[ {"date":"2026-06-29","one":"Redesigned the brain: real wiki + manual aesthetic","cid":"w-0149"},
+              {"date":"2026-06-29","one":"Designed + scaffolded the project brain","cid":"w-0148"} ],
+  "open":["decisions.html#q-anchoring","decisions.html#q-undo","decisions.html#q-billing"],
+  "docs":["../sandpaper.html","../engg-spec.html"] }
+</script>
+</head>
+<body>
+<div class="wrap">
+
+  <nav class="brain-nav">
+    <a class="home here" href="./index.html">Cover</a>
+    <a href="./wiki/index.html">Wiki</a>
+    <a href="./log.html">Log</a>
+    <a href="./decisions.html">Decisions</a>
+    <a href="./map.html">Map</a>
+    <a href="./learnings.html">Learnings</a>
+    <span class="grow"></span>
+    <a class="ext" href="../sandpaper.html">spec ↗</a>
+    <a class="ext" href="../engg-spec.html">engg ↗</a>
+  </nav>
+
+  <!-- ZONE A+B — PLATE: masthead, health, meta, NOW hero -->
+  <!-- BRAIN:EDITION -->
+  <header class="plate" data-cid="cover">
+    <div class="pl-top">
+      <div>
+        <div class="brain-mark">Sand<span class="a">paper</span></div>
+        <div class="pl-meta"><a href="./log.html">Edition 0.5</a> · Rung 1 — the brain · <a href="./log.html">stamped 2026-06-29</a></div>
+      </div>
+      <a class="health" href="../engg-spec.html#s-build" data-cid="health" data-status="green"><span class="dot"></span>Build · Green</a>
+    </div>
+    <!-- BRAIN:NOW -->
+    <p class="now-line" data-kind="now" data-ref="decisions.html#d-pivot">
+      Building <strong>this project brain</strong> as the post-pivot Rung 1 — the browser becomes the
+      <em>eyes</em>, the terminal stays the <em>mouth</em>. <a class="ref" href="decisions.html#d-pivot">why →</a>
+    </p>
+    <!-- /BRAIN:NOW -->
+  </header>
+  <!-- /BRAIN:EDITION -->
+
+  <!-- ZONE C — VITALS (one line, every part a link) -->
+  <!-- BRAIN:COUNTS -->
+  <section class="zone flush" data-cid="s-vitals">
+    <div class="vitals">
+      <a class="roadbar" href="../sandpaper.html#s-road" aria-label="Roadmap: P0 spine, current of 5">
+        <span class="seg on">P0 · spine</span><span class="seg">P1</span><span class="seg">P2</span><span class="seg">P3</span><span class="seg">P4</span>
+      </a>
+      <a class="vital" href="./decisions.html#open"><b data-count="question:open">3</b> open</a>
+      <a class="vital" href="./map.html"><b data-count="component:built">3</b>/5 built</a>
+      <a class="vital" href="./decisions.html"><b data-count="decision">6</b> decisions</a>
+    </div>
+  </section>
+  <!-- /BRAIN:COUNTS -->
+
+  <!-- ZONE D — NEEDS YOU (blocking/soon only) -->
+  <!-- BRAIN:OPEN -->
+  <section class="zone" data-cid="s-open">
+    <div class="eyebrow">Needs you</div>
+    <ul class="needs" data-cid="open">
+      <li><span class="sdot blocked"></span><a class="go" href="./decisions.html#q-anchoring">→</a> Anchoring: how do annotations survive a full HTML regeneration? <span class="badge open">blocking</span></li>
+      <li><span class="sdot open"></span><a class="go" href="./decisions.html#q-undo">→</a> Make “undo?” real — wire the pre-turn snapshot to the change card. <span class="badge open">soon</span></li>
+    </ul>
+    <div style="margin-top:6px"><a class="ref" href="./decisions.html#open">all open questions (3) →</a></div>
+  </section>
+  <!-- /BRAIN:OPEN -->
+
+  <!-- ZONE E — LATEST (3 newest; teases the log) -->
+  <!-- BRAIN:LOG -->
+  <section class="zone" data-cid="s-log">
+    <div class="eyebrow">Latest <span id="brain-unseen" class="badge open" hidden></span></div>
+    <ol class="timeline" data-cid="logfeed">
+      <li data-kind="worklog" data-cid="w-0149"><div class="tl-row"><span class="tl-when">06-29</span><span class="tl-what">Redesigned the brain — real wiki + the manual aesthetic.</span><span class="tl-link"><a class="ref" href="./wiki/index.html">wiki →</a></span></div></li>
+      <li data-kind="worklog" data-cid="w-0148"><div class="tl-row"><span class="tl-when">06-29</span><span class="tl-what">Designed + scaffolded the project brain.</span><span class="tl-link"><a class="ref" href="./decisions.html#d-pivot">why →</a></span></div></li>
+      <li data-kind="worklog" data-cid="w-0147"><div class="tl-row"><span class="tl-when">06-29</span><span class="tl-what">Pivoted: browser chat → living project brain.</span><span class="tl-link"><a class="ref" href="./decisions.html#d-pivot">→</a></span></div></li>
+    </ol>
+    <div style="margin-top:8px"><a class="ref" href="./log.html">full log →</a> &nbsp; <button id="brain-markseen" class="facet" type="button">Mark all seen</button></div>
+  </section>
+  <!-- /BRAIN:LOG -->
+
+  <!-- BROWSE -->
+  <section class="zone" data-cid="s-index">
+    <div class="eyebrow">The manual</div>
+    <div class="cards" data-cid="index">
+      <a class="card card--feature" href="./wiki/index.html"><div class="k">★ Start here · Wiki</div><h3>What this is, how it's built, why</h3><p>The readable knowledge base — pitch, product, architecture, tech-choice rationale.</p></a>
+      <a class="card" href="./log.html"><div class="k">Log</div><h3>Work log</h3><p>The heartbeat, newest first.</p></a>
+      <a class="card" href="./decisions.html"><div class="k">Decisions</div><h3>Decisions &amp; open Q's</h3><p>The durable ledger.</p></a>
+      <a class="card" href="./map.html"><div class="k">Map</div><h3>Components</h3><p>Modules, status, glossary.</p></a>
+      <a class="card" href="./learnings.html"><div class="k">Learnings</div><h3>Gotchas</h3><p>Hard-won, never re-learned.</p></a>
+      <a class="card" href="../sandpaper.html"><div class="k">↗ Spec</div><h3>Product spec</h3><p>The one-pager.</p></a>
+    </div>
+  </section>
+
+  <footer data-cid="footer">Sandpaper · project log book · static · zero runtime · stamped 2026-06-29 · link, never copy</footer>
+</div>
+<script src="./assets/brain.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+# dependencies (Sandpaper has none, but never commit them)
+node_modules/
+
+# Sandpaper runtime — sessions + pre-turn snapshots, regenerated locally
+.sandpaper/
+
+# logs
+*.log
+npm-debug.log*
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp

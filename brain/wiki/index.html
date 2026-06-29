@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sandpaper · Wiki — Start here</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../assets/brain.css" />
+</head>
+<body>
+<div class="wrap">
+  <nav class="brain-nav">
+    <a class="home" href="../index.html">Cover</a>
+    <a class="here" href="./index.html">Wiki</a>
+    <a href="../log.html">Log</a><a href="../decisions.html">Decisions</a><a href="../map.html">Map</a><a href="../learnings.html">Learnings</a>
+    <span class="grow"></span><a class="ext" href="../../sandpaper.html">spec ↗</a><a class="ext" href="../../engg-spec.html">engg ↗</a>
+  </nav>
+
+  <section class="zone flush col" data-cid="w-start">
+    <div class="eyebrow">Wiki · start here</div>
+    <h1 style="font-size:34px;letter-spacing:-.02em;margin:6px 0 0">What is Sandpaper?</h1>
+    <p class="lead" style="font-size:19px;color:#2a2820;margin-top:12px;max-width:40em">
+      Sandpaper turns the rich HTML documents Claude Code makes for you into a <strong>living surface you
+      refine by talking to the page</strong> — instead of reading the doc here and re-describing changes
+      over there in a terminal, you change it in place, and it stays the canonical spec your build is based on.
+    </p>
+    <p class="col" style="color:#33302a">
+      <strong>The problem:</strong> the medium for thinking-with-Claude got richer (markdown → HTML with diagrams,
+      tables, mockups), but the loop didn't — you still steer it from another window.<br/>
+      <strong>The bet:</strong> read the rich document and change it <em>in place</em>, with Claude rewriting the
+      file as the single source of truth and showing live status.
+    </p>
+  </section>
+
+  <section class="zone" data-cid="w-shape">
+    <h2 class="h"><span class="pn">§</span>The shape of it</h2>
+    <div class="diagram" data-cid="diagram">
+      <div class="row">
+        <span class="node">Document · the page</span><span class="ar">⇄</span>
+        <span class="node">Local bridge</span><span class="ar">⇄</span>
+        <span class="node">Claude Code</span>
+      </div>
+      <div class="foundation">▤ the HTML file on disk — the single source of truth</div>
+    </div>
+    <p class="vitals" style="margin-top:14px">
+      <span><span class="sdot ok"></span>Status: Green</span> · <span>Rung 1 — the spine</span> ·
+      <span>~200-line bridge</span> · <span>zero runtime deps</span> · <span>your Claude subscription</span>
+    </p>
+  </section>
+
+  <section class="zone" data-cid="w-next">
+    <div class="eyebrow">Read next</div>
+    <div class="cards">
+      <a class="card" href="./overview.html"><div class="k">§A · Overview</div><h3>Pitch &amp; why</h3><p>The problem, the bet, who it's for, where it stops.</p></a>
+      <a class="card" href="./product.html"><div class="k">§B · Product</div><h3>What it does</h3><p>The experience, the six modes, Claude's status on the page.</p></a>
+      <a class="card" href="./architecture.html"><div class="k">§C · Architecture</div><h3>How it's built</h3><p>The invariant, the data flow, the modules, one turn end-to-end.</p></a>
+      <a class="card" href="./rationale.html"><div class="k">§D · Rationale</div><h3>Why these choices</h3><p>claude -p over tmux, file-as-truth, the dumb pipe — narrated.</p></a>
+    </div>
+    <div class="deeper">Full pitch &amp; one-page spec → <a href="../../sandpaper.html">sandpaper.html</a> · Engineering spec → <a href="../../engg-spec.html">engg-spec.html</a></div>
+  </section>
+
+  <footer>Sandpaper · wiki · the readable knowledge base · deep-links into the canonical docs for detail</footer>
+</div>
+<script src="../assets/brain.js" defer></script>
+</body>
+</html>

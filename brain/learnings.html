@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sandpaper · Log Book — Learnings</title>
+<!-- 04 — LEARNINGS. Append ONE callout only when something actually bit us. gotcha=rust ▲ · verdict=pine ◆. -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="./assets/brain.css" />
+</head>
+<body>
+<div class="wrap">
+  <nav class="brain-nav">
+    <a class="home" href="./index.html">Cover</a><a href="./wiki/index.html">Wiki</a>
+    <a href="./log.html">Log</a><a href="./decisions.html">Decisions</a><a href="./map.html">Map</a><a class="here" href="./learnings.html">Learnings</a>
+    <span class="grow"></span><a class="ext" href="../sandpaper.html">spec ↗</a><a class="ext" href="../engg-spec.html">engg ↗</a>
+  </nav>
+
+  <section class="zone flush col">
+    <div class="eyebrow">04 · Learnings</div>
+    <h1 style="font-size:30px;letter-spacing:-.02em;margin:6px 0 0">Gotchas &amp; verdicts</h1>
+    <p class="muted">So they're never re-learned. One claim, one why, a back-link to where it bit.
+      <span class="mono" style="font-size:11px"> · ▲ gotcha · ◆ verdict</span></p>
+    <div class="brain-search">
+      <input id="brain-q" placeholder="Filter learnings…  (press / )" />
+      <button class="facet" data-facet="strategy" type="button">strategy</button>
+      <span id="brain-searchnote" class="searchnote"></span>
+    </div>
+  </section>
+
+  <section class="zone flush col">
+    <aside class="entry entry--learning callout verdict" data-kind="learning" id="l-parity" data-cid="l-parity" data-status="active" data-date="2026-06-29" data-area="strategy" data-tags="strategy parity eyes">
+      <div class="eyebrow">◆ Verdict · strategy</div>
+      <p><strong>The browser is the eyes, not a worse mouth.</strong> Don't replicate the terminal's chat on the page — the terminal owns steering; the page's edge is state-made-visible and artifact-made-touchable. <a class="ref" href="./decisions.html#d-pivot">pivot →</a></p>
+    </aside>
+
+    <aside class="entry entry--learning callout verdict" data-kind="learning" id="l-claude-p" data-cid="l-claude-p" data-status="active" data-date="2026-06-29" data-area="architecture" data-tags="claude-p engine">
+      <div class="eyebrow">◆ Verdict · architecture</div>
+      <p><strong>claude -p is the same Claude, not a subpar one.</strong> Capability is a policy dial (<code>--allowedTools</code>), observability is in the stream; only interactive choices are staged. <a class="ref" href="../sandpaper.html#s-how">→</a></p>
+    </aside>
+
+    <aside class="entry entry--learning callout gotcha" data-kind="learning" id="l-amux" data-cid="l-amux" data-status="active" data-date="2026-06-29" data-area="research" data-tags="amux session memory">
+      <div class="eyebrow">▲ Gotcha · amux deep-dive</div>
+      <p><strong>One doc = one folder = one session; the file is the memory.</strong> So <code>--resume</code> is an accelerator, not a dependency — a fresh session rebuilds from the file. <a class="ref" href="../sandpaper.html#s-risks">→</a></p>
+    </aside>
+
+    <aside class="entry entry--learning callout gotcha" data-kind="learning" id="l-fswatch" data-cid="l-fswatch" data-status="active" data-date="2026-06-29" data-area="fs.watch" data-tags="fswatch reload bug">
+      <div class="eyebrow">▲ Gotcha · fs.watch</div>
+      <p><strong>fs.watch can fire with a null filename.</strong> Treat null as a match or you silently drop live-reloads (Linux/inotify, macOS under load). <a class="ref" href="../engg-spec.html#s-fixed">fix →</a></p>
+    </aside>
+
+    <aside class="entry entry--learning callout gotcha" data-kind="learning" id="l-env-scrub" data-cid="l-env-scrub" data-status="active" data-date="2026-06-29" data-area="billing" data-tags="env billing api-key">
+      <div class="eyebrow">▲ Gotcha · env hygiene</div>
+      <p><strong>Scrub the child env before spawning claude.</strong> An exported <code>ANTHROPIC_API_KEY</code> silently bills the API even on a plan; drop it + the <code>CLAUDECODE</code> markers. <a class="ref" href="../sandpaper.html#s-how">→</a></p>
+    </aside>
+  </section>
+  <footer>Sandpaper · log book · learnings — append only when something bites · link, never copy</footer>
+</div>
+<script src="./assets/brain.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sandpaper · Log Book — Map</title>
+<!-- 03 — MAP. The noun-space: components, architecture (linked, not redrawn), glossary. The one edit-in-place book; carries data-fresh. Edit a card's data-status when a module's build state changes. -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="./assets/brain.css" />
+</head>
+<body>
+<div class="wrap">
+  <nav class="brain-nav">
+    <a class="home" href="./index.html">Cover</a><a href="./wiki/index.html">Wiki</a>
+    <a href="./log.html">Log</a><a href="./decisions.html">Decisions</a><a class="here" href="./map.html">Map</a><a href="./learnings.html">Learnings</a>
+    <span class="grow"></span><a class="ext" href="../sandpaper.html">spec ↗</a><a class="ext" href="../engg-spec.html">engg ↗</a>
+  </nav>
+
+  <section class="band" style="border-top:0" data-fresh="2026-06-29">
+    <div class="eyebrow">03 · Map</div>
+    <h2>Components &amp; architecture</h2>
+    <p class="muted">The modules and their build status. The <em>how</em> lives in the engineering spec — this is role + status + link.
+      Architecture diagram is canonical there: <a class="ref" href="../engg-spec.html#s-arch">engg §02 →</a> (not redrawn here).</p>
+    <div class="brain-search">
+      <input id="brain-q" placeholder="Filter the map…  (press / )" />
+      <button class="facet" data-facet="component" type="button">components</button>
+      <button class="facet" data-facet="glossary" type="button">glossary</button>
+      <span id="brain-searchnote" class="searchnote"></span>
+    </div>
+  </section>
+
+  <section class="band" style="border-top:0;padding-top:0">
+    <article class="entry entry--component" data-kind="component" id="c-cli" data-cid="c-cli" data-status="verified" data-date="2026-06-29" data-ref="../engg-spec.html#s-build" data-tags="cli entry">
+      <div class="entry-head"><span class="entry-id">⌥</span><h3>bin/cli.js — CLI entry</h3><span class="badge verified">verified</span></div>
+      <p>Validates the arg, resolves the doc, reads the port, starts the server, logs the URL. <a class="ref" href="../engg-spec.html#s-build">engg →</a></p>
+    </article>
+    <article class="entry entry--component" data-kind="component" id="c-server" data-cid="c-server" data-status="built" data-date="2026-06-29" data-ref="../engg-spec.html#s-protocol" data-tags="server http sse watch">
+      <div class="entry-head"><span class="entry-id">⌥</span><h3>src/server.js — HTTP · SSE · file-watch · toolbar inject</h3><span class="badge done">built</span></div>
+      <p>Serves the doc (toolbar injected at response-time), <code>/turn</code>, SSE <code>/events</code>, deferred reload, snapshots, <code>/undo</code>. <a class="ref" href="../engg-spec.html#s-protocol">engg →</a></p>
+    </article>
+    <article class="entry entry--component" data-kind="component" id="c-claude" data-cid="c-claude" data-status="wip" data-date="2026-06-29" data-ref="../engg-spec.html#s-bridge" data-tags="claude bridge stream-json">
+      <div class="entry-head"><span class="entry-id">⌥</span><h3>src/claude.js — the bridge</h3><span class="badge fixed">wip · P0</span></div>
+      <p>Spawns <code>claude -p</code>, maps stream-json → typed frames (status / assistant_delta / edit), persists the session id. <a class="ref" href="../engg-spec.html#s-bridge">engg →</a></p>
+    </article>
+    <article class="entry entry--component" data-kind="component" id="c-toolbar" data-cid="c-toolbar" data-status="wip" data-date="2026-06-29" data-ref="../engg-spec.html#s-protocol" data-tags="toolbar conversation scope">
+      <div class="entry-head"><span class="entry-id">⌥</span><h3>public/toolbar.js + .css — the on-page surface</h3><span class="badge fixed">wip · being re-scoped</span></div>
+      <p>Status chip, change cards, click-to-scope. Post-pivot it shrinks from a chat to capture + sling glue. <a class="ref" href="decisions.html#d-pivot">why →</a></p>
+    </article>
+    <article class="entry entry--component" data-kind="component" id="c-test" data-cid="c-test" data-status="verified" data-date="2026-06-29" data-ref="../engg-spec.html#s-test" data-tags="test parser">
+      <div class="entry-head"><span class="entry-id">⌥</span><h3>test/ — recorded stream + parser test</h3><span class="badge verified">verified</span></div>
+      <p>A recorded stream-json sample exercises <code>mapEvents</code> / <code>getSessionId</code> with no live model call. <a class="ref" href="../engg-spec.html#s-test">engg →</a></p>
+    </article>
+
+    <h2 style="margin-top:26px">Glossary</h2>
+    <div class="entry entry--glossary" data-kind="glossary" id="g-data-cid" data-cid="g-data-cid" data-term="data-cid" data-ref="../engg-spec.html#s-protocol" data-tags="anchor">
+      <div class="g-term"><code>data-cid</code></div>
+      <p class="g-def">Stable per-block anchor that survives regeneration; the brain's link target and the unit of scoping. <a class="ref" href="../engg-spec.html#s-protocol">how it resolves →</a></p>
+    </div>
+    <div class="entry entry--glossary" data-kind="glossary" id="g-stream-json" data-cid="g-stream-json" data-term="stream-json" data-ref="../engg-spec.html#evtmap" data-tags="protocol">
+      <div class="g-term"><code>stream-json</code></div>
+      <p class="g-def">Claude's headless NDJSON event stream; each event maps to a chip status, a streamed reply, or an edit summary. <a class="ref" href="../engg-spec.html#evtmap">event map →</a></p>
+    </div>
+    <div class="entry entry--glossary" data-kind="glossary" id="g-bridge" data-cid="g-bridge" data-term="the bridge" data-ref="../engg-spec.html#s-bridge" data-tags="architecture">
+      <div class="g-term">the bridge</div>
+      <p class="g-def">The local server that spawns <code>claude -p</code> and lets the page act on the doc — a dumb pipe. <a class="ref" href="../engg-spec.html#s-bridge">engg →</a></p>
+    </div>
+    <div class="entry entry--glossary" data-kind="glossary" id="g-mouth-eyes" data-cid="g-mouth-eyes" data-term="mouth / eyes / hands" data-ref="decisions.html#d-pivot" data-tags="strategy model">
+      <div class="g-term">mouth · eyes · hands</div>
+      <p class="g-def">The division of labor: terminal = the mouth (steer); browser = the eyes (this brain) + hands (act in place). <a class="ref" href="decisions.html#d-pivot">→</a></p>
+    </div>
+  </section>
+  <footer>Sandpaper · log book · map — edit a card's status when a module changes · link, never copy</footer>
+</div>
+<script src="./assets/brain.js" defer></script>
+</body>
+</html>

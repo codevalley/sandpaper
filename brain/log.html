@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sandpaper · Log Book — Work Log</title>
+<!-- 01 — LOG. Append-only, reverse-chron. Prepend exactly ONE timeline <li> per substantive turn. Never edit a prior row. -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="./assets/brain.css" />
+</head>
+<body>
+<div class="wrap">
+  <nav class="brain-nav">
+    <a class="home" href="./index.html">Cover</a><a href="./wiki/index.html">Wiki</a>
+    <a class="here" href="./log.html">Log</a><a href="./decisions.html">Decisions</a><a href="./map.html">Map</a><a href="./learnings.html">Learnings</a>
+    <span class="grow"></span><a class="ext" href="../sandpaper.html">spec ↗</a><a class="ext" href="../engg-spec.html">engg ↗</a>
+  </nav>
+
+  <section class="zone flush">
+    <div class="eyebrow">01 · Log <span id="brain-unseen" class="badge open" hidden></span></div>
+    <h1 style="font-size:30px;letter-spacing:-.02em;margin:6px 0 0">Work log</h1>
+    <p class="muted" style="max-width:38em">The heartbeat — one line per substantive turn, newest first. Each links to the canonical anchor it touched.</p>
+    <div class="brain-search">
+      <input id="brain-q" placeholder="Filter the log…  (press / )" />
+      <button id="brain-markseen" class="facet" type="button">Mark all seen</button>
+      <span id="brain-searchnote" class="searchnote"></span>
+    </div>
+  </section>
+
+  <section class="zone flush">
+    <div class="tl-day">Jun 29, 2026</div>
+    <ol class="timeline">
+      <li data-kind="worklog" id="w-0149" data-cid="w-0149" data-tags="brain wiki redesign aesthetic"><div class="tl-row"><span class="tl-when">06-29</span><span class="tl-what">Redesigned the brain — real wiki + the “service manual” aesthetic.</span><span class="tl-link"><a class="ref" href="./wiki/index.html">wiki →</a></span></div></li>
+      <li data-kind="worklog" id="w-0148" data-cid="w-0148" data-tags="brain scaffold"><div class="tl-row"><span class="tl-when">06-29</span><span class="tl-what">Designed + scaffolded the project brain (log book).</span><span class="tl-link"><a class="ref" href="./decisions.html#d-pivot">why →</a></span></div></li>
+      <li data-kind="worklog" id="w-0147" data-cid="w-0147" data-tags="pivot strategy"><div class="tl-row"><span class="tl-when">06-29</span><span class="tl-what">Pivoted: browser chat → living project brain (the eyes).</span><span class="tl-link"><a class="ref" href="./decisions.html#d-pivot">→</a></span></div></li>
+      <li data-kind="worklog" id="w-0146" data-cid="w-0146" data-tags="conversation stream"><div class="tl-row"><span class="tl-when">06-29</span><span class="tl-what">Built on-page conversation surface — stopped dropping Claude's text.</span><span class="tl-link"><a class="ref" href="../engg-spec.html#evtmap">spec →</a></span></div></li>
+      <li data-kind="worklog" id="w-0145" data-cid="w-0145" data-tags="parity verdict"><div class="tl-row"><span class="tl-when">06-29</span><span class="tl-what">Verified terminal-parity: claude -p is the same engine.</span><span class="tl-link"><a class="ref" href="./learnings.html#l-parity">→</a></span></div></li>
+      <li data-kind="worklog" id="w-0144" data-cid="w-0144" data-tags="amux research"><div class="tl-row"><span class="tl-when">06-29</span><span class="tl-what">Deep-dove the amux control plane for gotchas.</span><span class="tl-link"><a class="ref" href="./learnings.html#l-amux">→</a></span></div></li>
+      <li data-kind="worklog" id="w-0143" data-cid="w-0143" data-tags="review bugs"><div class="tl-row"><span class="tl-when">06-29</span><span class="tl-what">Adversarial-reviewed the spine; found &amp; fixed 8 bugs.</span><span class="tl-link"><a class="ref" href="../engg-spec.html#s-fixed">spec →</a></span></div></li>
+      <li data-kind="worklog" id="w-0142" data-cid="w-0142" data-tags="p0 spine"><div class="tl-row"><span class="tl-when">06-29</span><span class="tl-what">Built the P0 spine — bridge, 7-state status chip, live reload.</span><span class="tl-link"><a class="ref" href="../engg-spec.html#s-arch">spec →</a></span></div></li>
+      <li data-kind="worklog" id="w-0141" data-cid="w-0141" data-tags="engg-spec"><div class="tl-row"><span class="tl-when">06-29</span><span class="tl-what">Wrote the engineering spec as its own Sandpaper document.</span><span class="tl-link"><a class="ref" href="../engg-spec.html">engg →</a></span></div></li>
+      <li data-kind="worklog" id="w-0140" data-cid="w-0140" data-tags="billing"><div class="tl-row"><span class="tl-when">06-29</span><span class="tl-what">Confirmed claude -p still draws from the Claude subscription.</span><span class="tl-link"><a class="ref" href="../sandpaper.html#s-how">→</a></span></div></li>
+      <li data-kind="worklog" id="w-0139" data-cid="w-0139" data-tags="naming"><div class="tl-row"><span class="tl-when">06-29</span><span class="tl-what">Decided the name: Sandpaper.</span><span class="tl-link"><a class="ref" href="../sandpaper.html#s-name">→</a></span></div></li>
+    </ol>
+  </section>
+  <footer>Sandpaper · log book · append-only — never rewrite a row · link, never copy</footer>
+</div>
+<script src="./assets/brain.js" defer></script>
+</body>
+</html>

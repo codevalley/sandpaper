@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sandpaper · Wiki — Architecture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../assets/brain.css" />
+</head>
+<body>
+<div class="wrap">
+  <nav class="brain-nav">
+    <a class="home" href="../index.html">Cover</a><a class="here" href="./index.html">Wiki</a>
+    <a href="../log.html">Log</a><a href="../decisions.html">Decisions</a><a href="../map.html">Map</a><a href="../learnings.html">Learnings</a>
+    <span class="grow"></span><a class="ext" href="../../sandpaper.html">spec ↗</a><a class="ext" href="../../engg-spec.html">engg ↗</a>
+  </nav>
+
+  <section class="zone flush">
+    <div class="eyebrow">Wiki · §C</div>
+    <h1 style="font-size:32px;letter-spacing:-.02em;margin:6px 0 0">Architecture</h1>
+    <p class="lead" style="max-width:40em;margin-top:10px;color:#2a2820">How Sandpaper is designed — the one invariant, the data flow, the modules, and one turn end to end. The exhaustive detail is one link away in the <a href="../../engg-spec.html">engineering spec</a>.</p>
+    <p style="font-family:var(--mono);font-size:12px;margin-top:8px"><a href="./overview.html">← §A Overview</a> · <a href="./product.html">§B Product</a> · <strong>§C Architecture</strong> · <a href="./rationale.html">§D Rationale →</a></p>
+  </section>
+
+  <div class="doc">
+    <aside class="toc">
+      <div class="lab">On this page</div>
+      <a href="#invariant"><span class="pn">C.1</span> The invariant</a>
+      <a href="#flow"><span class="pn">C.2</span> Data flow</a>
+      <a href="#modules"><span class="pn">C.3</span> The modules</a>
+      <a href="#turn"><span class="pn">C.4</span> One turn</a>
+      <a href="#events"><span class="pn">C.5</span> Stream → status</a>
+      <a href="#security"><span class="pn">C.6</span> Security</a>
+    </aside>
+
+    <div class="prose">
+      <section id="invariant"><h2 class="h"><span class="pn">C.1</span> The invariant</h2>
+        <div class="callout verdict"><div class="eyebrow">The one rule</div>
+          <p>The HTML <strong>file on disk is the document</strong>. The server serves it, Claude edits it with its own tools, the watcher reloads it. No server-side document model, no HTML assembled from stdout, no diffing — the page always reflects exactly what is on disk. <a class="ref" href="../../engg-spec.html#invariant">engg →</a></p>
+        </div>
+      </section>
+
+      <section id="flow"><h2 class="h"><span class="pn">C.2</span> Data flow</h2>
+        <div class="diagram">
+          <div class="row"><span class="node">browser · toolbar</span><span class="ar">→ POST /turn →</span><span class="node">server</span><span class="ar">→ spawn →</span><span class="node">claude -p</span><span class="ar">→ Edit →</span><span class="node">doc on disk</span></div>
+          <div class="foundation">fs.watch(doc) → broadcast reload → SSE → page reloads from disk</div>
+        </div>
+        <p>Outbound and inbound are separate paths over one local server. A turn writes the file; the watcher pushes the reload. Status rides the same SSE channel as a typed event stream. <a class="ref" href="../../engg-spec.html#s-arch">engg §02 →</a></p>
+      </section>
+
+      <section id="modules"><h2 class="h"><span class="pn">C.3</span> The modules</h2>
+        <p>Six files, one direction of dependency (<code>cli → server → claude</code>); zero runtime dependencies.</p>
+        <table class="matrix">
+          <tr><th>Module</th><th>State</th><th>Responsibility</th></tr>
+          <tr><td class="nm">bin/cli.js</td><td class="st"><span class="sdot ok"></span>verified</td><td>Validate the arg, start the server, log the URL.</td></tr>
+          <tr><td class="nm">src/server.js</td><td class="st"><span class="sdot ok"></span>built</td><td>Serve the doc (toolbar injected), <code>/turn</code>, SSE, file-watch reload, snapshots.</td></tr>
+          <tr><td class="nm">src/claude.js</td><td class="st"><span class="sdot wip"></span>wip</td><td>Spawn <code>claude -p</code>, map stream-json → typed frames, persist the session id.</td></tr>
+          <tr><td class="nm">public/toolbar.*</td><td class="st"><span class="sdot wip"></span>wip</td><td>On-page status chip, change cards, click-to-scope.</td></tr>
+          <tr><td class="nm">test/</td><td class="st"><span class="sdot ok"></span>verified</td><td>Recorded stream sample + parser test (no live model call).</td></tr>
+        </table>
+        <p class="deeper"><a href="../map.html">Component map →</a> · authoritative build status → <a href="../../engg-spec.html#s-build">engg §06</a></p>
+      </section>
+
+      <section id="turn"><h2 class="h"><span class="pn">C.4</span> Anatomy of one turn</h2>
+        <ol class="flow" style="list-style:decimal;padding-left:20px">
+          <li>Click <strong>⌖</strong>, click a section (it resolves the nearest <code>data-cid</code>), type a change.</li>
+          <li>Toolbar POSTs <code>{prompt, cid?}</code>; the server builds a scoped prompt and spawns <code>claude -p --resume</code> from the doc's folder.</li>
+          <li>stream-json events map to the status chip (thinking → editing) and to streamed reply / edit cards.</li>
+          <li>Claude's <code>Edit</code> writes the change to the file — the server is not involved in the write.</li>
+          <li><code>fs.watch</code> fires → 120 ms debounce → one reload at turn-end; the page restores scroll.</li>
+        </ol>
+        <p class="deeper">Full 10-step sequence → <a href="../../engg-spec.html#turnseq">engg §04</a></p>
+      </section>
+
+      <section id="events"><h2 class="h"><span class="pn">C.5</span> Stream → status</h2>
+        <table class="matrix">
+          <tr><th>Event</th><th>State</th><th>Chip</th></tr>
+          <tr><td class="m">system/init</td><td class="st"><span class="sdot idle"></span>init</td><td>Starting…</td></tr>
+          <tr><td class="m">message_start</td><td class="st"><span class="sdot wip"></span>thinking</td><td>Composing the change…</td></tr>
+          <tr><td class="m">tool_use · Edit</td><td class="st"><span class="sdot ok"></span>editing</td><td>Editing &lt;doc&gt;</td></tr>
+          <tr><td class="m">result · success</td><td class="st"><span class="sdot ok"></span>done</td><td>Saved · undo?</td></tr>
+        </table>
+        <p class="deeper">Full event map → <a href="../../engg-spec.html#evtmap">engg §03</a></p>
+      </section>
+
+      <section id="security"><h2 class="h"><span class="pn">C.6</span> Security</h2>
+        <p>A local-only tool, scoped tight: bound to <code>127.0.0.1</code>; <code>--allowedTools Read,Edit,Write,MultiEdit</code> (no Bash, web, or MCP); <code>acceptEdits</code> for in-folder writes only; path-traversal guard; 1&nbsp;MB body cap. Accepted residual: no request auth on a single-user local server.</p>
+        <p class="deeper">Threat model → <a href="../../engg-spec.html#s-security">engg §05</a> · why local-only → <a href="./rationale.html">§D rationale</a></p>
+      </section>
+    </div>
+  </div>
+
+  <footer>Sandpaper · wiki · §C architecture · the readable overview; the 600-line engg-spec is one link away</footer>
+</div>
+<script src="../assets/brain.js" defer></script>
+</body>
+</html>

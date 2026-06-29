@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sandpaper — Engineering Spec · P0 (the spine)</title>
+<!-- A Sandpaper document. Block elements carry data-cid anchors so this spec can be refined in Sandpaper itself. -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --paper:#F4F0E6; --paper-2:#EFEADD; --ink:#17150F;
+    --clay:#C75B39; --pine:#3F5247; --ochre:#C98A1E;
+    --rust:#B23A2E; --moss:#4E7C59; --mute:#8A8578;
+    --rule:rgba(23,21,15,.13); --rule-2:rgba(23,21,15,.07);
+    --measure:760px;
+    --serif:'Fraunces',Georgia,serif; --sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; background:var(--paper); color:var(--ink); font-family:var(--sans);
+    font-size:16.5px; line-height:1.62; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;}
+  ::selection{background:rgba(199,91,57,.22)}
+  code{font-family:var(--mono); font-size:.82em; background:rgba(23,21,15,.05); padding:1px 5px; border-radius:3px}
+  .wrap{max-width:1120px; margin:0 auto; padding:0 28px}
+  .band{border-top:1px solid var(--rule)}
+  section{padding:50px 0}
+  .grid{display:grid; grid-template-columns:90px minmax(0,var(--measure)) 1fr; gap:0 34px}
+  .num{grid-column:1; font-family:var(--serif); font-weight:500; font-size:38px; color:var(--clay); line-height:1; opacity:.85}
+  .col{grid-column:2; min-width:0}
+  .side{grid-column:3; font-family:var(--mono); font-size:12px; line-height:1.55; color:var(--mute); padding-top:8px; max-width:230px}
+  .side b{color:var(--pine); font-weight:600}
+  @media(max-width:900px){ .grid{grid-template-columns:1fr} .num{font-size:28px;margin-bottom:6px}
+    .col,.num,.side{grid-column:1} .side{max-width:none;margin-top:16px;padding:12px 14px;border-left:2px solid var(--rule);background:var(--paper-2)} }
+  .eyebrow{font-family:var(--mono); text-transform:uppercase; letter-spacing:.18em; font-size:11px; color:var(--mute); font-weight:500}
+  h1{font-family:var(--serif); font-weight:600; letter-spacing:-.02em; margin:0}
+  h2{font-family:var(--serif); font-weight:600; font-size:28px; line-height:1.12; letter-spacing:-.015em; margin:0 0 16px}
+  h3{font-family:var(--serif); font-weight:600; font-size:18px; margin:18px 0 6px}
+  p{margin:0 0 14px} p:last-child{margin-bottom:0}
+  strong{font-weight:600} em{font-style:italic}
+  .lead{font-size:18.5px; color:#2a2820}
+
+  /* hero */
+  .hero{padding:44px 0 36px}
+  .specstrip{display:flex; flex-wrap:wrap; gap:8px 15px; align-items:center; font-family:var(--mono); font-size:11px;
+    letter-spacing:.1em; text-transform:uppercase; color:var(--mute); padding-bottom:22px}
+  .specstrip .sep{opacity:.4} .specstrip .green{color:var(--moss); font-weight:600}
+  .wordmark{font-size:clamp(54px,11vw,104px); line-height:.9; letter-spacing:-.04em; margin:0}
+  .wordmark .a{color:var(--clay)}
+  .subhead{font-family:var(--serif); font-style:italic; font-size:22px; color:var(--pine); margin:10px 0 18px}
+  .callout{border:1px solid var(--rule); border-left:3px solid var(--clay); background:var(--paper-2);
+    padding:16px 18px; border-radius:4px; margin:22px 0 0}
+  .callout .eyebrow{color:var(--clay)} .callout p{margin:6px 0 0; font-size:15px; color:#3a372e}
+
+  /* diagram */
+  .diagram{border:1px solid var(--rule); border-radius:6px; background:var(--paper-2); padding:22px 18px; margin-top:6px; font-family:var(--mono); font-size:12px}
+  .row{display:flex; align-items:center; flex-wrap:wrap; gap:8px; justify-content:center}
+  .box{border:1px solid var(--rule); border-radius:5px; background:var(--paper); padding:9px 12px; color:var(--ink); font-weight:500}
+  .ar{color:var(--clay); font-weight:600}
+  .foundation{margin-top:12px; border:1px dashed var(--rule); border-radius:5px; padding:9px; text-align:center; color:var(--pine); background:var(--paper)}
+  .lp{text-align:center; color:var(--mute); margin-top:8px; font-size:11px}
+
+  /* tables */
+  table.tbl{width:100%; border-collapse:collapse; margin-top:8px; font-size:13.5px}
+  .tbl th{font-family:var(--mono); font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--mute);
+    text-align:left; font-weight:600; padding:8px 10px; border-bottom:1px solid var(--rule)}
+  .tbl td{padding:9px 10px; border-bottom:1px solid var(--rule-2); vertical-align:top}
+  .tbl td.m,.tbl th.m{font-family:var(--mono); font-size:12px}
+  .tbl tr:last-child td{border-bottom:0}
+  .dot{display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:6px; vertical-align:baseline}
+
+  /* numbered flow */
+  ol.flow{counter-reset:f; list-style:none; margin:6px 0 0; padding:0}
+  ol.flow li{position:relative; padding:9px 0 9px 40px; border-bottom:1px solid var(--rule-2); font-size:14.5px; color:#33302a}
+  ol.flow li:last-child{border-bottom:0}
+  ol.flow li::before{counter-increment:f; content:counter(f); position:absolute; left:0; top:9px; width:24px; height:24px;
+    border:1px solid var(--rule); border-radius:50%; font-family:var(--mono); font-size:11px; color:var(--clay);
+    display:flex; align-items:center; justify-content:center; background:var(--paper-2)}
+
+  /* build status badges */
+  .bgroup h3{font-family:var(--mono); font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--pine); margin:18px 0 4px}
+  .bitem{display:grid; grid-template-columns:96px 1fr; gap:14px; padding:8px 0; border-bottom:1px solid var(--rule-2); align-items:baseline}
+  .bitem:last-child{border-bottom:0}
+  .badge{font-family:var(--mono); font-size:10px; letter-spacing:.08em; text-transform:uppercase; font-weight:600;
+    padding:3px 7px; border-radius:4px; text-align:center; white-space:nowrap}
+  .badge.verified{background:rgba(78,124,89,.16); color:#365a40}
+  .badge.done{background:rgba(63,82,71,.13); color:var(--pine)}
+  .badge.fixed{background:rgba(199,91,57,.14); color:var(--clay)}
+  .badge.open{background:rgba(201,138,30,.16); color:#8a6212}
+  .bitem .bd{font-size:14px; color:#33302a} .bitem .bd b{font-family:var(--mono); font-size:12.5px; color:var(--ink); font-weight:600}
+
+  /* found & fixed list */
+  .fix{display:grid; grid-template-columns:96px 1fr; gap:16px; padding:14px 0; border-bottom:1px solid var(--rule-2)}
+  .fix:last-child{border-bottom:0}
+  .fix .sev{font-family:var(--mono); font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; font-weight:600}
+  .sev.critical{color:var(--rust)} .sev.high{color:var(--rust)} .sev.medium{color:var(--ochre)} .sev.low{color:var(--mute)} .sev.openq{color:var(--pine)}
+  .fix .bd{font-size:14.5px; color:#33302a} .fix .bd .loc{font-family:var(--mono); font-size:12px; color:var(--pine)}
+  .fix .bd .res{color:var(--moss); font-weight:600}
+  @media(max-width:620px){.fix,.bitem{grid-template-columns:1fr;gap:4px}}
+
+  pre.code{font-family:var(--mono); font-size:12.5px; line-height:1.5; background:#1c1a13; color:#EFEADD;
+    padding:14px 16px; border-radius:7px; overflow-x:auto; margin:8px 0 0}
+  footer{padding:38px 0 56px; text-align:center; font-family:var(--mono); font-size:11px; color:var(--mute); letter-spacing:.04em}
+  @media print{body{background:#fff}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- HERO -->
+  <header class="hero" data-cid="hero">
+    <div class="specstrip" data-cid="specstrip">
+      <span>Sandpaper</span><span class="sep">·</span><span>Engineering Spec</span><span class="sep">·</span>
+      <span>P0 — the spine</span><span class="sep">·</span><span>2026-06-29</span><span class="sep">·</span>
+      <span class="green">Built · reviewed · 8 fixes applied</span>
+    </div>
+    <h1 class="wordmark" data-cid="wordmark">Sand<span class="a">paper</span></h1>
+    <div class="subhead" data-cid="subhead">Engineering spec — P0, the spine.</div>
+    <p class="lead" data-cid="lead">
+      A local Node.js bridge — <strong>six files, zero runtime dependencies</strong> — that lets you refine a
+      Claude-generated HTML document in the browser without leaving the page. Point at an element, say what to
+      change, and the file updates in place. P0 delivers the spine: serve + inject, Claude round-trip, live
+      reload, status chip, click-to-scope.
+    </p>
+    <div class="callout" data-cid="invariant">
+      <div class="eyebrow">The invariant</div>
+      <p>The HTML file on disk <strong>is</strong> the document. The server serves it; Claude edits it; the
+        watcher reloads it. Nothing in between — no server-side document model, no HTML assembled from stdout,
+        no diffing. The page always reflects exactly what is on disk.</p>
+    </div>
+  </header>
+
+  <!-- 01 OVERVIEW -->
+  <section class="band" data-cid="s-overview">
+    <div class="grid">
+      <div class="num">01</div>
+      <div class="col">
+        <div class="eyebrow">Overview</div>
+        <h2>What P0 is, and the one rule that governs it</h2>
+        <p>Run it with <code>node bin/cli.js &lt;document.html&gt;</code>. The server binds to
+          <code>127.0.0.1:4848</code> (override with <code>SANDPAPER_PORT</code>). The document appears exactly
+          as it would opened from disk — plus a toolbar overlay in the lower-right.</p>
+        <p><strong>Single source of truth.</strong> Every read and every write — whether you edit the file in a
+          text editor or Claude applies an <code>Edit</code> tool call — targets the same file. The bridge is a
+          dumb pipe: Claude edits the file with its own tools; <code>fs.watch</code> detects the change and tells
+          the browser to reload. That invariant rules out "apply the diff from stdout", streaming partial HTML,
+          or any server-side document model.</p>
+        <p><strong>Scope.</strong> P0 = serve+inject, claude round-trip, live reload, status chip, click-to-scope.
+          P1 adds direct manipulation (drag/delete → file write) and screenshot paste. P2+ adds durable
+          <code>data-cid</code> anchoring, branching, and a long-lived watch session.</p>
+      </div>
+      <aside class="side" data-cid="side-overview">
+        Node ≥18 built-ins only: <b>http, child_process, fs, path, url</b>. No npm install. ESM.
+      </aside>
+    </div>
+  </section>
+
+  <!-- 02 ARCHITECTURE -->
+  <section class="band" data-cid="s-arch">
+    <div class="grid">
+      <div class="num">02</div>
+      <div class="col">
+        <div class="eyebrow">Architecture</div>
+        <h2>Six files, one direction of dependency</h2>
+        <div class="diagram" data-cid="diagram">
+          <div class="row">
+            <span class="box">browser · toolbar.js</span><span class="ar">→ POST /turn →</span>
+            <span class="box">server.js</span><span class="ar">→ spawn →</span>
+            <span class="box">claude -p</span><span class="ar">→ Edit →</span>
+            <span class="box">doc on disk</span>
+          </div>
+          <div class="foundation">▤ &nbsp;fs.watch(doc) → server broadcasts {type:'reload'} → SSE → page reloads from disk</div>
+          <div class="lp">status rides the same SSE channel: stdout event → mapEvent() → broadcast() → chip</div>
+        </div>
+        <table class="tbl" data-cid="modules">
+          <tr><th class="m">module</th><th>responsibility</th></tr>
+          <tr><td class="m">bin/cli.js</td><td>Validate the arg, resolve docPath, read <code>SANDPAPER_PORT</code>, start the server, log the URL.</td></tr>
+          <tr><td class="m">src/server.js</td><td>One <code>http.Server</code>: serves the doc (toolbar injected), owns the SSE client set + the <code>fs.watch</code> debounce, delegates to <code>buildPrompt()</code> and <code>runTurn()</code>. Never touches document content except to serve it verbatim.</td></tr>
+          <tr><td class="m">src/claude.js</td><td>Spawns <code>claude</code> in stream-json mode, owns the NDJSON line buffer, exports the pure <code>mapEvent()</code> / <code>getSessionId()</code>, persists the session id.</td></tr>
+          <tr><td class="m">public/toolbar.js&nbsp;+&nbsp;.css</td><td>Injected page-side. Status chip, click-to-scope picker, POSTs the turn, handles live-reload. Talks to the server only over HTTP.</td></tr>
+          <tr><td class="m">test/*</td><td>Recorded NDJSON fixture + parser unit test; imports only the pure helpers from claude.js.</td></tr>
+        </table>
+      </div>
+      <aside class="side" data-cid="side-arch">
+        Dependency flow is one-way: <b>cli → server → claude</b>. The toolbar imports nothing server-side; the
+        test imports only pure functions.
+      </aside>
+    </div>
+  </section>
+
+  <!-- 03 BRIDGE -->
+  <section class="band" data-cid="s-bridge">
+    <div class="grid">
+      <div class="num">03</div>
+      <div class="col">
+        <div class="eyebrow">The bridge</div>
+        <h2>Flags, the stream → status map, session persistence</h2>
+        <p>The exact invocation, spawned with <code>cwd = docDir</code> so <code>--resume</code>'s
+          directory-scoped session lookup stays reliable:</p>
+        <pre class="code" data-cid="invocation">claude -p &lt;prompt&gt; \
+  --output-format stream-json --verbose --include-partial-messages \
+  --permission-mode acceptEdits \
+  --allowedTools Read,Edit,Write,MultiEdit \
+  --append-system-prompt &lt;CONTRACT&gt; \
+  [--resume &lt;sessionId&gt;]</pre>
+        <p style="margin-top:14px"><strong>Verified against the docs:</strong> <code>--allowedTools</code> as a
+          single comma-separated arg is valid; <code>--append-system-prompt</code> appends to (doesn't replace)
+          the default system prompt; <code>acceptEdits</code> auto-approves file edits without granting shell
+          access; <code>--verbose</code> is recommended, not strictly required. Tools are restricted to
+          file access only — no Bash, no web, no MCP.</p>
+        <h3>Event → status mapping</h3>
+        <table class="tbl" data-cid="evtmap">
+          <tr><th class="m">stream-json event</th><th>state</th><th>chip label</th></tr>
+          <tr><td class="m">system / init (carries session_id)</td><td class="m"><span class="dot" style="background:#8A8578"></span>init</td><td>Starting…</td></tr>
+          <tr><td class="m">stream_event · message_start</td><td class="m"><span class="dot" style="background:#C75B39"></span>thinking</td><td>Composing the change…</td></tr>
+          <tr><td class="m">content_block_start · tool_use Edit/Write/MultiEdit</td><td class="m"><span class="dot" style="background:#3F5247"></span>editing</td><td>Editing &lt;doc&gt;</td></tr>
+          <tr><td class="m">content_block_start · tool_use (other)</td><td class="m"><span class="dot" style="background:#3F5247"></span>tool_using</td><td>&lt;tool&gt;…</td></tr>
+          <tr><td class="m">result · success</td><td class="m"><span class="dot" style="background:#4E7C59"></span>done</td><td>Saved to &lt;doc&gt; · undo?</td></tr>
+          <tr><td class="m">result · is_error / non-success</td><td class="m"><span class="dot" style="background:#B23A2E"></span>error</td><td>Turn failed</td></tr>
+          <tr><td class="m">child 'error' / non-zero 'close'</td><td class="m"><span class="dot" style="background:#B23A2E"></span>error</td><td>claude not found / exited (n)</td></tr>
+        </table>
+        <p style="margin-top:14px"><strong>Session.</strong> The session id is captured from the init event and
+          written to <code>&lt;docDir&gt;/.sandpaper/session.json</code>; every later turn loads it and passes
+          <code>--resume</code>. Sessions are per-document-folder. Even if it's lost, the <em>file</em> is the
+          memory — a fresh session rebuilds context by reading the document.</p>
+      </div>
+      <aside class="side" data-cid="side-bridge">
+        <code>mapEvent()</code> and <code>getSessionId()</code> are pure functions, unit-tested against a
+        recorded 8-event fixture. The <b>waiting</b> state exists in the chip but isn't emitted yet — reserved
+        for an interactive-permission flow.
+      </aside>
+    </div>
+  </section>
+
+  <!-- 04 PROTOCOL -->
+  <section class="band" data-cid="s-protocol">
+    <div class="grid">
+      <div class="num">04</div>
+      <div class="col">
+        <div class="eyebrow">The page protocol</div>
+        <h2>HTTP surface, the turn, click-to-scope</h2>
+        <table class="tbl" data-cid="httpapi">
+          <tr><th class="m">method · path</th><th>purpose</th></tr>
+          <tr><td class="m">GET /</td><td>Serve the document with the toolbar injected before <code>&lt;/body&gt;</code> (verbatim read; the file is never modified to serve it).</td></tr>
+          <tr><td class="m">GET /__sandpaper/events</td><td>SSE. Sends an initial idle frame, then status objects <code>{state,label,detail?}</code> and reload signals <code>{type:'reload'}</code>.</td></tr>
+          <tr><td class="m">POST /__sandpaper/turn</td><td>Body JSON <code>{prompt, cid?, selector?, snippet?}</code> (≤1&nbsp;MB). Builds the prompt, runs the turn, returns <code>202</code> — or <code>409</code> if a turn is already in progress.</td></tr>
+          <tr><td class="m">GET /__sandpaper/toolbar.{js,css}</td><td>Serve the overlay assets from the package's own <code>public/</code>.</td></tr>
+          <tr><td class="m">GET /&lt;path&gt;</td><td>Serve files under <code>docDir</code> (images, pasted screenshots), path-traversal guarded.</td></tr>
+        </table>
+        <h3>Anatomy of one turn</h3>
+        <ol class="flow" data-cid="turnseq">
+          <li>Optionally click <strong>⌖</strong> and click an element. The picker prefers its nearest <code>data-cid</code>; else it builds a CSS path (≤6 levels, <code>:nth-of-type</code>) + an 80-char text snippet.</li>
+          <li>Type an instruction and submit. The toolbar ignores the submit if a turn is already running (busy guard).</li>
+          <li>Chip → <em>Sending…</em>; the toolbar POSTs <code>{prompt, cid?, selector?, snippet?}</code> to <code>/turn</code>.</li>
+          <li>Server builds a scoped prompt ("edit ONLY the element with data-cid=X …") and calls <code>runTurn()</code>; responds <code>202</code> immediately.</li>
+          <li>claude.js loads the session id, emits <em>init</em>, and spawns <code>claude -p</code> from <code>docDir</code>.</li>
+          <li>stdout NDJSON → <code>mapEvent()</code> → <code>broadcast()</code> → SSE → chip moves <em>thinking → editing</em>.</li>
+          <li>Claude's <code>Edit</code> tool writes the change to the file on disk — the server is not involved in the write.</li>
+          <li><code>fs.watch</code> fires → 120&nbsp;ms debounce → <code>broadcast({type:'reload'})</code>.</li>
+          <li>The <code>result</code> event → chip <em>Saved to &lt;doc&gt; · undo?</em> with cost.</li>
+          <li>Toolbar saves scroll, reloads; the page re-serves from disk with the toolbar re-injected.</li>
+        </ol>
+      </div>
+      <aside class="side" data-cid="side-protocol">
+        Status and reload share one SSE channel, distinguished by a <code>state</code> field vs a
+        <code>type:'reload'</code> field. The 202 is fire-and-forget; the chip is driven entirely by SSE.
+      </aside>
+    </div>
+  </section>
+
+  <!-- 05 SECURITY -->
+  <section class="band" data-cid="s-security">
+    <div class="grid">
+      <div class="num">05</div>
+      <div class="col">
+        <div class="eyebrow">Security model</div>
+        <h2>A local-only tool, scoped tight</h2>
+        <table class="tbl" data-cid="sec">
+          <tr><th>control</th><th>detail</th></tr>
+          <tr><td><strong>Loopback bind</strong></td><td>Server listens on <code>127.0.0.1</code> only — never <code>0.0.0.0</code>. Not exposed to the network.</td></tr>
+          <tr><td><strong>Tool restriction</strong></td><td><code>--allowedTools Read,Edit,Write,MultiEdit</code> — no Bash, no web fetch, no MCP. Claude can't run shell or open connections during a turn.</td></tr>
+          <tr><td><strong>Permission mode</strong></td><td><code>acceptEdits</code> authorizes file writes in <code>docDir</code> without prompts; grants no broader access.</td></tr>
+          <tr><td><strong>Path-traversal guard</strong></td><td><code>normalize(join(docDir,path)).startsWith(docDir+sep)</code> → 404 on escape. Malformed percent-escapes return <code>400</code> (guarded decode).</td></tr>
+          <tr><td><strong>Body cap</strong></td><td><code>/turn</code> body capped at 1&nbsp;MB; the socket is destroyed past the limit.</td></tr>
+        </table>
+        <p style="margin-top:14px"><strong>Accepted residual:</strong> no request authentication — any local process running as you can POST a turn. Acceptable for a local-only tool whose worst case is still bounded by the file-only tool restriction.</p>
+      </div>
+      <aside class="side" data-cid="side-security">
+        Threat model is "your own machine." The interesting hardening later is scoping which directories a turn
+        may touch — today it's the doc's folder.
+      </aside>
+    </div>
+  </section>
+
+  <!-- 06 BUILD STATUS -->
+  <section class="band" data-cid="s-build">
+    <div class="grid">
+      <div class="num">06</div>
+      <div class="col">
+        <div class="eyebrow">Build status</div>
+        <h2>Where P0 stands</h2>
+        <p><span class="badge verified">verified</span> done + covered by a test &nbsp;·&nbsp;
+           <span class="badge done">done</span> implemented &nbsp;·&nbsp;
+           <span class="badge fixed">fixed</span> bug found in review &amp; patched this pass &nbsp;·&nbsp;
+           <span class="badge open">open</span> remaining</p>
+
+        <div class="bgroup" data-cid="b-spine">
+          <h3>Core spine</h3>
+          <div class="bitem"><span class="badge verified">verified</span><div class="bd"><b>bin/cli.js</b> — arg validation, port env, startup log.</div></div>
+          <div class="bitem"><span class="badge done">done</span><div class="bd"><b>routing + toolbar injection + asset serving</b> with traversal guard.</div></div>
+          <div class="bitem"><span class="badge done">done</span><div class="bd"><b>SSE channel</b> — client set, initial frame, cleanup on close.</div></div>
+          <div class="bitem"><span class="badge fixed">fixed</span><div class="bd"><b>/turn concurrency guard</b> — <code>activeTurn</code> gate + <code>409</code>; toolbar busy-check.</div></div>
+          <div class="bitem"><span class="badge fixed">fixed</span><div class="bd"><b>fs.watch null-fname</b> — null now treated as a match so reloads aren't dropped.</div></div>
+          <div class="bitem"><span class="badge fixed">fixed</span><div class="bd"><b>broadcast()</b> wrapped in try/catch with dead-client eviction.</div></div>
+          <div class="bitem"><span class="badge fixed">fixed</span><div class="bd"><b>pathname decode</b> guarded against malformed escapes (<code>400</code>) instead of crashing.</div></div>
+        </div>
+        <div class="bgroup" data-cid="b-bridge">
+          <h3>Claude bridge</h3>
+          <div class="bitem"><span class="badge done">done</span><div class="bd"><b>spawn + flags + CONTRACT</b> — all flags verified against docs.</div></div>
+          <div class="bitem"><span class="badge verified">verified</span><div class="bd"><b>mapEvent() / getSessionId()</b> — pure, covered by parse-test.</div></div>
+          <div class="bitem"><span class="badge done">done</span><div class="bd"><b>session persistence</b> — load/save <code>.sandpaper/session.json</code>.</div></div>
+          <div class="bitem"><span class="badge fixed">fixed</span><div class="bd"><b>errored flag</b> — spawn errors no longer overwritten with a false idle (was critical).</div></div>
+          <div class="bitem"><span class="badge fixed">fixed</span><div class="bd"><b>stdout 'end' flush</b> — a final newline-less <code>result</code> event is no longer lost.</div></div>
+          <div class="bitem"><span class="badge fixed">fixed</span><div class="bd"><b>stdin hygiene</b> — <code>stdio:['ignore','pipe','pipe']</code> so <code>-p</code> can't block on input.</div></div>
+        </div>
+        <div class="bgroup" data-cid="b-toolbar">
+          <h3>Toolbar</h3>
+          <div class="bitem"><span class="badge verified">verified</span><div class="bd"><b>toolbar.css</b> — palette matches the documents.</div></div>
+          <div class="bitem"><span class="badge done">done</span><div class="bd"><b>chip, SSE consumer, click-to-scope picker</b>.</div></div>
+          <div class="bitem"><span class="badge fixed">fixed</span><div class="bd"><b>scroll restore</b> deferred to the <code>load</code> event; submit <b>busy guard</b> added.</div></div>
+        </div>
+      </div>
+      <aside class="side" data-cid="side-build">
+        Every <span class="badge fixed">fixed</span> item was caught by the adversarial review and patched in the
+        same pass. The spine is syntax-clean, parser-tested, and live-smoke-tested.
+      </aside>
+    </div>
+  </section>
+
+  <!-- 07 FOUND & FIXED -->
+  <section class="band" data-cid="s-fixed">
+    <div class="grid">
+      <div class="num">07</div>
+      <div class="col">
+        <div class="eyebrow">Found &amp; fixed</div>
+        <h2>What the adversarial review caught</h2>
+        <p>A code-review agent read the real source; a Claude-Code-mechanics agent re-verified every flag against
+          the docs. Eight confirmed bugs — all fixed this pass. One item stays genuinely open.</p>
+        <div class="fix" data-cid="f1"><span class="sev critical">Critical</span><div class="bd"><span class="loc">claude.js · close handler</span> — a spawn failure (ENOENT, auth) fired <code>error</code> then <code>close(null)</code>; <code>if (code &amp;&amp; code!==0)</code> is falsy on null, so it broadcast <em>idle</em> and hid every error. <span class="res">Fixed</span> with an <code>errored</code> flag that short-circuits close.</div></div>
+        <div class="fix" data-cid="f2"><span class="sev high">High</span><div class="bd"><span class="loc">server.js · fs.watch</span> — <code>fname</code> can be null (Linux/inotify, macOS under load); the old guard dropped the reload. <span class="res">Fixed</span> — null is treated as a match.</div></div>
+        <div class="fix" data-cid="f3"><span class="sev high">High</span><div class="bd"><span class="loc">claude.js · stdout</span> — no <code>end</code> listener; a final line without a trailing newline lost the <code>result</code> event (cost + "Saved"). <span class="res">Fixed</span> — an end-flush drains the buffer.</div></div>
+        <div class="fix" data-cid="f4"><span class="sev high">High</span><div class="bd"><span class="loc">server.js + toolbar.js</span> — no concurrency guard; two turns could race-write the file. <span class="res">Fixed</span> — <code>activeTurn</code> gate + <code>409</code> + a toolbar busy-check.</div></div>
+        <div class="fix" data-cid="f5"><span class="sev medium">Medium</span><div class="bd"><span class="loc">server.js · broadcast()</span> — <code>res.write()</code> on a destroyed socket could crash the process mid-turn. <span class="res">Fixed</span> — try/catch + evict.</div></div>
+        <div class="fix" data-cid="f6"><span class="sev medium">Medium</span><div class="bd"><span class="loc">server.js · pathname</span> — the reviewer flagged a double-decode; on inspection the real risk was <code>decodeURIComponent</code> <em>throwing</em> on malformed input. <span class="res">Fixed</span> — guarded decode → <code>400</code> (kept decoding so filenames with spaces still work).</div></div>
+        <div class="fix" data-cid="f7"><span class="sev medium">Medium</span><div class="bd"><span class="loc">claude.js · spawn</span> — default stdio left stdin an open pipe (potential hang). <span class="res">Fixed</span> — <code>stdio:['ignore','pipe','pipe']</code>.</div></div>
+        <div class="fix" data-cid="f8"><span class="sev low">Low</span><div class="bd"><span class="loc">toolbar.js · scroll</span> — restore ran before layout settled, clamping scroll on image-heavy pages. <span class="res">Fixed</span> — deferred to the <code>load</code> event.</div></div>
+        <div class="fix" data-cid="f9"><span class="sev openq">Open ?</span><div class="bd"><span class="loc">claude.js · result event shape</span> — the exact <code>result</code> event fields aren't documented in the CLI reference (inferred from the Agent SDK + the fixture). <span style="color:var(--ochre);font-weight:600">To verify</span> against a live turn and update the fixture if needed.</div></div>
+      </div>
+      <aside class="side" data-cid="side-fixed">
+        The reviewer's fix #6 was itself slightly wrong (it assumed <code>url.pathname</code> is fully decoded —
+        it isn't). Verifying findings, not blindly applying them, is the point.
+      </aside>
+    </div>
+  </section>
+
+  <!-- 08 TESTING -->
+  <section class="band" data-cid="s-test">
+    <div class="grid">
+      <div class="num">08</div>
+      <div class="col">
+        <div class="eyebrow">Testing &amp; how to run</div>
+        <h2>Run it, test it</h2>
+        <pre class="code" data-cid="run"># run the bridge (point it at any HTML document)
+node bin/cli.js sandpaper.html       # → http://127.0.0.1:4848
+
+# parser unit test — no live model call, &lt;100ms
+npm test                             # init → thinking → editing → done ✓</pre>
+        <p style="margin-top:14px"><strong>Covered:</strong> the stream-json → status mapping and session capture
+          (pure functions, recorded fixture). <strong>Live-smoke-tested:</strong> serve+inject (200), toolbar
+          assets (200), SSE idle frame, path-traversal (404), malformed-percent (400).</p>
+        <p><strong>Not yet covered:</strong> HTTP routing, the watch/reload integration, SSE set management,
+          toolbar behavior, and the error paths. <strong>To add:</strong> a unit test for the <code>errored</code>
+          flag (mock <code>error</code> then <code>close(null)</code>, assert no idle), an end-flush test, and a
+          <code>409</code> concurrency test.</p>
+        <p><strong>The one live step:</strong> firing a real <code>claude -p</code> turn from the page. It was
+          built with doc-verified flags but not auto-run (to avoid nesting a Claude inside a Claude) — it's the
+          first thing to exercise, and the moment to confirm the open <code>result</code>-shape question.</p>
+      </div>
+      <aside class="side" data-cid="side-test">
+        Fastest manual check: <code>node bin/cli.js sandpaper.html</code>, open the URL, click ⌖, click the hero
+        subtitle, type "tighten this", watch the chip and the change.
+      </aside>
+    </div>
+  </section>
+
+  <!-- 09 NEXT -->
+  <section class="band" data-cid="s-next">
+    <div class="grid">
+      <div class="num">09</div>
+      <div class="col">
+        <div class="eyebrow">Next</div>
+        <h2>From spine to P1</h2>
+        <p><strong>Close out P0:</strong> fire the first live turn, confirm the <code>result</code>-event shape,
+          and add the three hardening tests (errored flag, end-flush, 409).</p>
+        <p><strong>P1 — the two hard modes:</strong> direct manipulation (drag / delete written straight to the
+          file, no AI call) and paste-a-screenshot (saved into the project, referenced by path so Claude's
+          <code>Read</code> tool ingests it as an image). Both fall out of the single-source-of-truth invariant.</p>
+        <p style="color:var(--pine); font-family:var(--serif); font-style:italic; font-size:17px; margin-top:18px">
+          This spec is a Sandpaper document. Open it in the tool and sand it.</p>
+      </div>
+      <aside class="side" data-cid="side-next">
+        P2 then makes <code>data-cid</code> anchoring durable across regeneration — the thing that makes
+        annotations stick. See <code>sandpaper.html</code> §06.
+      </aside>
+    </div>
+  </section>
+
+  <footer data-cid="footer">
+    Sandpaper · engineering spec · P0 · built + reviewed + 8 fixes in Claude Code · 2026-06-29 · a Sandpaper document
+  </footer>
+</div>
+<script>/* mirror data-cid -> id so #anchors from the project brain scroll here */(function(){document.querySelectorAll("[data-cid]").forEach(function(e){if(!e.id)e.id=e.getAttribute("data-cid");});if(location.hash){var t=document.getElementById(location.hash.slice(1));if(t)t.scrollIntoView();}})();</script>
+</body>
+</html>

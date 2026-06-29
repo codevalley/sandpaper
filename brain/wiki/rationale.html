@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sandpaper · Wiki — Why it's built this way</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../assets/brain.css" />
+</head>
+<body>
+<div class="wrap">
+  <nav class="brain-nav">
+    <a class="home" href="../index.html">Cover</a><a class="here" href="./index.html">Wiki</a>
+    <a href="../log.html">Log</a><a href="../decisions.html">Decisions</a><a href="../map.html">Map</a><a href="../learnings.html">Learnings</a>
+    <span class="grow"></span><a class="ext" href="../../sandpaper.html">spec ↗</a><a class="ext" href="../../engg-spec.html">engg ↗</a>
+  </nav>
+
+  <section class="zone flush col">
+    <div class="eyebrow">Wiki · §D</div>
+    <h1 style="font-size:32px;letter-spacing:-.02em;margin:6px 0 0">Why it's built this way</h1>
+    <p style="font-family:var(--mono);font-size:12px;margin-top:8px"><a href="./overview.html">← §A Overview</a> · <a href="./product.html">§B Product</a> · <a href="./architecture.html">§C Architecture</a> · <strong>§D Rationale</strong></p>
+    <p class="lead col" style="margin-top:12px;color:#2a2820">This page <strong>explains the reasoning</strong>. The auditable record — the call, its status, supersessions — lives in the <a href="../decisions.html">Decisions ledger</a>, which is the single source of truth for status. Each choice below links down to its entry.</p>
+  </section>
+
+  <section class="zone col">
+    <h2 class="h"><code style="font-size:.7em">claude -p</code> over tmux / screen-scraping</h2>
+    <p>We drive Claude headlessly with <code>claude -p --output-format stream-json --resume</code>. It's the same engine as the interactive TUI, but it emits a <em>structured</em> event stream we can map cleanly to a status chip and edit cards. The alternative — driving an interactive session over tmux and scraping the terminal (how amux does it) — pays for long-lived fleets with fragile ANSI parsing we don't need for a single document. We verified <code>claude -p</code> still draws from the Claude subscription. <a class="ref" href="../decisions.html#d-claude-p">ledger →</a> · <a class="ref" href="../learnings.html#l-amux">amux →</a></p>
+  </section>
+
+  <section class="zone col">
+    <h2 class="h">The document on disk is the single source of truth</h2>
+    <p>Both you and Claude read and write the <em>same file</em>; the page reflects disk, never ahead of it. This rules out a server-side document model, HTML assembled from stdout, and any diff-and-patch dance — and it's why a fresh session can rebuild context just by reading the file. <a class="ref" href="../decisions.html#d-ssot">ledger →</a></p>
+  </section>
+
+  <section class="zone col">
+    <h2 class="h">The bridge is a dumb pipe</h2>
+    <p>Claude edits the file with its own tools; a watcher triggers the reload. The bridge never assembles HTML from the model's stdout. That keeps it ~200 lines, avoids fragile partial-DOM parsing, and means the two sides converge on one artifact instead of drifting. <a class="ref" href="../decisions.html#d-dumb-pipe">ledger →</a></p>
+  </section>
+
+  <section class="zone col">
+    <h2 class="h">Zero runtime dependencies · local-only</h2>
+    <p>Node ≥18 built-ins, ESM, nothing to <code>npm install</code> — instant to run, nothing to break. The server binds to loopback and restricts Claude to file tools only; the accepted residual is no request auth on a single-user local machine. <a class="ref" href="../decisions.html#d-zero-deps">ledger →</a></p>
+  </section>
+
+  <section class="zone col">
+    <h2 class="h">Tradeoffs we accepted</h2>
+    <ul class="needs">
+      <li><span class="sdot open"></span>~1–2 s cold-start per semantic turn — optimistic local edits hide it; a long-lived watch session removes it later.</li>
+      <li><span class="sdot open"></span>No request auth — fine for a local-only tool, a constraint if it ever ships hosted.</li>
+      <li><span class="sdot open"></span>The subtractive name — must keep earning “make it richer.”</li>
+      <li><span class="sdot blocked"></span>A paused billing change to watch. <a class="ref" href="../decisions.html#q-billing">→</a></li>
+    </ul>
+    <p class="deeper">Full ledger → <a href="../decisions.html">Decisions</a> · risks → <a href="../../sandpaper.html#s-risks">spec §07</a></p>
+  </section>
+  <footer>Sandpaper · wiki · §D rationale · the narrated “why”; the ledger holds the record</footer>
+</div>
+<script src="../assets/brain.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sandpaper · Log Book — Decisions</title>
+<!-- 02 — DECISIONS. Accepted calls + open questions = one lifecycle via data-status. Append on a new call/question; flip ONE data-status to resolve/supersede. A reversal is a NEW entry with data-rel="supersedes:<id>" — never rewrite. -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="./assets/brain.css" />
+</head>
+<body>
+<div class="wrap">
+  <nav class="brain-nav">
+    <a class="home" href="./index.html">Cover</a><a href="./wiki/index.html">Wiki</a>
+    <a href="./log.html">Log</a><a class="here" href="./decisions.html">Decisions</a><a href="./map.html">Map</a><a href="./learnings.html">Learnings</a>
+    <span class="grow"></span><a class="ext" href="../sandpaper.html">spec ↗</a><a class="ext" href="../engg-spec.html">engg ↗</a>
+  </nav>
+
+  <section class="band" style="border-top:0">
+    <div class="eyebrow">02 · Decisions</div>
+    <h2>Why it's built this way</h2>
+    <p class="muted">The durable ledger. Each call is one or two lines — detail lives one link away in the canonical doc.</p>
+    <div class="brain-search">
+      <input id="brain-q" placeholder="Filter decisions…  (press / )" />
+      <button class="facet" data-facet="accepted" type="button">accepted</button>
+      <button class="facet" data-facet="open" type="button">open</button>
+      <span id="brain-searchnote" class="searchnote"></span>
+    </div>
+  </section>
+
+  <section class="band" style="border-top:0;padding-top:0">
+    <article class="entry entry--decision" data-kind="decision" id="d-pivot" data-cid="d-pivot" data-status="accepted" data-date="2026-06-29" data-ref="../sandpaper.html#hero" data-tags="strategy pivot brain eyes">
+      <div class="entry-head"><span class="entry-id">D-006</span><h3>Pivot: the browser is the eyes, not the chat</h3><span class="badge accepted">Accepted</span></div>
+      <dl class="entry-fields">
+        <div><dt>Decision</dt><dd>The browser becomes a living, navigable project brain (state) + in-place manipulation; deep steering stays in the terminal.</dd></div>
+        <div><dt>Because</dt><dd>An in-browser chatbox is a worse terminal — the user steers from the terminal even while we build the box.</dd></div>
+        <div><dt>Instead of</dt><dd>Chasing chat parity in the page (H-A).</dd></div>
+      </dl>
+      <div class="entry-foot"><a class="ref" href="../sandpaper.html#hero">spec →</a></div>
+    </article>
+
+    <article class="entry entry--decision" data-kind="decision" id="d-name" data-cid="d-name" data-status="accepted" data-date="2026-06-29" data-ref="../sandpaper.html#s-name" data-tags="naming brand">
+      <div class="entry-head"><span class="entry-id">D-001</span><h3>The name is Sandpaper</h3><span class="badge accepted">Accepted</span></div>
+      <dl class="entry-fields">
+        <div><dt>Decision</dt><dd>Call it Sandpaper — sand a rough draft into a finished spec.</dd></div>
+        <div><dt>Because</dt><dd>Everyday word, instant recall, "-paper" cadence, names the craft.</dd></div>
+        <div><dt>Instead of</dt><dd>Tweaq (too small), Illume / Gilden (too rare), Vivid (less ours).</dd></div>
+      </dl>
+      <div class="entry-foot"><a class="ref" href="../sandpaper.html#s-name">spec §08 →</a></div>
+    </article>
+
+    <article class="entry entry--decision" data-kind="decision" id="d-ssot" data-cid="d-ssot" data-status="accepted" data-date="2026-06-29" data-ref="../engg-spec.html#invariant" data-tags="invariant architecture">
+      <div class="entry-head"><span class="entry-id">D-002</span><h3>The document on disk is the single source of truth</h3><span class="badge accepted">Accepted</span></div>
+      <dl class="entry-fields">
+        <div><dt>Decision</dt><dd>Both the user and Claude read/write the same file; the page reflects disk, never ahead of it.</dd></div>
+        <div><dt>Because</dt><dd>Rules out a server-side document model, HTML-from-stdout, and diffing — the bridge stays a dumb pipe.</dd></div>
+      </dl>
+      <div class="entry-foot"><a class="ref" href="../engg-spec.html#invariant">engg →</a></div>
+    </article>
+
+    <article class="entry entry--decision" data-kind="decision" id="d-claude-p" data-cid="d-claude-p" data-status="accepted" data-date="2026-06-29" data-ref="../sandpaper.html#s-how" data-tags="claude-p bridge verdict">
+      <div class="entry-head"><span class="entry-id">D-003</span><h3>claude -p is the right primitive</h3><span class="badge accepted">Accepted</span></div>
+      <dl class="entry-fields">
+        <div><dt>Decision</dt><dd>Drive Claude via headless <code>claude -p --output-format stream-json --resume</code>; never tmux/screen-scraping.</dd></div>
+        <div><dt>Because</dt><dd>It's the same engine with structured output; verified it still draws from the subscription. amux's scraping pain confirms it.</dd></div>
+      </dl>
+      <div class="entry-foot"><a class="ref" href="../sandpaper.html#s-how">spec §02 →</a> &nbsp; <a class="ref" href="learnings.html#l-amux">amux →</a></div>
+    </article>
+
+    <article class="entry entry--decision" data-kind="decision" id="d-dumb-pipe" data-cid="d-dumb-pipe" data-status="accepted" data-date="2026-06-29" data-ref="../engg-spec.html#s-bridge" data-tags="bridge architecture">
+      <div class="entry-head"><span class="entry-id">D-004</span><h3>The bridge is a dumb pipe</h3><span class="badge accepted">Accepted</span></div>
+      <dl class="entry-fields">
+        <div><dt>Decision</dt><dd>Claude edits the file with its own tools; the watcher reloads. Never assemble HTML from stdout.</dd></div>
+        <div><dt>Because</dt><dd>Keeps the bridge ~200 lines and avoids fragile partial-DOM parsing.</dd></div>
+      </dl>
+      <div class="entry-foot"><a class="ref" href="../engg-spec.html#s-bridge">engg →</a></div>
+    </article>
+
+    <article class="entry entry--decision" data-kind="decision" id="d-zero-deps" data-cid="d-zero-deps" data-status="accepted" data-date="2026-06-29" data-ref="../engg-spec.html#s-arch" data-tags="stack node">
+      <div class="entry-head"><span class="entry-id">D-005</span><h3>Zero runtime dependencies</h3><span class="badge accepted">Accepted</span></div>
+      <dl class="entry-fields">
+        <div><dt>Decision</dt><dd>Node ≥18 built-ins only, ESM. No npm install to run.</dd></div>
+        <div><dt>Because</dt><dd>Instant to run, nothing to break, matches the local-first ethos.</dd></div>
+      </dl>
+      <div class="entry-foot"><a class="ref" href="../engg-spec.html#s-arch">engg →</a></div>
+    </article>
+
+    <h2 id="open" style="margin-top:26px">Open questions</h2>
+    <p class="muted">A question is just a decision not yet made. Resolving one flips <code>data-status</code> — never deletes.</p>
+
+    <article class="entry entry--question" data-kind="question" id="q-anchoring" data-cid="q-anchoring" data-status="open" data-date="2026-06-29" data-ref="../sandpaper.html#s-risks" data-tags="anchoring data-cid regeneration">
+      <div class="entry-head"><span class="badge open">open · blocking</span><h3>How do annotations survive a full HTML regeneration?</h3></div>
+      <p>If Claude rewrites the doc and drops <code>data-cid</code>s, open annotations + brain links dangle. Plan: a CLAUDE.md contract that never strips cids, plus text-snippet / selector fallback. <a class="ref" href="../sandpaper.html#s-risks">Risks §07 →</a></p>
+    </article>
+
+    <article class="entry entry--question" data-kind="question" id="q-undo" data-cid="q-undo" data-status="open" data-date="2026-06-29" data-ref="../engg-spec.html#s-fixed" data-tags="undo snapshot">
+      <div class="entry-head"><span class="badge open">open · soon</span><h3>Make "undo?" real</h3></div>
+      <p>The chip promises undo; a pre-turn snapshot exists. Wire it to the change card + a one-click restore. <a class="ref" href="../engg-spec.html#s-fixed">engg →</a></p>
+    </article>
+
+    <article class="entry entry--question" data-kind="question" id="q-billing" data-cid="q-billing" data-status="open" data-date="2026-06-29" data-ref="../sandpaper.html#s-how" data-tags="billing subscription">
+      <div class="entry-head"><span class="badge open">open · watch</span><h3>The paused billing change</h3></div>
+      <p>The June-15 Agent-SDK credit-pool split is paused; <code>claude -p</code> still bills the plan. Keep the brain swappable in case it un-pauses. <a class="ref" href="../sandpaper.html#s-how">→</a></p>
+    </article>
+  </section>
+  <footer>Sandpaper · log book · decisions — append &amp; flip status, never rewrite · link, never copy</footer>
+</div>
+<script src="./assets/brain.js" defer></script>
+</body>
+</html>
