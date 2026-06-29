@@ -12,12 +12,23 @@
 </head>
 <body>
 <div class="wrap">
-  <nav class="brain-nav">
-    <a class="home" href="../index.html">Cover</a><a href="../wiki/index.html">Wiki</a>
-    <a class="here" href="./index.html">Project</a>
-    <a href="../log.html">Log</a><a href="../decisions.html">Decisions</a><a href="../map.html">Map</a><a href="../learnings.html">Learnings</a>
-    <span class="grow"></span><a class="ext" href="../../sandpaper.html">spec ↗</a><a class="ext" href="../../engg-spec.html">engg ↗</a>
-  </nav>
+  <div class="shell">
+    <div class="shell-id">
+      <a class="shell-mark" href="../index.html">Sand<span class="a">paper</span></a>
+      <div class="shell-state">
+        <a href="../log.html">Edition 0.5</a>
+        <a class="shell-health" href="../../engg-spec.html#s-build"><span class="dot"></span>Build · Green</a>
+        <a href="../log.html">stamped 06-29</a>
+      </div>
+    </div>
+    <nav class="shell-rail" aria-label="Lenses">
+      <a href="../wiki/index.html">Overview</a>
+      <a href="../product/index.html">Product</a>
+      <a href="../engineering/index.html">Engineering</a>
+      <a class="here" href="./index.html">Project</a>
+      <span class="dim" aria-disabled="true">stats</span>
+    </nav>
+  </div>
 
   <section class="zone flush">
     <div class="eyebrow">Project · the plan <span class="mono" style="font-size:11px">· session S09</span></div>
@@ -35,7 +46,7 @@
 
   <section class="zone flush">
     <!-- ===== ACTIVE ===== -->
-    <article class="entry entry--initiative" data-kind="initiative" data-lens="project" id="i-skeleton" data-cid="i-skeleton" data-rung="living" data-status="active" data-date="2026-06-29" data-ref="../wiki/index.html" data-tags="skeleton ia lenses">
+    <article class="entry entry--initiative" data-kind="initiative" data-lens="project" id="i-skeleton" data-cid="i-skeleton" data-rung="living" data-status="done" data-date="2026-06-29" data-ref="../wiki/index.html" data-tags="skeleton ia lenses">
       <div class="ini-head"><span class="entry-id">A</span><h3>Three-lens skeleton + IA rebuild</h3><span class="ini-rung">living</span><span class="badge" data-rollup>—</span><span class="ini-bar"><span class="track" data-progress><i></i></span><span data-progress-label>—</span></span></div>
       <ol class="tasks">
         <li class="task" data-kind="task" data-initiative="i-skeleton" data-status="done" data-session="S08" id="t-0001"><span class="sdot ok"></span><span class="t-what">Design the three-lens skeleton + plan model (this workflow)</span><span class="t-sess">S08</span></li>
@@ -43,7 +54,7 @@
         <li class="task" data-kind="task" data-initiative="i-skeleton" data-status="done" data-session="S09" id="t-0003"><span class="sdot ok"></span><span class="t-what">Extract tokens → <code>theme.css</code>; de-hardcode the fonts</span><span class="t-sess">S09</span></li>
         <li class="task" data-kind="task" data-initiative="i-skeleton" data-status="done" data-session="S09" id="t-0004"><span class="sdot ok"></span><span class="t-what">Write <code>product/</code> + <code>engineering/</code> lens prose (brain = source of truth)</span><span class="t-sess">S09</span></li>
         <li class="task" data-kind="task" data-initiative="i-skeleton" data-status="done" data-session="S09" id="t-0005"><span class="sdot ok"></span><span class="t-what">Generated 3-lens portal cover + persistent shell/footer</span><span class="t-sess">S09</span></li>
-        <li class="task" data-kind="task" data-initiative="i-skeleton" data-status="todo" id="t-0023"><span class="sdot idle"></span><span class="t-what">Liberal cross-lens links — every page reaches related lenses (multiple paths to the same place)</span></li>
+        <li class="task" data-kind="task" data-initiative="i-skeleton" data-status="done" data-session="S09" id="t-0023"><span class="sdot ok"></span><span class="t-what">Liberal cross-lens links — every page reaches related lenses (multiple paths to the same place)</span><span class="t-sess">S09</span></li>
       </ol>
     </article>
 
@@ -127,7 +138,30 @@
     </article>
   </section>
 
-  <footer>Sandpaper · project · the plan · progress derived from task status, never typed · <a href="../log.html">work log →</a></footer>
+  <footer class="portal-foot">
+    <div class="foot-col">
+      <div class="foot-h">Lenses</div>
+      <a href="../wiki/index.html">Overview</a>
+      <a href="../product/index.html">Product</a>
+      <a href="../engineering/index.html">Engineering</a>
+      <a href="./index.html">Project</a>
+      <span class="dim">stats · soon</span>
+    </div>
+    <div class="foot-col">
+      <div class="foot-h">Books</div>
+      <a href="../log.html">Log</a>
+      <a href="../decisions.html">Decisions</a>
+      <a href="../map.html">Map</a>
+      <a href="../learnings.html">Learnings</a>
+      <a href="../wiki/index.html">Wiki</a>
+    </div>
+    <div class="foot-col">
+      <div class="foot-h">Canonical</div>
+      <a class="ext" href="../../sandpaper.html">spec ↗</a>
+      <a class="ext" href="../../engg-spec.html">engg ↗</a>
+      <div class="foot-meta">Sandpaper · static · zero runtime · stamped 2026-06-29 · link, never copy</div>
+    </div>
+  </footer>
 </div>
 <script src="../assets/brain.js" defer></script>
 </body>

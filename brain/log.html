@@ -11,11 +11,23 @@
 </head>
 <body>
 <div class="wrap">
-  <nav class="brain-nav">
-    <a class="home" href="./index.html">Cover</a><a href="./wiki/index.html">Wiki</a>
-    <a class="here" href="./log.html">Log</a><a href="./decisions.html">Decisions</a><a href="./map.html">Map</a><a href="./learnings.html">Learnings</a>
-    <span class="grow"></span><a class="ext" href="../sandpaper.html">spec ↗</a><a class="ext" href="../engg-spec.html">engg ↗</a>
-  </nav>
+  <div class="shell">
+    <div class="shell-id">
+      <a class="shell-mark" href="./index.html">Sand<span class="a">paper</span></a>
+      <div class="shell-state">
+        <a href="./log.html">Edition 0.5</a>
+        <a class="shell-health" href="../engg-spec.html#s-build"><span class="dot"></span>Build · Green</a>
+        <a href="./log.html">stamped 06-29</a>
+      </div>
+    </div>
+    <nav class="shell-rail" aria-label="Lenses">
+      <a href="./wiki/index.html">Overview</a>
+      <a href="./product/index.html">Product</a>
+      <a href="./engineering/index.html">Engineering</a>
+      <a href="./project/index.html">Project</a>
+      <span class="dim" aria-disabled="true">stats</span>
+    </nav>
+  </div>
 
   <section class="zone flush">
     <div class="eyebrow">01 · Log <span id="brain-unseen" class="badge open" hidden></span></div>
@@ -31,6 +43,7 @@
   <section class="zone flush">
     <div class="tl-day">Jun 29, 2026</div>
     <ol class="timeline">
+      <li data-kind="worklog" id="w-0158" data-cid="w-0158" data-tags="shell migration nav cross-lens initiative-a complete"><div class="tl-row"><span class="tl-when">06-29</span><span class="tl-what">Migrated every book page onto the persistent shell — universal cross-lens nav; <strong>Initiative A complete</strong>.</span><span class="tl-link"><a class="ref" href="./project/index.html">the plan →</a></span></div></li>
       <li data-kind="worklog" id="w-0157" data-cid="w-0157" data-tags="lens prose product engineering source-of-truth initiative-a"><div class="tl-row"><span class="tl-when">06-29</span><span class="tl-what">Wrote substantive Product + Engineering lens prose — grounded, cross-linked; the brain is the reading home.</span><span class="tl-link"><a class="ref" href="./engineering/index.html">read it →</a></span></div></li>
       <li data-kind="worklog" id="w-0156" data-cid="w-0156" data-tags="portal cover doors shell lens initiative-a"><div class="tl-row"><span class="tl-when">06-29</span><span class="tl-what">Rebuilt the cover as a 3-lens portal — tabbed doors, sticky shell, Product/Engineering landings.</span><span class="tl-link"><a class="ref" href="./decisions.html#d-portal">why →</a></span></div></li>
       <li data-kind="worklog" id="w-0155" data-cid="w-0155" data-tags="theme tokens themeable theme.css initiative-a"><div class="tl-row"><span class="tl-when">06-29</span><span class="tl-what">Initiative A — extracted one overridable <code>theme.css</code> (55 tokens); brain.css imports + consumes it, toolbar self-scoped.</span><span class="tl-link"><a class="ref" href="./decisions.html#d-theme">why →</a></span></div></li>
@@ -52,7 +65,30 @@
       <li data-kind="worklog" id="w-0139" data-cid="w-0139" data-tags="naming"><div class="tl-row"><span class="tl-when">06-29</span><span class="tl-what">Decided the name: Sandpaper.</span><span class="tl-link"><a class="ref" href="../sandpaper.html#s-name">→</a></span></div></li>
     </ol>
   </section>
-  <footer>Sandpaper · log book · append-only — never rewrite a row · link, never copy</footer>
+  <footer class="portal-foot">
+    <div class="foot-col">
+      <div class="foot-h">Lenses</div>
+      <a href="./wiki/index.html">Overview</a>
+      <a href="./product/index.html">Product</a>
+      <a href="./engineering/index.html">Engineering</a>
+      <a href="./project/index.html">Project</a>
+      <span class="dim">stats · soon</span>
+    </div>
+    <div class="foot-col">
+      <div class="foot-h">Books</div>
+      <a href="./log.html">Log</a>
+      <a href="./decisions.html">Decisions</a>
+      <a href="./map.html">Map</a>
+      <a href="./learnings.html">Learnings</a>
+      <a href="./wiki/index.html">Wiki</a>
+    </div>
+    <div class="foot-col">
+      <div class="foot-h">Canonical</div>
+      <a class="ext" href="../sandpaper.html">spec ↗</a>
+      <a class="ext" href="../engg-spec.html">engg ↗</a>
+      <div class="foot-meta">Sandpaper · static · zero runtime · stamped 2026-06-29 · link, never copy</div>
+    </div>
+  </footer>
 </div>
 <script src="./assets/brain.js" defer></script>
 </body>

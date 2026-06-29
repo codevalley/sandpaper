@@ -11,11 +11,23 @@
 </head>
 <body>
 <div class="wrap">
-  <nav class="brain-nav">
-    <a class="home" href="./index.html">Cover</a><a href="./wiki/index.html">Wiki</a>
-    <a href="./log.html">Log</a><a href="./decisions.html">Decisions</a><a href="./map.html">Map</a><a class="here" href="./learnings.html">Learnings</a>
-    <span class="grow"></span><a class="ext" href="../sandpaper.html">spec ↗</a><a class="ext" href="../engg-spec.html">engg ↗</a>
-  </nav>
+  <div class="shell">
+    <div class="shell-id">
+      <a class="shell-mark" href="./index.html">Sand<span class="a">paper</span></a>
+      <div class="shell-state">
+        <a href="./log.html">Edition 0.5</a>
+        <a class="shell-health" href="../engg-spec.html#s-build"><span class="dot"></span>Build · Green</a>
+        <a href="./log.html">stamped 06-29</a>
+      </div>
+    </div>
+    <nav class="shell-rail" aria-label="Lenses">
+      <a href="./wiki/index.html">Overview</a>
+      <a href="./product/index.html">Product</a>
+      <a href="./engineering/index.html">Engineering</a>
+      <a href="./project/index.html">Project</a>
+      <span class="dim" aria-disabled="true">stats</span>
+    </nav>
+  </div>
 
   <section class="zone flush col">
     <div class="eyebrow">04 · Learnings</div>
@@ -60,7 +72,30 @@
       <p><strong>Scrub the child env before spawning claude.</strong> An exported <code>ANTHROPIC_API_KEY</code> silently bills the API even on a plan; drop it + the <code>CLAUDECODE</code> markers. <a class="ref" href="../sandpaper.html#s-how">→</a></p>
     </aside>
   </section>
-  <footer>Sandpaper · log book · learnings — append only when something bites · link, never copy</footer>
+  <footer class="portal-foot">
+    <div class="foot-col">
+      <div class="foot-h">Lenses</div>
+      <a href="./wiki/index.html">Overview</a>
+      <a href="./product/index.html">Product</a>
+      <a href="./engineering/index.html">Engineering</a>
+      <a href="./project/index.html">Project</a>
+      <span class="dim">stats · soon</span>
+    </div>
+    <div class="foot-col">
+      <div class="foot-h">Books</div>
+      <a href="./log.html">Log</a>
+      <a href="./decisions.html">Decisions</a>
+      <a href="./map.html">Map</a>
+      <a href="./learnings.html">Learnings</a>
+      <a href="./wiki/index.html">Wiki</a>
+    </div>
+    <div class="foot-col">
+      <div class="foot-h">Canonical</div>
+      <a class="ext" href="../sandpaper.html">spec ↗</a>
+      <a class="ext" href="../engg-spec.html">engg ↗</a>
+      <div class="foot-meta">Sandpaper · static · zero runtime · stamped 2026-06-29 · link, never copy</div>
+    </div>
+  </footer>
 </div>
 <script src="./assets/brain.js" defer></script>
 </body>
