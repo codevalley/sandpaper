@@ -3,12 +3,12 @@
 // toolbar at response time only, relaying page → Claude turns, streaming status over SSE,
 // and live-reloading the affected page when its file changes.
 import { createServer } from 'node:http';
-import { readFile, writeFile, watch, copyFileSync, mkdirSync, existsSync, realpathSync } from 'node:fs';
+import { readFile, writeFile, readFileSync, writeFileSync, watch, copyFileSync, mkdirSync, existsSync, realpathSync } from 'node:fs';
 import { join, dirname, basename, extname, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import { runTurn } from './claude.js';
-import { replaceInner } from './edit.js';
+import { replaceInner, removeElement, moveElement } from './edit.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PUBLIC = join(HERE, '..', 'public');
@@ -30,6 +30,36 @@ export function startServer(target, port, opts = {}) {
   let activeTurnPage = null;  // the URL path the active turn is editing (for the reload frame)
   let reloadPending = false;  // a file change happened mid-turn; reload once it ends
   let suppressReloadUntil = 0; // a direct in-place edit we just wrote — the browser already shows it
+
+  // One-level undo for direct (no-AI) edits: snapshot a page just before we mutate it.
+  const directSnapDir = join(root, '.sandpaper', 'snapshots', 'direct');
+  const directSnaps = new Map(); // pageFile -> its pre-edit snapshot file (recorded only after a successful write)
+  const takeDirectSnap = (pageFile) => { // copy the current file aside; return the snapshot path, or null
+    try {
+      if (!existsSync(directSnapDir)) mkdirSync(directSnapDir, { recursive: true });
+      const rel = pageFile.startsWith(root + sep) ? pageFile.slice(root.length + 1) : basename(pageFile);
+      const snap = join(directSnapDir, createHash('sha1').update(rel).digest('hex').slice(0, 16) + '.html');
+      copyFileSync(pageFile, snap);
+      return snap;
+    } catch { return null; } // best-effort; never block the edit
+  };
+
+  // Apply a direct (no-AI) edit ATOMICALLY: sync read → compute → write, with no await points in between
+  // (so two rapid edits can't interleave). compute(src) -> new HTML string, or null if not located.
+  // Refuses to write while an AI turn is editing the same page (it would clobber Claude's in-progress edit).
+  const applyDirect = (pageFile, compute) => {
+    if (activeTurn && (!isDir || resolveUnder(activeTurnPage) === pageFile)) return { code: 409, body: '{"error":"an AI turn is editing this page"}' };
+    let src;
+    try { src = readFileSync(pageFile, 'utf8'); } catch { return { code: 404, body: '{"error":"unreadable"}' }; }
+    const out = compute(src);
+    if (out == null) return { code: 409, body: '{"error":"element not found"}' };
+    if (out === src) return { code: 200, body: '{"ok":true,"noop":true}' };
+    const snap = takeDirectSnap(pageFile);            // snapshot the pre-edit file
+    try { writeFileSync(pageFile, out); } catch { return { code: 500, body: '{"error":"write failed"}' }; }
+    if (snap) directSnaps.set(pageFile, snap);        // record undo ONLY after the write succeeds
+    suppressReloadUntil = Date.now() + 800;           // the browser already shows the change
+    return { code: 200, body: '{"ok":true}' };
+  };
 
   const broadcast = (obj) => {
     const frame = `data: ${JSON.stringify(obj)}\n\n`;
@@ -159,22 +189,56 @@ export function startServer(target, port, opts = {}) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           return res.end('{"error":"bad write request"}');
         }
-        readFile(pageFile, 'utf8', (err, src) => {
-          if (err) { res.writeHead(404, { 'Content-Type': 'application/json' }); return res.end('{"error":"unreadable"}'); }
-          const next = replaceInner(src, cid, p.html);
-          if (next == null) { res.writeHead(409, { 'Content-Type': 'application/json' }); return res.end('{"error":"element not found"}'); }
-          if (next === src) { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end('{"ok":true,"noop":true}'); }
-          suppressReloadUntil = Date.now() + 800; // our own write — don't bounce the editing browser
-          writeFile(pageFile, next, (werr) => {
-            if (werr) {
-              suppressReloadUntil = 0;
-              res.writeHead(500, { 'Content-Type': 'application/json' });
-              return res.end('{"error":"write failed"}');
-            }
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end('{"ok":true}');
-          });
+        const r = applyDirect(pageFile, (src) => replaceInner(src, cid, p.html));
+        res.writeHead(r.code, { 'Content-Type': 'application/json' });
+        res.end(r.body);
+      });
+      return;
+    }
+
+    // --- a direct (no-AI) STRUCTURAL edit: delete or move an element by data-cid (the "Hands") ---
+    if (path === '/__sandpaper/dom' && req.method === 'POST') {
+      let body = '';
+      req.on('data', (d) => { body += d; if (body.length > 1e5) req.destroy(); });
+      req.on('end', () => {
+        let p = {}; try { p = JSON.parse(body || '{}'); } catch {}
+        const okCid = (c) => typeof c === 'string' && /^[\w:-]{1,64}$/.test(c);
+        const pageFile = resolveUnder(typeof p.page === 'string' ? p.page : '/');
+        if (!pageFile || extname(pageFile) !== '.html' || !existsSync(pageFile) || !okCid(p.cid) ||
+            (p.op !== 'delete' && p.op !== 'move') || (p.op === 'move' && !okCid(p.target))) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          return res.end('{"error":"bad dom request"}');
+        }
+        const mode = p.mode === 'after' ? 'after' : 'before';
+        const r = applyDirect(pageFile, (src) => {
+          const out = p.op === 'delete' ? removeElement(src, p.cid) : moveElement(src, p.cid, p.target, mode);
+          return out ? out.html : null;
         });
+        res.writeHead(r.code, { 'Content-Type': 'application/json' });
+        res.end(r.body);
+      });
+      return;
+    }
+
+    // --- undo the LAST direct edit on a page (restore its pre-edit snapshot) ---
+    if (path === '/__sandpaper/undo-direct' && req.method === 'POST') {
+      let body = '';
+      req.on('data', (d) => { body += d; if (body.length > 1e4) req.destroy(); });
+      req.on('end', () => {
+        let p = {}; try { p = JSON.parse(body || '{}'); } catch {}
+        const pageFile = resolveUnder(typeof p.page === 'string' ? p.page : '/');
+        const snap = pageFile && directSnaps.get(pageFile);
+        if (snap && existsSync(snap)) {
+          try {
+            suppressReloadUntil = 0;          // we WANT the restore to reload the page
+            copyFileSync(snap, pageFile);     // → watcher → reload
+            directSnaps.delete(pageFile);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            return res.end('{"ok":true}');
+          } catch { /* fall through to 404 */ }
+        }
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end('{"error":"nothing to undo"}');
       });
       return;
     }

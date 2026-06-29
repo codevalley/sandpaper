@@ -21,6 +21,7 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
     '<div id="sp-head">' +
       '<span id="sp-chip"><span id="sp-led"></span><span id="sp-label">Idle — ready when you are</span></span>' +
       '<span id="sp-cost"></span>' +
+      '<button type="button" id="sp-undo" hidden title="Undo the last direct edit">⟲ undo</button>' +
       '<button type="button" id="sp-toggle" aria-label="Expand or collapse">▴</button>' +
     '</div>' +
     '<div id="sp-thread" hidden></div>' +
@@ -38,7 +39,7 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
       label = panel.querySelector('#sp-label'), cost = panel.querySelector('#sp-cost'),
       thread = panel.querySelector('#sp-thread'), input = panel.querySelector('#sp-input'),
       sendBtn = panel.querySelector('#sp-send'), pickBtn = panel.querySelector('#sp-pick'),
-      editBtn = panel.querySelector('#sp-edit'),
+      editBtn = panel.querySelector('#sp-edit'), undoBtn = panel.querySelector('#sp-undo'),
       targetTag = panel.querySelector('#sp-target'), toggleBtn = panel.querySelector('#sp-toggle');
 
   var turns = Object.create(null);  // turnId -> live turn record
@@ -282,7 +283,7 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
     });
   }
   function startEditMode() { editing = true; editBtn.classList.add('sp-on'); document.body.classList.add('sp-editing'); markEditables(true); if (picking) stopPick(); }
-  function stopEditMode() { if (current) commitEdit(); editing = false; editBtn.classList.remove('sp-on'); document.body.classList.remove('sp-editing'); markEditables(false); }
+  function stopEditMode() { if (current) commitEdit(); editing = false; editBtn.classList.remove('sp-on'); document.body.classList.remove('sp-editing'); markEditables(false); rowctl.hidden = true; clearDrag(); }
   editBtn.addEventListener('click', function () { editing ? stopEditMode() : startEditMode(); });
 
   function detach(rec) {
@@ -312,7 +313,7 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
     fetch(API + '/write', { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ page: location.pathname, cid: rec.cid, html: next }) })
       .then(function (r) { if (!r.ok) throw new Error('write rejected'); return r.json(); })
-      .then(function () { setChip({ state: 'done', label: 'Saved · your edit, no AI' }); rec.el.classList.add('sp-saved'); setTimeout(function () { rec.el.classList.remove('sp-saved'); }, 1300); })
+      .then(function () { directDone('Saved'); rec.el.classList.add('sp-saved'); setTimeout(function () { rec.el.classList.remove('sp-saved'); }, 1300); })
       .catch(function () { rec.el.innerHTML = rec.original; setChip({ state: 'error', label: 'Couldn’t save that edit' }); }); // keep file & page in sync on failure
   }
 
@@ -325,6 +326,102 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
     e.preventDefault(); e.stopPropagation();
     beginEdit(elm);
   }, true);
+
+  // ---------- ✎ Hands: drag-to-reorder + delete (direct file ops, no AI) ----------
+  // A small handle cluster floats over the hovered record; the grip drags, the × deletes.
+  var rowctl = el('div'); rowctl.id = 'sp-rowctl'; rowctl.hidden = true;
+  var grip = el('span', 'sp-grip', '⠿'); grip.setAttribute('draggable', 'true'); grip.title = 'Drag to reorder';
+  var delBtn = el('button', 'sp-del', '×'); delBtn.type = 'button'; delBtn.title = 'Delete this block';
+  rowctl.appendChild(grip); rowctl.appendChild(delBtn);
+  document.body.appendChild(rowctl);
+
+  var hoverRow = null, hideT = 0;
+  var dragEl = null, dragCid = null, dropTarget = null, dropMode = 'before';
+
+  function showCtl(elm) {
+    hoverRow = elm;
+    var r = elm.getBoundingClientRect();
+    rowctl.style.top = (r.top + window.scrollY) + 'px';
+    rowctl.style.left = (r.left + window.scrollX) + 'px';
+    rowctl.classList.toggle('sp-ctl-below', r.top < 40); // near the (sticky) top → sit just inside, not above
+    rowctl.hidden = false;
+  }
+  function hideCtlSoon() { clearTimeout(hideT); hideT = setTimeout(function () { if (!dragEl) { rowctl.hidden = true; hoverRow = null; } }, 220); }
+  function clearDrag() {
+    document.body.classList.remove('sp-dragging');
+    if (dropTarget) dropTarget.classList.remove('sp-drop-before', 'sp-drop-after');
+    dragEl = null; dragCid = null; dropTarget = null;
+  }
+
+  document.addEventListener('mouseover', function (e) {
+    if (!editing || dragEl || current) return; // no handle while a text edit is in progress
+    if (rowctl.contains(e.target)) { clearTimeout(hideT); return; }
+    var elm = e.target.closest ? e.target.closest('.sp-editable') : null;
+    if (elm && !panel.contains(elm)) { clearTimeout(hideT); showCtl(elm); }
+  }, true);
+  document.addEventListener('mouseout', function (e) {
+    if (!editing) return;
+    var to = e.relatedTarget;
+    if (to && (rowctl.contains(to) || (hoverRow && hoverRow.contains(to)))) return;
+    hideCtlSoon();
+  }, true);
+
+  delBtn.addEventListener('click', function (e) {
+    e.preventDefault(); e.stopPropagation();
+    if (!hoverRow) return;
+    var cid = hoverRow.getAttribute('data-cid');
+    hoverRow.remove(); rowctl.hidden = true; hoverRow = null;   // optimistic; resync on failure
+    domOp({ op: 'delete', cid: cid }, 'Deleted');
+  });
+
+  grip.addEventListener('dragstart', function (e) {
+    if (!hoverRow || current) { e.preventDefault(); return; }
+    dragEl = hoverRow; dragCid = dragEl.getAttribute('data-cid');
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', dragCid); } catch (x) {}
+    document.body.classList.add('sp-dragging'); rowctl.hidden = true;
+  });
+  grip.addEventListener('dragend', clearDrag);
+  document.addEventListener('dragover', function (e) {
+    if (!dragEl) return;
+    var elm = e.target.closest ? e.target.closest('.sp-editable') : null;
+    if (!elm || panel.contains(elm) || elm === dragEl || dragEl.contains(elm) || elm.parentNode !== dragEl.parentNode) return; // reorder among siblings only
+    e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+    if (dropTarget && dropTarget !== elm) dropTarget.classList.remove('sp-drop-before', 'sp-drop-after');
+    dropTarget = elm;
+    var r = elm.getBoundingClientRect();
+    dropMode = (e.clientY < r.top + r.height / 2) ? 'before' : 'after';
+    elm.classList.toggle('sp-drop-before', dropMode === 'before');
+    elm.classList.toggle('sp-drop-after', dropMode === 'after');
+  }, true);
+  document.addEventListener('drop', function (e) {
+    if (!dragEl || !dropTarget) { clearDrag(); return; }
+    e.preventDefault();
+    var moved = dragEl, cid = dragCid, tgt = dropTarget, mode = dropMode, tcid = tgt.getAttribute('data-cid');
+    tgt.classList.remove('sp-drop-before', 'sp-drop-after');
+    if (mode === 'before') tgt.parentNode.insertBefore(moved, tgt);            // optimistic DOM move
+    else tgt.parentNode.insertBefore(moved, tgt.nextSibling);
+    clearDrag();
+    domOp({ op: 'move', cid: cid, target: tcid, mode: mode }, 'Moved');
+  }, true);
+
+  // shared POST for structural ops; on failure resync the page from disk
+  function domOp(payload, okLabel) {
+    payload.page = location.pathname;
+    fetch(API + '/dom', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      .then(function (r) { if (!r.ok) throw new Error(); return r.json(); })
+      .then(function () { directDone(okLabel); })
+      .catch(function () { setChip({ state: 'error', label: 'Couldn’t save — reloading' }); setTimeout(function () { location.reload(); }, 600); });
+  }
+
+  // undo affordance after ANY direct edit (text · delete · move) — one level, server-snapshotted
+  function directDone(label) { setChip({ state: 'done', label: label + ' · no AI' }); undoBtn.hidden = false; }
+  undoBtn.addEventListener('click', function () {
+    undoBtn.hidden = true;
+    fetch(API + '/undo-direct', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ page: location.pathname }) })
+      .then(function (r) { if (!r.ok) throw new Error(); /* server restores → watcher → reload */ })
+      .catch(function () { setChip({ state: 'error', label: 'Nothing to undo' }); });
+  });
 
   // ---------- persistence + rehydrate (survive the live-reload) ----------
   function persist() { try { sessionStorage.setItem(SKEY, thread.innerHTML); } catch (e) {} }

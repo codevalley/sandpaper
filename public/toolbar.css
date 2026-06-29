@@ -107,6 +107,25 @@ body.sp-editing .sp-editable:hover{ box-shadow:0 0 0 1px rgba(63,82,71,.5), 0 0 
 @keyframes sp-saved-pulse{ from{ box-shadow:0 0 0 3px rgba(78,124,89,.5);} to{ box-shadow:0 0 0 3px rgba(78,124,89,0);} }
 .sp-saved{ animation:sp-saved-pulse 1.2s ease-out; border-radius:4px; }
 
+/* Hands: the floating drag/delete handle cluster (host-document affordance — literal colors) */
+#sp-rowctl{ position:absolute; z-index:2147483500; display:flex; gap:1px; align-items:center;
+  background:#F4F0E6; border:1px solid rgba(23,21,15,.2); border-radius:7px; padding:1px;
+  box-shadow:0 3px 10px rgba(23,21,15,.18); transform:translate(-2px,-100%); }
+#sp-rowctl.sp-ctl-below{ transform:translate(-2px,2px); }
+.sp-grip{ cursor:grab; padding:3px 5px; color:#8A8578; font-size:13px; line-height:1; user-select:none; }
+.sp-grip:active{ cursor:grabbing; color:#3F5247; }
+.sp-del{ border:0; background:transparent; cursor:pointer; padding:2px 7px 3px; color:#B23A2E; font-size:15px; line-height:1; border-radius:5px; }
+.sp-del:hover{ background:rgba(178,58,46,.12); }
+body.sp-dragging, body.sp-dragging *{ cursor:grabbing !important; }
+body.sp-dragging .sp-editable{ transition:none; }
+.sp-drop-before{ box-shadow:inset 0 3px 0 -1px #C75B39 !important; }
+.sp-drop-after{ box-shadow:inset 0 -3px 0 -1px #C75B39 !important; }
+
+/* the undo chip in the panel head (inside #sp-panel — scoped tokens ok) */
+#sp-undo{ border:1px solid rgba(23,21,15,.18); background:var(--sp-paper-2); color:var(--sp-pine);
+  font-family:'IBM Plex Mono',monospace; font-size:10.5px; border-radius:6px; padding:2px 8px; cursor:pointer; }
+#sp-undo:hover{ border-color:var(--sp-pine); color:var(--sp-ink); }
+
 /* flash the elements Claude just changed, on the host document */
 .sp-flash{ animation:sp-flash 2.2s ease-out 1; }
 @keyframes sp-flash{ 0%{ box-shadow:0 0 0 3px rgba(199,91,57,.6); background:rgba(199,91,57,.14); } 100%{ box-shadow:0 0 0 0 transparent; background:transparent; } }

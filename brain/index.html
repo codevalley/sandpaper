@@ -12,11 +12,11 @@
 <link rel="stylesheet" href="./assets/brain.css" />
 <!-- BRAIN:DIGEST — machine context for a fresh `claude`: read THIS first (~1KB) to rehydrate. -->
 <script type="application/json" id="brain-state">
-{ "v":1, "project":"Sandpaper", "phase":"P0 → pivoted", "updated":"2026-06-29",
-  "session":"S09",
-  "focus":{ "one":"Initiative A COMPLETE — 3-lens portal + lens prose + the shell migrated onto every book page (universal cross-lens nav); next: pick up the backlog (Hands drag/delete, /theme, the skill)", "ref":"project/index.html" },
-  "worklog":[ {"date":"2026-06-29","one":"Shell on every book page — cross-lens nav is universal; Initiative A done","cid":"w-0158"},
-              {"date":"2026-06-29","one":"Wrote the Product + Engineering lens prose — grounded, cross-linked","cid":"w-0157"} ],
+{ "v":1, "project":"Sandpaper", "phase":"P0 → pivoted", "updated":"2026-06-30",
+  "session":"S10",
+  "focus":{ "one":"Shipped Hands drag-to-reorder + delete + one-level undo (direct file ops, no AI); hardened via adversarial review (atomic sync writes + byte-edge fixes); next: the backlog (/theme, the skill, packaging)", "ref":"project/index.html#i-hands" },
+  "worklog":[ {"date":"2026-06-30","one":"Shipped Hands drag + delete + undo — direct file ops, review-hardened","cid":"w-0159"},
+              {"date":"2026-06-29","one":"Shell on every book page — cross-lens nav is universal; Initiative A done","cid":"w-0158"} ],
   "open":["decisions.html#q-anchoring","decisions.html#q-undo","decisions.html#q-billing"],
   "docs":["../sandpaper.html","../engg-spec.html"] }
 </script>
@@ -49,9 +49,9 @@
     <div class="pl-meta"><span class="now-tag">Now</span> the build stands at <a href="./project/index.html#i-skeleton">Initiative A — the skeleton</a></div>
     <!-- BRAIN:NOW -->
     <p class="now-line" data-cid="now" data-kind="now" data-ref="project/index.html">
-      <strong>Initiative A is done</strong> — the brain is a navigable 3-lens portal: tabbed doors, lens
-      prose, and one sticky shell on every page. Next: the backlog — Hands, <code>/theme</code>, the skill.
-      <a class="ref" href="project/index.html">the plan →</a>
+      Shipped <strong>Hands drag &amp; delete</strong> — reorder by dragging, delete a block, undo any of it;
+      all direct to the file, no AI, hardened by an adversarial review. Next: the backlog.
+      <a class="ref" href="project/index.html#i-hands">the plan →</a>
     </p>
     <!-- /BRAIN:NOW -->
   </header>
@@ -114,9 +114,9 @@
   <section class="zone" data-cid="s-log">
     <div class="eyebrow">Latest <span id="brain-unseen" class="badge open" hidden></span></div>
     <ol class="timeline" data-cid="logfeed">
+      <li data-kind="worklog" data-cid="w-0159"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Shipped Hands drag + delete + undo — direct file ops, no AI, review-hardened.</span><span class="tl-link"><a class="ref" href="./learnings.html#l-direct-atomic">gotcha →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0158"><div class="tl-row"><span class="tl-when">06-29</span><span class="tl-what">Shell on every book page — cross-lens nav is universal. Initiative A done.</span><span class="tl-link"><a class="ref" href="./project/index.html">the plan →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0157"><div class="tl-row"><span class="tl-when">06-29</span><span class="tl-what">Wrote the Product + Engineering lens prose — the brain is the reading home.</span><span class="tl-link"><a class="ref" href="./engineering/index.html">read it →</a></span></div></li>
-      <li data-kind="worklog" data-cid="w-0156"><div class="tl-row"><span class="tl-when">06-29</span><span class="tl-what">Rebuilt the cover as a 3-lens portal — tabbed doors + sticky shell.</span><span class="tl-link"><a class="ref" href="./decisions.html#d-portal">why →</a></span></div></li>
     </ol>
     <div style="margin-top:8px"><a class="ref" href="./log.html">full log →</a> &nbsp; <button id="brain-markseen" class="facet" type="button">Mark all seen</button></div>
   </section>
