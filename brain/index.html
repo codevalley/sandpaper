@@ -13,9 +13,9 @@
 <!-- BRAIN:DIGEST — machine context for a fresh `claude`: read THIS first (~1KB) to rehydrate. -->
 <script type="application/json" id="brain-state">
 { "v":1, "project":"Sandpaper", "phase":"P0 → pivoted", "updated":"2026-06-29",
-  "focus":{ "one":"Building the project brain (service manual) as the post-pivot Rung 1", "ref":"decisions.html#d-pivot" },
-  "worklog":[ {"date":"2026-06-29","one":"Redesigned the brain: real wiki + manual aesthetic","cid":"w-0149"},
-              {"date":"2026-06-29","one":"Designed + scaffolded the project brain","cid":"w-0148"} ],
+  "focus":{ "one":"Rung 1 (the brain) shipped + served with the action bar; next: fire the first live turn, then the hands", "ref":"wiki/index.html" },
+  "worklog":[ {"date":"2026-06-29","one":"Re-oriented to the roadmap — Rung 1 complete","cid":"w-0152"},
+              {"date":"2026-06-29","one":"Toolbar renders replies as markdown","cid":"w-0151"} ],
   "open":["decisions.html#q-anchoring","decisions.html#q-undo","decisions.html#q-billing"],
   "docs":["../sandpaper.html","../engg-spec.html"] }
 </script>
@@ -46,9 +46,10 @@
       <a class="health" href="../engg-spec.html#s-build" data-cid="health" data-status="green"><span class="dot"></span>Build · Green</a>
     </div>
     <!-- BRAIN:NOW -->
-    <p class="now-line" data-kind="now" data-ref="decisions.html#d-pivot">
-      Building <strong>this project brain</strong> as the post-pivot Rung 1 — the browser becomes the
-      <em>eyes</em>, the terminal stays the <em>mouth</em>. <a class="ref" href="decisions.html#d-pivot">why →</a>
+    <p class="now-line" data-kind="now" data-ref="wiki/index.html">
+      <strong>Rung 1 — the brain — is shipped and served</strong> with the on-page action bar. Next: fire
+      the first <em>live</em> turn, then build the <em>hands</em> (direct manipulation).
+      <a class="ref" href="wiki/index.html">the wiki →</a>
     </p>
     <!-- /BRAIN:NOW -->
   </header>
@@ -58,8 +59,8 @@
   <!-- BRAIN:COUNTS -->
   <section class="zone flush" data-cid="s-vitals">
     <div class="vitals">
-      <a class="roadbar" href="../sandpaper.html#s-road" aria-label="Roadmap: P0 spine, current of 5">
-        <span class="seg on">P0 · spine</span><span class="seg">P1</span><span class="seg">P2</span><span class="seg">P3</span><span class="seg">P4</span>
+      <a class="roadbar" href="../sandpaper.html#s-road" aria-label="Roadmap: Spine and Brain done, Hands next">
+        <span class="seg">✓ Spine</span><span class="seg">✓ Brain</span><span class="seg on">Hands →</span><span class="seg">Living</span><span class="seg">Reach</span>
       </a>
       <a class="vital" href="./decisions.html#open"><b data-count="question:open">3</b> open</a>
       <a class="vital" href="./map.html"><b data-count="component:built">3</b>/5 built</a>
@@ -85,9 +86,9 @@
   <section class="zone" data-cid="s-log">
     <div class="eyebrow">Latest <span id="brain-unseen" class="badge open" hidden></span></div>
     <ol class="timeline" data-cid="logfeed">
-      <li data-kind="worklog" data-cid="w-0149"><div class="tl-row"><span class="tl-when">06-29</span><span class="tl-what">Redesigned the brain — real wiki + the manual aesthetic.</span><span class="tl-link"><a class="ref" href="./wiki/index.html">wiki →</a></span></div></li>
-      <li data-kind="worklog" data-cid="w-0148"><div class="tl-row"><span class="tl-when">06-29</span><span class="tl-what">Designed + scaffolded the project brain.</span><span class="tl-link"><a class="ref" href="./decisions.html#d-pivot">why →</a></span></div></li>
-      <li data-kind="worklog" data-cid="w-0147"><div class="tl-row"><span class="tl-when">06-29</span><span class="tl-what">Pivoted: browser chat → living project brain.</span><span class="tl-link"><a class="ref" href="./decisions.html#d-pivot">→</a></span></div></li>
+      <li data-kind="worklog" data-cid="w-0152"><div class="tl-row"><span class="tl-when">06-29</span><span class="tl-what">Re-oriented to the roadmap — Rung 1 (the brain) complete.</span><span class="tl-link"><a class="ref" href="./wiki/index.html">wiki →</a></span></div></li>
+      <li data-kind="worklog" data-cid="w-0151"><div class="tl-row"><span class="tl-when">06-29</span><span class="tl-what">Toolbar renders replies as markdown (tables, code, lists).</span><span class="tl-link"><a class="ref" href="./decisions.html">→</a></span></div></li>
+      <li data-kind="worklog" data-cid="w-0150"><div class="tl-row"><span class="tl-when">06-29</span><span class="tl-what">Served the brain with the on-page action bar (Sand + Sling).</span><span class="tl-link"><a class="ref" href="./decisions.html#d-pivot">→</a></span></div></li>
     </ol>
     <div style="margin-top:8px"><a class="ref" href="./log.html">full log →</a> &nbsp; <button id="brain-markseen" class="facet" type="button">Mark all seen</button></div>
   </section>

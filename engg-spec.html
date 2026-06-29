@@ -165,10 +165,10 @@
         <h2>Six files, one direction of dependency</h2>
         <div class="diagram" data-cid="diagram">
           <div class="row">
-            <span class="box">browser · toolbar.js</span><span class="ar">→ POST /turn →</span>
-            <span class="box">server.js</span><span class="ar">→ spawn →</span>
-            <span class="box">claude -p</span><span class="ar">→ Edit →</span>
-            <span class="box">doc on disk</span>
+            <span class="box">browser · toolbar.js</span><span class="ar">→&nbsp;<span style="color:var(--mute);font-weight:400;font-size:10.5px;letter-spacing:.04em">POST /turn</span>&nbsp;→</span>
+            <span class="box">server.js</span><span class="ar">→&nbsp;<span style="color:var(--mute);font-weight:400;font-size:10.5px;letter-spacing:.04em">spawn</span>&nbsp;→</span>
+            <span class="box">claude -p</span><span class="ar">→&nbsp;<span style="color:var(--mute);font-weight:400;font-size:10.5px;letter-spacing:.04em">Edit</span>&nbsp;→</span>
+            <span class="box" style="border-color:var(--clay);color:var(--clay);font-weight:600">doc on disk</span>
           </div>
           <div class="foundation">▤ &nbsp;fs.watch(doc) → server broadcasts {type:'reload'} → SSE → page reloads from disk</div>
           <div class="lp">status rides the same SSE channel: stdout event → mapEvent() → broadcast() → chip</div>
