@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sandpaper · Engineering — How it's built</title>
+<!-- ENGINEERING lens LANDING. Navigable index into the engineering records; deep prose is a later task (project#t-0004).
+     Surfaces: component map + engineering decisions + architecture + the engg spec. link, never copy. -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../assets/brain.css" />
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ===== PERSISTENT SHELL (subdir variant) — Engineering = here ===== -->
+  <div class="shell">
+    <div class="shell-id">
+      <a class="shell-mark" href="../index.html">Sand<span class="a">paper</span></a>
+      <div class="shell-state">
+        <a href="../log.html">Edition 0.5</a>
+        <a class="shell-health" href="../../engg-spec.html#s-build"><span class="dot"></span>Build · Green</a>
+        <a href="../log.html">stamped 06-29</a>
+      </div>
+    </div>
+    <nav class="shell-rail" aria-label="Lenses">
+      <a href="../wiki/index.html">Overview</a>
+      <a href="../product/index.html">Product</a>
+      <a class="here" href="./index.html">Engineering</a>
+      <a href="../project/index.html">Project</a>
+      <span class="dim" aria-disabled="true">stats</span>
+    </nav>
+  </div>
+
+  <header class="lens-hero lens--engineering" data-cid="lens-eng" data-lens="engineering">
+    <div class="eyebrow">Engineering · how it's built</div>
+    <h1>The bridge, the contracts, the anchoring</h1>
+    <p>How Sandpaper works under the glass: the dumb-pipe bridge that drives <code>claude -p</code> in stream-json, the marker contract the brain stamps against, and the open anchoring problem. The records below are canonical — this page only routes you in.</p>
+  </header>
+
+  <section class="zone lens-views">
+    <div class="eyebrow">Views</div>
+    <div class="cards">
+      <a class="card" href="../map.html"><div class="k">Components</div><h3>The map</h3><p>Modules, build status, glossary.</p></a>
+      <a class="card" href="../decisions.html"><div class="k">Decisions</div><h3>Engineering calls</h3><p>The durable ledger — filter “engineering”.</p></a>
+      <a class="card" href="../wiki/architecture.html"><div class="k">Architecture</div><h3>How the pieces fit</h3><p>The readable deep-dive.</p></a>
+      <a class="card" href="../learnings.html"><div class="k">Learnings</div><h3>Gotchas</h3><p>Hard-won, never re-learned.</p></a>
+      <a class="card" href="../../engg-spec.html"><div class="k">↗ Canonical</div><h3>Engineering spec</h3><p>The source of truth.</p></a>
+    </div>
+  </section>
+
+  <footer class="portal-foot">
+    <div class="foot-col">
+      <div class="foot-h">Lenses</div>
+      <a href="../wiki/index.html">Overview</a>
+      <a href="../product/index.html">Product</a>
+      <a href="./index.html">Engineering</a>
+      <a href="../project/index.html">Project</a>
+      <span class="dim">stats · soon</span>
+    </div>
+    <div class="foot-col">
+      <div class="foot-h">Books</div>
+      <a href="../log.html">Log</a>
+      <a href="../decisions.html">Decisions</a>
+      <a href="../map.html">Map</a>
+      <a href="../learnings.html">Learnings</a>
+      <a href="../wiki/index.html">Wiki</a>
+    </div>
+    <div class="foot-col">
+      <div class="foot-h">Canonical</div>
+      <a class="ext" href="../../sandpaper.html">spec ↗</a>
+      <a class="ext" href="../../engg-spec.html">engg ↗</a>
+      <div class="foot-meta">Sandpaper · static · zero runtime · stamped 2026-06-29 · link, never copy</div>
+    </div>
+  </footer>
+</div>
+<script src="../assets/brain.js" defer></script>
+</body>
+</html>

@@ -233,3 +233,98 @@ ol.tasks .task{display:flex;align-items:baseline;gap:9px;padding:5px 0;font-size
 
 footer{padding:30px 0 56px;font-family:var(--mono);font-size:11px;color:var(--mute);letter-spacing:.04em;border-top:2px solid var(--ink);margin-top:26px}
 @media(prefers-reduced-motion:reduce){.prog .fill{transition:none}}
+
+/* ============================================================
+   PORTAL COVER (t-0005) — persistent shell, 3 lens doors (die-cut
+   thumb-index tabs), 3-column footer, lens-landing template.
+   Tokens only (theme.css var()), no hardcoded hex. file://-safe.
+   ============================================================ */
+
+/* ---- persistent shell (sticky, LIGHT; replaces .brain-nav) ---- */
+.shell{position:sticky;top:0;z-index:50;background:var(--paper);
+  border-bottom:2px solid var(--ink);margin:0 -26px;padding:0 26px}
+.shell-id{display:flex;align-items:center;justify-content:space-between;
+  gap:12px 18px;flex-wrap:wrap;padding:10px 0 8px}
+.shell-mark{font-family:var(--font-display);font-weight:600;font-size:18px;
+  line-height:1;letter-spacing:-.02em;color:var(--ink);text-decoration:none}
+.shell-mark .a{color:var(--clay)}
+.shell-state{display:flex;align-items:center;gap:8px 14px;flex-wrap:wrap;
+  font-family:var(--font-mono);font-size:11px;letter-spacing:.05em;color:var(--text-muted)}
+.shell-state a{color:var(--text-muted);text-decoration:none;border-bottom:1px solid var(--rule)}
+.shell-state a:hover{color:var(--clay);border-color:var(--clay)}
+.shell-health{display:inline-flex;align-items:center;gap:7px;text-transform:uppercase}
+.shell-health .dot{width:8px;height:8px;border-radius:var(--radius-pill);
+  background:var(--moss);box-shadow:0 0 0 3px var(--tint-moss-glow)}
+.shell-rail{display:flex;align-items:center;gap:2px;flex-wrap:nowrap;
+  overflow-x:auto;-webkit-overflow-scrolling:touch;
+  font-family:var(--font-mono);font-size:11.5px;letter-spacing:.08em;text-transform:uppercase}
+.shell-rail a{color:var(--mute);text-decoration:none;padding:8px 13px;
+  white-space:nowrap;border-bottom:2px solid transparent}
+.shell-rail a:hover{color:var(--ink)}
+.shell-rail a.here{color:var(--ink);border-bottom-color:var(--clay);font-weight:600}
+.shell-rail .dim{color:var(--mute);opacity:.55;padding:8px 13px;
+  white-space:nowrap;pointer-events:none}
+@media(max-width:760px){.shell-id{padding:8px 0 6px}.shell-rail{font-size:11px}}
+
+/* ---- the 3 lens doors (HERO; docked flush under the plate) ---- */
+.doors{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:18px}
+.door{position:relative;display:flex;flex-direction:column;gap:9px;min-height:188px;
+  background:var(--panel);border:var(--hairline);border-radius:var(--radius-md);
+  padding:26px 18px 16px;text-decoration:none;color:var(--ink);
+  transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease}
+.door:hover{transform:translateY(-2px);border-color:var(--lens);box-shadow:var(--shadow-panel)}
+.door:focus-visible{outline:2px solid var(--tint-clay-focus);outline-offset:2px}
+.door--on{box-shadow:inset 3px 0 0 var(--lens)}
+.door--product{--lens:var(--ochre)}
+.door--engineering{--lens:var(--pine)}
+.door--project{--lens:var(--clay)}
+/* THE DIE-CUT THUMB-INDEX TAB — the signature */
+.door .tab{position:absolute;top:-1px;left:18px;transform:translateY(-46%);
+  background:var(--panel);color:var(--mute);
+  font-family:var(--font-mono);font-size:11px;font-weight:600;letter-spacing:.14em;
+  text-transform:uppercase;padding:5px 12px 6px;
+  clip-path:polygon(0 0,100% 0,calc(100% - 9px) 100%,9px 100%)}
+.door--product .tab{background:var(--ochre);color:var(--ink)}
+.door--engineering .tab{background:var(--pine);color:var(--paper)}
+.door--project .tab{background:var(--clay);color:var(--paper)}
+.door-desc{font-family:var(--font-mono);font-size:11.5px;line-height:1.5;color:var(--text-muted)}
+.door-pulse{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  font-family:var(--font-mono);font-size:12px;color:var(--ink)}
+.door-pulse b{font-family:var(--font-display);font-size:16px;font-weight:600}
+.door .bar-mini{margin-top:2px}
+.door-latest{font-family:var(--font-mono);font-size:11px;color:var(--mute)}
+.door-go{margin-top:auto;font-family:var(--font-mono);font-size:11.5px;
+  letter-spacing:.04em;color:var(--lens)}
+.door:hover .door-go{text-decoration:underline}
+@media(max-width:760px){.doors{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){.door{transition:none}.door:hover{transform:none}}
+
+/* ---- 3-column portal footer (replaces the one-liner + BROWSE) ---- */
+.portal-foot{display:grid;grid-template-columns:1fr 1fr 1.1fr;gap:20px 26px;
+  border-top:2px solid var(--ink);margin-top:26px;padding:24px 0 56px;
+  font-family:var(--font-mono);font-size:11px;letter-spacing:.04em;color:var(--mute)}
+.portal-foot .foot-h{font-size:10px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--mute);margin-bottom:8px}
+.portal-foot a{display:block;color:var(--text-muted);text-decoration:none;padding:2px 0}
+.portal-foot a:hover{color:var(--clay)}
+.portal-foot a.ext{color:var(--clay)}
+.portal-foot .dim{display:block;opacity:.55;padding:2px 0}
+.portal-foot .foot-meta{margin-top:10px;line-height:1.6;color:var(--mute)}
+@media(max-width:600px){.portal-foot{grid-template-columns:1fr;gap:18px}}
+
+/* ---- lens-landing template (product/ · engineering/) ---- */
+.lens--product{--lens:var(--ochre)}
+.lens--engineering{--lens:var(--pine)}
+.lens--project{--lens:var(--clay)}
+.lens-hero{border:var(--hairline);border-left:3px solid var(--lens);
+  border-radius:var(--radius-md);background:var(--panel);
+  padding:20px 22px;margin-top:18px}
+.lens-hero .eyebrow{color:var(--lens)}
+.lens-hero h1{font-family:var(--font-display);font-size:30px;letter-spacing:-.02em;
+  margin:6px 0 6px;line-height:1.12}
+.lens-hero p{font-size:15.5px;color:var(--text-prose);max-width:42em;margin:0}
+.lens-views{margin-top:4px}
+
+/* Tighten the cover plate so doors peek above the fold. */
+.cover-tight .plate{padding:24px 28px 22px}
+.cover-tight .now-line{margin-top:14px}

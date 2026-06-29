@@ -14,59 +14,85 @@
 <script type="application/json" id="brain-state">
 { "v":1, "project":"Sandpaper", "phase":"P0 → pivoted", "updated":"2026-06-29",
   "session":"S09",
-  "focus":{ "one":"Initiative A started — extracted one overridable theme.css (55 tokens); brain.css imports+consumes it, toolbar self-scoped; next: lens prose + portal cover", "ref":"project/index.html#i-skeleton" },
-  "worklog":[ {"date":"2026-06-29","one":"Extracted one overridable theme.css (55 tokens) — the brain is now re-skinnable","cid":"w-0155"},
-              {"date":"2026-06-29","one":"Shipped the Hands — edit text in place, no AI (✎ + /write)","cid":"w-0154"} ],
+  "focus":{ "one":"Rebuilt the cover as a 3-lens portal (tabbed doors + sticky shell + Product/Engineering landings); next: move the lens prose in (t-0004)", "ref":"project/index.html#i-skeleton" },
+  "worklog":[ {"date":"2026-06-29","one":"Rebuilt the cover as a 3-lens portal — doors + sticky shell + lens landings","cid":"w-0156"},
+              {"date":"2026-06-29","one":"Extracted one overridable theme.css (55 tokens) — the brain is now re-skinnable","cid":"w-0155"} ],
   "open":["decisions.html#q-anchoring","decisions.html#q-undo","decisions.html#q-billing"],
   "docs":["../sandpaper.html","../engg-spec.html"] }
 </script>
 </head>
 <body>
-<div class="wrap">
+<div class="wrap cover-tight">
 
-  <nav class="brain-nav">
-    <a class="home here" href="./index.html">Cover</a>
-    <a href="./wiki/index.html">Wiki</a>
-    <a href="./project/index.html">Project</a>
-    <a href="./log.html">Log</a>
-    <a href="./decisions.html">Decisions</a>
-    <a href="./map.html">Map</a>
-    <a href="./learnings.html">Learnings</a>
-    <span class="grow"></span>
-    <a class="ext" href="../sandpaper.html">spec ↗</a>
-    <a class="ext" href="../engg-spec.html">engg ↗</a>
-  </nav>
+  <!-- ===== PERSISTENT SHELL (sticky) — identity + state + the 5-item lens rail ===== -->
+  <div class="shell">
+    <div class="shell-id">
+      <a class="shell-mark" href="./index.html">Sand<span class="a">paper</span></a>
+      <div class="shell-state">
+        <a href="./log.html">Edition 0.5</a>
+        <a class="shell-health" href="../engg-spec.html#s-build" data-cid="health" data-status="green"><span class="dot"></span>Build · Green</a>
+        <a href="./log.html">stamped 06-29</a>
+      </div>
+    </div>
+    <nav class="shell-rail" aria-label="Lenses">
+      <a href="./wiki/index.html">Overview</a>
+      <a href="./product/index.html">Product</a>
+      <a href="./engineering/index.html">Engineering</a>
+      <a href="./project/index.html">Project</a>
+      <span class="dim" aria-disabled="true">stats</span>
+    </nav>
+  </div>
 
-  <!-- ZONE A+B — PLATE: masthead, health, meta, NOW hero -->
+  <!-- ZONE A — PLATE: the compact dark NOW "dateline" (where we are) -->
   <!-- BRAIN:EDITION -->
   <header class="plate" data-cid="cover">
-    <div class="pl-top">
-      <div>
-        <div class="brain-mark">Sand<span class="a">paper</span></div>
-        <div class="pl-meta"><a href="./log.html">Edition 0.5</a> · Rung 1 — the brain · <a href="./log.html">stamped 2026-06-29</a></div>
-      </div>
-      <a class="health" href="../engg-spec.html#s-build" data-cid="health" data-status="green"><span class="dot"></span>Build · Green</a>
-    </div>
+    <div class="pl-meta">▰ Now · the build stands at <a href="./project/index.html#i-skeleton">Initiative A — the skeleton</a></div>
     <!-- BRAIN:NOW -->
     <p class="now-line" data-cid="now" data-kind="now" data-ref="project/index.html">
-      Initiative A underway — extracted <strong>one overridable <code>theme.css</code></strong> (55 tokens);
-      edit it and every Sandpaper surface re-skins. Next: the lens prose + portal cover.
+      Rebuilt the cover as a <strong>3-lens portal</strong> — tabbed doors, a sticky shell, and
+      Product/Engineering landings. Next: move the lens <em>prose</em> in.
       <a class="ref" href="project/index.html#i-skeleton">the plan →</a>
     </p>
     <!-- /BRAIN:NOW -->
   </header>
   <!-- /BRAIN:EDITION -->
 
-  <!-- ZONE C — VITALS (one line, every part a link) -->
+  <!-- ZONE B — THE THREE LENS DOORS (the hero: pick a lens) -->
+  <nav class="doors" aria-label="The three lenses">
+    <a class="door door--product" href="./product/index.html">
+      <span class="tab">Product</span>
+      <span class="door-desc">what we're building &amp; why</span>
+      <span class="door-pulse">Edition <b>0.5</b> · spec §06</span>
+      <span class="door-latest">latest · lens prose queued</span>
+      <span class="door-go">open Product →</span>
+    </a>
+    <a class="door door--engineering" href="./engineering/index.html">
+      <span class="tab">Engineering</span>
+      <span class="door-desc">how it's built — bridge, contracts</span>
+      <span class="door-pulse"><span class="sdot ok"></span>Build · Green · <b>5</b> parts</span>
+      <span class="door-latest">latest · theme.css → one skin</span>
+      <span class="door-go">open Engineering →</span>
+    </a>
+    <a class="door door--project door--on" href="./project/index.html">
+      <span class="tab">Project</span>
+      <span class="door-desc">the build itself — plan, log, rungs</span>
+      <span class="door-pulse">Initiative A · <b>48%</b></span>
+      <span class="bar-mini" style="--pct:48%"><i></i></span>
+      <span class="door-latest">06-29 · theme.css extracted</span>
+      <span class="door-go">open Project →</span>
+    </a>
+  </nav>
+
+  <!-- ZONE C — PROGRESS SPINE (derived; the one instrument) -->
   <!-- BRAIN:COUNTS -->
   <section class="zone flush" data-cid="s-vitals">
     <div class="vitals">
-      <a class="roadbar" href="./project/index.html" aria-label="The plan: Spine and Brain done, Hands next">
-        <span class="seg">✓ Spine</span><span class="seg">✓ Brain</span><span class="seg on">Hands →</span><span class="seg">Living</span><span class="seg">Reach</span>
+      <a class="roadbar" href="./project/index.html" aria-label="The plan: Spine, Brain and Hands done; Living next">
+        <span class="seg">✓ Spine</span><span class="seg">✓ Brain</span><span class="seg">✓ Hands</span><span class="seg on">Living →</span><span class="seg">Reach</span>
       </a>
       <a class="vital" href="./decisions.html#open"><b data-count="question:open">3</b> open</a>
       <a class="vital" href="./map.html"><b data-count="component:built">3</b>/5 built</a>
-      <a class="vital" href="./decisions.html"><b data-count="decision">7</b> decisions</a>
+      <a class="vital" href="./decisions.html"><b data-count="decision">8</b> decisions</a>
     </div>
   </section>
   <!-- /BRAIN:COUNTS -->
@@ -88,28 +114,39 @@
   <section class="zone" data-cid="s-log">
     <div class="eyebrow">Latest <span id="brain-unseen" class="badge open" hidden></span></div>
     <ol class="timeline" data-cid="logfeed">
+      <li data-kind="worklog" data-cid="w-0156"><div class="tl-row"><span class="tl-when">06-29</span><span class="tl-what">Rebuilt the cover as a 3-lens portal — tabbed doors + sticky shell.</span><span class="tl-link"><a class="ref" href="./decisions.html#d-portal">why →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0155"><div class="tl-row"><span class="tl-when">06-29</span><span class="tl-what">Extracted one overridable theme.css — the brain re-skins from a single file.</span><span class="tl-link"><a class="ref" href="./decisions.html#d-theme">why →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0154"><div class="tl-row"><span class="tl-when">06-29</span><span class="tl-what">Shipped the Hands — edit any line in place, no AI.</span><span class="tl-link"><a class="ref" href="./project/index.html#i-hands">the plan →</a></span></div></li>
-      <li data-kind="worklog" data-cid="w-0153"><div class="tl-row"><span class="tl-when">06-29</span><span class="tl-what">Stood up the plan board — the build tracks itself in Sandpaper.</span><span class="tl-link"><a class="ref" href="./project/index.html">the plan →</a></span></div></li>
     </ol>
     <div style="margin-top:8px"><a class="ref" href="./log.html">full log →</a> &nbsp; <button id="brain-markseen" class="facet" type="button">Mark all seen</button></div>
   </section>
   <!-- /BRAIN:LOG -->
 
-  <!-- BROWSE -->
-  <section class="zone" data-cid="s-index">
-    <div class="eyebrow">The manual</div>
-    <div class="cards" data-cid="index">
-      <a class="card card--feature" href="./wiki/index.html"><div class="k">★ Start here · Wiki</div><h3>What this is, how it's built, why</h3><p>The readable knowledge base — pitch, product, architecture, tech-choice rationale.</p></a>
-      <a class="card" href="./log.html"><div class="k">Log</div><h3>Work log</h3><p>The heartbeat, newest first.</p></a>
-      <a class="card" href="./decisions.html"><div class="k">Decisions</div><h3>Decisions &amp; open Q's</h3><p>The durable ledger.</p></a>
-      <a class="card" href="./map.html"><div class="k">Map</div><h3>Components</h3><p>Modules, status, glossary.</p></a>
-      <a class="card" href="./learnings.html"><div class="k">Learnings</div><h3>Gotchas</h3><p>Hard-won, never re-learned.</p></a>
-      <a class="card" href="../sandpaper.html"><div class="k">↗ Spec</div><h3>Product spec</h3><p>The one-pager.</p></a>
+  <!-- ===== 3-COLUMN PORTAL FOOTER (the site map) ===== -->
+  <footer class="portal-foot" data-cid="footer">
+    <div class="foot-col">
+      <div class="foot-h">Lenses</div>
+      <a href="./wiki/index.html">Overview</a>
+      <a href="./product/index.html">Product</a>
+      <a href="./engineering/index.html">Engineering</a>
+      <a href="./project/index.html">Project</a>
+      <span class="dim">stats · soon</span>
     </div>
-  </section>
-
-  <footer data-cid="footer">Sandpaper · project log book · static · zero runtime · stamped 2026-06-29 · link, never copy</footer>
+    <div class="foot-col">
+      <div class="foot-h">Books</div>
+      <a href="./log.html">Log</a>
+      <a href="./decisions.html">Decisions</a>
+      <a href="./map.html">Map</a>
+      <a href="./learnings.html">Learnings</a>
+      <a href="./wiki/index.html">Wiki</a>
+    </div>
+    <div class="foot-col">
+      <div class="foot-h">Canonical</div>
+      <a class="ext" href="../sandpaper.html">spec ↗</a>
+      <a class="ext" href="../engg-spec.html">engg ↗</a>
+      <div class="foot-meta">Sandpaper · static · zero runtime · stamped 2026-06-29 · link, never copy</div>
+    </div>
+  </footer>
 </div>
 <script src="./assets/brain.js" defer></script>
 </body>
