@@ -30,6 +30,16 @@
   </section>
 
   <section class="band" style="border-top:0;padding-top:0">
+    <article class="entry entry--decision" data-kind="decision" data-lens="engineering" id="d-theme" data-cid="d-theme" data-status="accepted" data-date="2026-06-29" data-ref="./project/index.html#i-skeleton" data-tags="theme tokens themeable theme.css cascade">
+      <div class="entry-head"><span class="entry-id">D-007</span><h3>One <code>theme.css</code> is the single skin</h3><span class="badge accepted">Accepted</span></div>
+      <dl class="entry-fields">
+        <div><dt>Decision</dt><dd>All design tokens live in <code>theme.css</code>; <code>brain.css</code> only <code>@import</code>s and consumes them via <code>var()</code>. The toolbar is dev chrome injected into arbitrary host pages, so it keeps its OWN <code>#sp-panel</code>-scoped copy and never depends on a host theme.</dd></div>
+        <div><dt>Because</dt><dd>A project owner re-skins their whole Sandpaper by editing one file — and the toolbar must render identically on any page it lands in.</dd></div>
+        <div><dt>Instead of</dt><dd>Tokens triplicated across brain.css + the docs (drift-prone), or a toolbar that breaks on un-themed host pages.</dd></div>
+      </dl>
+      <div class="entry-foot"><a class="ref" href="./project/index.html#i-skeleton">the plan →</a> &nbsp; <a class="ref" href="learnings.html#l-import-root">cascade gotcha →</a></div>
+    </article>
+
     <article class="entry entry--decision" data-kind="decision" id="d-pivot" data-cid="d-pivot" data-status="accepted" data-date="2026-06-29" data-ref="../sandpaper.html#hero" data-tags="strategy pivot brain eyes">
       <div class="entry-head"><span class="entry-id">D-006</span><h3>Pivot: the browser is the eyes, not the chat</h3><span class="badge accepted">Accepted</span></div>
       <dl class="entry-fields">

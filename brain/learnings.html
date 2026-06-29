@@ -40,6 +40,11 @@
       <p><strong>claude -p is the same Claude, not a subpar one.</strong> Capability is a policy dial (<code>--allowedTools</code>), observability is in the stream; only interactive choices are staged. <a class="ref" href="../sandpaper.html#s-how">→</a></p>
     </aside>
 
+    <aside class="entry entry--learning callout gotcha" data-kind="learning" data-lens="engineering" id="l-import-root" data-cid="l-import-root" data-status="active" data-date="2026-06-29" data-area="css cascade" data-tags="theme css import root cascade">
+      <div class="eyebrow">▲ Gotcha · CSS cascade</div>
+      <p><strong>Extracting tokens to <code>theme.css</code> does nothing if the importer keeps its own <code>:root</code>.</strong> <code>@import</code> loads first, so a later duplicate <code>:root</code> in <code>brain.css</code> wins — overrides to theme.css silently no-op. The migrate step left it as "harmless redundancy"; it isn't. Drop the consumer's <code>:root</code> entirely. <a class="ref" href="./decisions.html#d-theme">decision →</a></p>
+    </aside>
+
     <aside class="entry entry--learning callout gotcha" data-kind="learning" id="l-amux" data-cid="l-amux" data-status="active" data-date="2026-06-29" data-area="research" data-tags="amux session memory">
       <div class="eyebrow">▲ Gotcha · amux deep-dive</div>
       <p><strong>One doc = one folder = one session; the file is the memory.</strong> So <code>--resume</code> is an accelerator, not a dependency — a fresh session rebuilds from the file. <a class="ref" href="../sandpaper.html#s-risks">→</a></p>

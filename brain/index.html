@@ -14,9 +14,9 @@
 <script type="application/json" id="brain-state">
 { "v":1, "project":"Sandpaper", "phase":"P0 → pivoted", "updated":"2026-06-29",
   "session":"S09",
-  "focus":{ "one":"Shipped Hands — edit any line in place (no AI) via the ✎ toolbar button + /write; next: Initiative A (skeleton/IA rebuild)", "ref":"project/index.html" },
-  "worklog":[ {"date":"2026-06-29","one":"Shipped the Hands — edit text in place, no AI (✎ + /write)","cid":"w-0154"},
-              {"date":"2026-06-29","one":"Stood up the plan board — the build now tracks itself in Sandpaper","cid":"w-0153"} ],
+  "focus":{ "one":"Initiative A started — extracted one overridable theme.css (55 tokens); brain.css imports+consumes it, toolbar self-scoped; next: lens prose + portal cover", "ref":"project/index.html#i-skeleton" },
+  "worklog":[ {"date":"2026-06-29","one":"Extracted one overridable theme.css (55 tokens) — the brain is now re-skinnable","cid":"w-0155"},
+              {"date":"2026-06-29","one":"Shipped the Hands — edit text in place, no AI (✎ + /write)","cid":"w-0154"} ],
   "open":["decisions.html#q-anchoring","decisions.html#q-undo","decisions.html#q-billing"],
   "docs":["../sandpaper.html","../engg-spec.html"] }
 </script>
@@ -49,9 +49,9 @@
     </div>
     <!-- BRAIN:NOW -->
     <p class="now-line" data-cid="now" data-kind="now" data-ref="project/index.html">
-      Shipped the <strong>Hands</strong> — edit any line <em>in place</em>, no AI: click ✎, type, done.
-      Next up: <em>Initiative A</em>, the three-lens skeleton.
-      <a class="ref" href="project/index.html">the plan →</a>
+      Initiative A underway — extracted <strong>one overridable <code>theme.css</code></strong> (55 tokens);
+      edit it and every Sandpaper surface re-skins. Next: the lens prose + portal cover.
+      <a class="ref" href="project/index.html#i-skeleton">the plan →</a>
     </p>
     <!-- /BRAIN:NOW -->
   </header>
@@ -66,7 +66,7 @@
       </a>
       <a class="vital" href="./decisions.html#open"><b data-count="question:open">3</b> open</a>
       <a class="vital" href="./map.html"><b data-count="component:built">3</b>/5 built</a>
-      <a class="vital" href="./decisions.html"><b data-count="decision">6</b> decisions</a>
+      <a class="vital" href="./decisions.html"><b data-count="decision">7</b> decisions</a>
     </div>
   </section>
   <!-- /BRAIN:COUNTS -->
@@ -88,9 +88,9 @@
   <section class="zone" data-cid="s-log">
     <div class="eyebrow">Latest <span id="brain-unseen" class="badge open" hidden></span></div>
     <ol class="timeline" data-cid="logfeed">
+      <li data-kind="worklog" data-cid="w-0155"><div class="tl-row"><span class="tl-when">06-29</span><span class="tl-what">Extracted one overridable theme.css — the brain re-skins from a single file.</span><span class="tl-link"><a class="ref" href="./decisions.html#d-theme">why →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0154"><div class="tl-row"><span class="tl-when">06-29</span><span class="tl-what">Shipped the Hands — edit any line in place, no AI.</span><span class="tl-link"><a class="ref" href="./project/index.html#i-hands">the plan →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0153"><div class="tl-row"><span class="tl-when">06-29</span><span class="tl-what">Stood up the plan board — the build tracks itself in Sandpaper.</span><span class="tl-link"><a class="ref" href="./project/index.html">the plan →</a></span></div></li>
-      <li data-kind="worklog" data-cid="w-0152"><div class="tl-row"><span class="tl-when">06-29</span><span class="tl-what">Re-oriented to the roadmap — Rung 1 (the brain) complete.</span><span class="tl-link"><a class="ref" href="./wiki/index.html">wiki →</a></span></div></li>
     </ol>
     <div style="margin-top:8px"><a class="ref" href="./log.html">full log →</a> &nbsp; <button id="brain-markseen" class="facet" type="button">Mark all seen</button></div>
   </section>

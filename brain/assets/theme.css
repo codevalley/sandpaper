@@ -1,0 +1,86 @@
+/* theme.css — Sandpaper's single skin.
+   This is the ONE file a project owner edits to re-skin every Sandpaper surface
+   (the brain books, sandpaper.html, engg-spec.html). Change a value here and the
+   whole warm "service-manual" look shifts with it. Pure CSS custom properties,
+   zero dependencies, no build step, valid standalone CSS.
+
+   Every value below is today's brain.css value verbatim, so adopting this file
+   without editing it keeps the rendered design pixel-identical. brain.css drops
+   its own :root and reads from here; the legacy alias block at the bottom keeps
+   brain.css's existing var(--serif)/var(--paper-2)/... references resolving.
+
+   NOTE: toolbar.css does NOT import this file (it is injected into arbitrary host
+   pages and must stand alone) — it carries its own #sp-panel-scoped --sp-* copy of
+   these values. Keep the two in sync by hand. */
+:root{
+  /* ---- paper / surfaces (warm service-manual stock) ---- */
+  --paper:#F4F0E6;          /* base page background */
+  --panel:#EFEADD;          /* raised panel / card / input background */
+  --paper-3:#E7E0CE;        /* recessed progress track / lighter paper */
+  --card-feature:#F7ECE3;   /* feature-card cream wash */
+  --plate:#1c1a13;          /* dark drafting-plate / code-block background */
+  --white:#fff;             /* search & inline input fields */
+
+  /* ---- ink / text ---- */
+  --ink:#17150F;            /* primary text; cover-plate background */
+  --ink-2:#221F17;          /* darker ink variant */
+  --text:#33302a;           /* body copy inside records, cards, callouts */
+  --text-prose:#2a2820;     /* long-form wiki prose + lead */
+  --text-quote:#3a372e;     /* quoted text (toolbar blockquotes) */
+  --text-muted:#6b675b;     /* muted ledger / "today" text */
+
+  /* ---- accents (semantic, never decorative) ---- */
+  --clay:#C75B39;           /* primary accent: links, interactive, WIP */
+  --pine:#3F5247;           /* secondary: success surface, sidebar, verdict */
+  --ochre:#C98A1E;          /* warning / open */
+  --moss:#4E7C59;           /* done / verified / progress fill */
+  --rust:#B23A2E;           /* error / blocked / gotcha */
+  --mute:#8A8578;           /* secondary text, idle, disabled */
+
+  /* ---- legible inks for tinted badges / the dark plate ---- */
+  --badge-done-ink:#365a40; /* text on the moss "done/verified" badge */
+  --badge-open-ink:#8a6212; /* text on the ochre "open" badge */
+  --on-plate-meta:#b9b2a0;  /* metadata text on the dark cover plate */
+  --on-plate-link:#d8d0bd;  /* links on the dark cover plate */
+  --on-plate-em:#e3b9a8;    /* italic accent inside the NOW hero */
+
+  /* ---- status semantics (map onto the accents; always label-paired) ---- */
+  --ok:var(--moss); --wip:var(--clay); --open:var(--ochre); --blocked:var(--rust); --idle:var(--mute);
+
+  /* ---- hairlines, rules, and ink/paper/accent tints ---- */
+  --rule:rgba(23,21,15,.13);            /* standard divider */
+  --rule-2:rgba(23,21,15,.07);          /* faint divider */
+  --hairline:1px solid var(--rule);     /* the canonical 1px border */
+  --tint-ink-code:rgba(23,21,15,.06);   /* inline-code wash */
+  --tint-ink-stub:rgba(23,21,15,.08);   /* stub / superseded badge wash */
+  --tint-ink-strike:rgba(23,21,15,.22); /* line-through decoration */
+  --tint-clay-sel:rgba(199,91,57,.22);  /* text selection */
+  --tint-clay-badge:rgba(199,91,57,.14);/* wip / fixed badge wash */
+  --tint-clay-focus:rgba(199,91,57,.3); /* input focus ring */
+  --tint-ochre-badge:rgba(201,138,30,.18);/* open badge wash */
+  --tint-moss-badge:rgba(78,124,89,.16);/* done badge wash */
+  --tint-moss-glow:rgba(78,124,89,.25); /* health-dot glow ring */
+  --tint-paper-grid:rgba(244,240,230,.05);/* plate grid lines */
+  --tint-paper-border:rgba(244,240,230,.3);/* health pill border on plate */
+
+  /* ---- typography ---- */
+  --font-display:'Fraunces',Georgia,'Times New Roman',serif;            /* display, used sparingly */
+  --font-body:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; /* body */
+  --font-mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;             /* labels / code / metadata */
+
+  /* ---- radii (key steps of the 3px–14px scale) ---- */
+  --radius:6px;             /* default container radius */
+  --radius-sm:3px;          /* inline code, id chips */
+  --radius-md:9px;          /* cards, panels */
+  --radius-lg:14px;         /* floating toolbar panel */
+  --radius-pill:999px;      /* pills, progress tracks, health badge */
+
+  /* ---- elevation ---- */
+  --shadow-panel:0 10px 34px rgba(23,21,15,.20);
+
+  /* ---- legacy aliases (keep brain.css's existing names resolving) ---- */
+  --paper-2:var(--panel);
+  --serif:var(--font-display);
+  --sans:var(--font-body);
+  --mono:var(--font-mono);
+}
