@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sandpaper · Project — The Plan</title>
+<!-- PROJECT lens · the PLAN BOARD. initiative → task → session; progress is DERIVED by brain.js from child
+     task status (never typed). Agent ops: FLIP one task's data-status, APPEND a task/initiative, STAMP session. -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../assets/brain.css" />
+</head>
+<body>
+<div class="wrap">
+  <nav class="brain-nav">
+    <a class="home" href="../index.html">Cover</a><a href="../wiki/index.html">Wiki</a>
+    <a class="here" href="./index.html">Project</a>
+    <a href="../log.html">Log</a><a href="../decisions.html">Decisions</a><a href="../map.html">Map</a><a href="../learnings.html">Learnings</a>
+    <span class="grow"></span><a class="ext" href="../../sandpaper.html">spec ↗</a><a class="ext" href="../../engg-spec.html">engg ↗</a>
+  </nav>
+
+  <section class="zone flush">
+    <div class="eyebrow">Project · the plan <span class="mono" style="font-size:11px">· session S08</span></div>
+    <h1 style="font-size:30px;letter-spacing:-.02em;margin:6px 0 2px">Where the work stands</h1>
+    <p class="muted" style="max-width:40em">Initiatives → tasks → done. Progress is computed from task status — never typed. This board tracks <strong>building Sandpaper, in Sandpaper</strong>.</p>
+    <div class="plan-overall">Overall <span class="track"><i id="plan-overall-bar"></i></span> <span id="plan-overall">—</span></div>
+    <div class="brain-search">
+      <input id="brain-q" placeholder="Filter the plan…  (press / )" />
+      <button class="facet" data-facet="doing" type="button">doing</button>
+      <button class="facet" data-facet="blocked" type="button">blocked</button>
+      <button class="facet" data-facet="initiative" type="button">initiatives</button>
+      <span id="brain-searchnote" class="searchnote"></span>
+    </div>
+  </section>
+
+  <section class="zone flush">
+    <!-- ===== ACTIVE ===== -->
+    <article class="entry entry--initiative" data-kind="initiative" data-lens="project" id="i-skeleton" data-cid="i-skeleton" data-rung="living" data-status="active" data-date="2026-06-29" data-ref="../wiki/index.html" data-tags="skeleton ia lenses">
+      <div class="ini-head"><span class="entry-id">A</span><h3>Three-lens skeleton + IA rebuild</h3><span class="ini-rung">living</span><span class="badge" data-rollup>—</span><span class="ini-bar"><span class="track" data-progress><i></i></span><span data-progress-label>—</span></span></div>
+      <ol class="tasks">
+        <li class="task" data-kind="task" data-initiative="i-skeleton" data-status="done" data-session="S08" id="t-0001"><span class="sdot ok"></span><span class="t-what">Design the three-lens skeleton + plan model (this workflow)</span><span class="t-sess">S08</span></li>
+        <li class="task" data-kind="task" data-initiative="i-skeleton" data-status="doing" data-session="S08" id="t-0002"><span class="sdot wip"></span><span class="t-what">Add the <code>data-lens</code> axis to the .entry grammar + brain.js facet</span><span class="t-sess">S08</span></li>
+        <li class="task" data-kind="task" data-initiative="i-skeleton" data-status="todo" id="t-0003"><span class="sdot idle"></span><span class="t-what">Extract tokens → <code>theme.css</code>; de-hardcode the fonts</span></li>
+        <li class="task" data-kind="task" data-initiative="i-skeleton" data-status="todo" id="t-0004"><span class="sdot idle"></span><span class="t-what">Write <code>product/</code> + <code>engineering/</code> lens prose (brain = source of truth)</span></li>
+        <li class="task" data-kind="task" data-initiative="i-skeleton" data-status="todo" id="t-0005"><span class="sdot idle"></span><span class="t-what">Generated 3-lens portal cover + persistent shell/footer</span></li>
+      </ol>
+    </article>
+
+    <article class="entry entry--initiative" data-kind="initiative" data-lens="project" id="i-plan" data-cid="i-plan" data-rung="living" data-status="active" data-date="2026-06-29" data-ref="./index.html" data-tags="plan progress tracking">
+      <div class="ini-head"><span class="entry-id">B</span><h3>Plan board + derived progress</h3><span class="ini-rung">living</span><span class="badge" data-rollup>—</span><span class="ini-bar"><span class="track" data-progress><i></i></span><span data-progress-label>—</span></span></div>
+      <ol class="tasks">
+        <li class="task" data-kind="task" data-initiative="i-plan" data-status="done" data-session="S08" id="t-0006"><span class="sdot ok"></span><span class="t-what">Design the initiative → task → session model</span><span class="t-sess">S08</span></li>
+        <li class="task" data-kind="task" data-initiative="i-plan" data-status="done" data-session="S08" id="t-0007"><span class="sdot ok"></span><span class="t-what">Progress derivation in brain.js (counts task status, fills bars)</span><span class="t-sess">S08</span></li>
+        <li class="task" data-kind="task" data-initiative="i-plan" data-status="done" data-session="S08" id="t-0008"><span class="sdot ok"></span><span class="t-what">Seed this build's backlog as the first plan</span><span class="t-sess">S08</span></li>
+        <li class="task" data-kind="task" data-initiative="i-plan" data-status="doing" data-session="S08" id="t-0009"><span class="sdot wip"></span><span class="t-what">Wire the plan into the cover (progress spine + Tier-1 pill)</span><span class="t-sess">S08</span></li>
+      </ol>
+    </article>
+
+    <!-- ===== PLANNED ===== -->
+    <article class="entry entry--initiative" data-kind="initiative" data-lens="project" id="i-hands" data-cid="i-hands" data-rung="hands" data-status="planned" data-date="2026-06-29" data-ref="../../sandpaper.html#s-modes" data-tags="hands direct manipulation">
+      <div class="ini-head"><span class="entry-id">C</span><h3>Hands — direct manipulation</h3><span class="ini-rung">hands</span><span class="badge" data-rollup>—</span><span class="ini-bar"><span class="track" data-progress><i></i></span><span data-progress-label>—</span></span></div>
+      <ol class="tasks">
+        <li class="task" data-kind="task" data-initiative="i-hands" data-status="todo" id="t-0010"><span class="sdot idle"></span><span class="t-what">Edit text in place (<code>contenteditable</code>) → file write, no AI</span></li>
+        <li class="task" data-kind="task" data-initiative="i-hands" data-status="todo" id="t-0011"><span class="sdot idle"></span><span class="t-what">Drag-to-reorder &amp; delete a block → file write</span></li>
+      </ol>
+    </article>
+
+    <article class="entry entry--initiative" data-kind="initiative" data-lens="project" id="i-theme" data-cid="i-theme" data-rung="reach" data-status="planned" data-date="2026-06-29" data-ref="./index.html" data-tags="theme tokens themeable">
+      <div class="ini-head"><span class="entry-id">D</span><h3>Theme consolidation + /theme</h3><span class="ini-rung">reach</span><span class="badge" data-rollup>—</span><span class="ini-bar"><span class="track" data-progress><i></i></span><span data-progress-label>—</span></span></div>
+      <ol class="tasks">
+        <li class="task" data-kind="task" data-initiative="i-theme" data-status="todo" id="t-0012"><span class="sdot idle"></span><span class="t-what">One overridable <code>theme.css</code> — brain + toolbar + docs import it</span></li>
+        <li class="task" data-kind="task" data-initiative="i-theme" data-status="todo" id="t-0013"><span class="sdot idle"></span><span class="t-what">/theme command (presets + interactive, derive from a brand hex)</span></li>
+      </ol>
+    </article>
+
+    <article class="entry entry--initiative" data-kind="initiative" data-lens="project" id="i-contract" data-cid="i-contract" data-rung="reach" data-status="planned" data-date="2026-06-29" data-ref="../../CLAUDE.md" data-tags="contract manifest">
+      <div class="ini-head"><span class="entry-id">E</span><h3>CLAUDE.md contract + manifest</h3><span class="ini-rung">reach</span><span class="badge" data-rollup>—</span><span class="ini-bar"><span class="track" data-progress><i></i></span><span data-progress-label>—</span></span></div>
+      <ol class="tasks">
+        <li class="task" data-kind="task" data-initiative="i-contract" data-status="todo" id="t-0014"><span class="sdot idle"></span><span class="t-what">Delimited, regenerable contract + the 4 plan ops + lens rules</span></li>
+        <li class="task" data-kind="task" data-initiative="i-contract" data-status="todo" id="t-0015"><span class="sdot idle"></span><span class="t-what"><code>.sandpaper/manifest.json</code> (books, cid-prefixes, id-counters, theme path)</span></li>
+      </ol>
+    </article>
+
+    <article class="entry entry--initiative" data-kind="initiative" data-lens="project" id="i-skill" data-cid="i-skill" data-rung="reach" data-status="planned" data-date="2026-06-29" data-ref="./index.html" data-tags="skill init slash-commands">
+      <div class="ini-head"><span class="entry-id">F</span><h3>The skill — /init, /theme, /plan, /decide, /sync…</h3><span class="ini-rung">reach</span><span class="badge" data-rollup>—</span><span class="ini-bar"><span class="track" data-progress><i></i></span><span data-progress-label>—</span></span></div>
+      <ol class="tasks">
+        <li class="task" data-kind="task" data-initiative="i-skill" data-status="todo" id="t-0016"><span class="sdot idle"></span><span class="t-what">/init — harvest repo → interview → generate the first brain</span></li>
+        <li class="task" data-kind="task" data-initiative="i-skill" data-status="todo" id="t-0017"><span class="sdot idle"></span><span class="t-what">Capture commands: /plan /decide /learn /log /stamp /serve</span></li>
+        <li class="task" data-kind="task" data-initiative="i-skill" data-status="todo" id="t-0018"><span class="sdot idle"></span><span class="t-what">/sync — the drift immune system (brain ↔ code reconcile)</span></li>
+      </ol>
+    </article>
+
+    <article class="entry entry--initiative" data-kind="initiative" data-lens="project" id="i-package" data-cid="i-package" data-rung="reach" data-status="planned" data-date="2026-06-29" data-ref="./index.html" data-tags="packaging npm publish sidecar">
+      <div class="ini-head"><span class="entry-id">G</span><h3>Sidecar publish + npm packaging</h3><span class="ini-rung">reach</span><span class="badge" data-rollup>—</span><span class="ini-bar"><span class="track" data-progress><i></i></span><span data-progress-label>—</span></span></div>
+      <ol class="tasks">
+        <li class="task" data-kind="task" data-initiative="i-package" data-status="todo" id="t-0019"><span class="sdot idle"></span><span class="t-what">Static publish build + a no-toolbar / relative-path lint</span></li>
+        <li class="task" data-kind="task" data-initiative="i-package" data-status="todo" id="t-0020"><span class="sdot idle"></span><span class="t-what">npx sandpaper init / install-skill / doctor</span></li>
+        <li class="task" data-kind="task" data-initiative="i-package" data-status="todo" id="t-0021"><span class="sdot idle"></span><span class="t-what">Brain-aware Sand contract (respect entry grammar / link-never-copy)</span></li>
+      </ol>
+    </article>
+
+    <article class="entry entry--initiative" data-kind="initiative" data-lens="project" id="i-stats" data-cid="i-stats" data-rung="reach" data-status="planned" data-date="2026-06-29" data-ref="./index.html" data-tags="stats low-prio">
+      <div class="ini-head"><span class="entry-id">H</span><h3>Stats <span class="muted" style="font-weight:400;font-size:.8em">· low prio</span></h3><span class="ini-rung">reach</span><span class="badge" data-rollup>—</span><span class="ini-bar"><span class="track" data-progress><i></i></span><span data-progress-label>—</span></span></div>
+      <ol class="tasks">
+        <li class="task" data-kind="task" data-initiative="i-stats" data-status="todo" id="t-0022"><span class="sdot idle"></span><span class="t-what">A static stamped table (usage · tokens · commits) — no live analytics</span></li>
+      </ol>
+    </article>
+
+    <!-- ===== SHIPPED (context) ===== -->
+    <h2 class="h" style="margin-top:24px"><span class="pn">✓</span>Shipped</h2>
+    <article class="entry entry--initiative" data-kind="initiative" data-lens="project" id="i-spine" data-cid="i-spine" data-rung="spine" data-status="done" data-date="2026-06-29" data-ref="../../engg-spec.html#s-arch" data-tags="spine bridge">
+      <div class="ini-head"><span class="entry-id">✓</span><h3>Spine — the bridge</h3><span class="ini-rung">spine</span><span class="badge" data-rollup>—</span><span class="ini-bar"><span class="track" data-progress><i></i></span><span data-progress-label>—</span></span></div>
+      <ol class="tasks">
+        <li class="task" data-kind="task" data-initiative="i-spine" data-status="done" id="t-s01"><span class="sdot ok"></span><span class="t-what">Bridge: claude -p stream-json → status chip + change cards</span></li>
+        <li class="task" data-kind="task" data-initiative="i-spine" data-status="done" id="t-s02"><span class="sdot ok"></span><span class="t-what">Undo / snapshots · live reload · click-to-scope</span></li>
+        <li class="task" data-kind="task" data-initiative="i-spine" data-status="done" id="t-s03"><span class="sdot ok"></span><span class="t-what">Adversarial review — 8 bugs fixed</span></li>
+      </ol>
+    </article>
+    <article class="entry entry--initiative" data-kind="initiative" data-lens="project" id="i-brain1" data-cid="i-brain1" data-rung="brain" data-status="done" data-date="2026-06-29" data-ref="../index.html" data-tags="brain v1">
+      <div class="ini-head"><span class="entry-id">✓</span><h3>Brain v1 — service manual + action bar</h3><span class="ini-rung">brain</span><span class="badge" data-rollup>—</span><span class="ini-bar"><span class="track" data-progress><i></i></span><span data-progress-label>—</span></span></div>
+      <ol class="tasks">
+        <li class="task" data-kind="task" data-initiative="i-brain1" data-status="done" id="t-b01"><span class="sdot ok"></span><span class="t-what">Scaffold the brain + the manual aesthetic redesign</span></li>
+        <li class="task" data-kind="task" data-initiative="i-brain1" data-status="done" id="t-b02"><span class="sdot ok"></span><span class="t-what">Serve the folder with the Sand / Sling action bar</span></li>
+        <li class="task" data-kind="task" data-initiative="i-brain1" data-status="done" id="t-b03"><span class="sdot ok"></span><span class="t-what">Markdown replies · git baseline</span></li>
+      </ol>
+    </article>
+  </section>
+
+  <footer>Sandpaper · project · the plan · progress derived from task status, never typed · <a href="../log.html">work log →</a></footer>
+</div>
+<script src="../assets/brain.js" defer></script>
+</body>
+</html>

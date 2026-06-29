@@ -15,9 +15,9 @@
       var term = q.value.trim().toLowerCase();
       var shown = 0;
       entries.forEach(function (e) {
-        var hay = (e.textContent + ' ' + (e.getAttribute('data-tags') || '') + ' ' + (e.getAttribute('data-kind') || '') + ' ' + (e.getAttribute('data-status') || '')).toLowerCase();
+        var hay = (e.textContent + ' ' + (e.getAttribute('data-tags') || '') + ' ' + (e.getAttribute('data-kind') || '') + ' ' + (e.getAttribute('data-status') || '') + ' ' + (e.getAttribute('data-lens') || '')).toLowerCase();
         var okTerm = !term || hay.indexOf(term) >= 0;
-        var okFacet = !activeFacet || e.getAttribute('data-kind') === activeFacet || e.getAttribute('data-status') === activeFacet;
+        var okFacet = !activeFacet || e.getAttribute('data-kind') === activeFacet || e.getAttribute('data-status') === activeFacet || e.getAttribute('data-lens') === activeFacet;
         var show = okTerm && okFacet;
         e.classList.toggle('hidden', !show);
         if (show) shown++;
@@ -63,5 +63,30 @@
     });
     // record this visit as seen on unload
     window.addEventListener('pagehide', function () { try { localStorage.setItem(KEY, newest); } catch (e) {} });
+  }
+
+  // ---- (3) plan progress: derive each initiative's bar + the overall % from child task status ----
+  var inits = Array.prototype.slice.call(document.querySelectorAll('.entry--initiative'));
+  if (inits.length) {
+    var allDone = 0, allTotal = 0;
+    inits.forEach(function (ini) {
+      var tasks = Array.prototype.slice.call(ini.querySelectorAll('.task[data-status]'));
+      var done = 0, doing = 0, blocked = 0;
+      tasks.forEach(function (t) {
+        var s = t.getAttribute('data-status');
+        if (s === 'done') done++; else if (s === 'doing') doing++; else if (s === 'blocked') blocked++;
+      });
+      var total = tasks.length; allDone += done; allTotal += total;
+      var pct = total ? Math.round(done / total * 100) : 0;
+      var bar = ini.querySelector('[data-progress] i'); if (bar) bar.style.width = pct + '%';
+      var lab = ini.querySelector('[data-progress-label]'); if (lab) lab.textContent = done + '/' + total + ' · ' + pct + '%';
+      var st = (total && done === total) ? 'done' : (blocked && !doing) ? 'blocked' : (doing || done) ? 'active' : 'planned';
+      var roll = ini.querySelector('[data-rollup]');
+      if (roll) { roll.textContent = st; roll.className = 'badge ' + (st === 'done' ? 'done' : st === 'active' ? 'wip' : st === 'blocked' ? 'open' : 'stub'); }
+      ini.setAttribute('data-derived', st);
+    });
+    var op = allTotal ? Math.round(allDone / allTotal * 100) : 0;
+    var ov = document.getElementById('plan-overall'); if (ov) ov.textContent = allDone + '/' + allTotal + ' · ' + op + '%';
+    var ob = document.getElementById('plan-overall-bar'); if (ob) ob.style.width = op + '%';
   }
 })();

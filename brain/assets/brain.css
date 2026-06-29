@@ -219,5 +219,24 @@ table.tbl{width:100%;border-collapse:collapse;margin-top:8px;font-size:13.5px}
 .entry.hidden{display:none}
 .searchnote{font-family:var(--mono);font-size:11px;color:var(--mute)}
 
+/* ---- plan board: initiatives → tasks → DERIVED progress (brain.js fills the bars) ---- */
+.plan-overall{display:flex;align-items:center;gap:12px;margin:6px 0 20px;font-family:var(--mono);font-size:12px;color:var(--pine)}
+.plan-overall .track{flex:1;max-width:360px;height:8px;background:var(--paper-3);border-radius:99px;overflow:hidden}
+.plan-overall .track i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--moss),var(--pine));transition:width .5s ease}
+.entry--initiative{padding:16px 0;border-bottom:1px solid var(--rule)}
+.entry--initiative:last-child{border-bottom:0}
+.ini-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.ini-head h3{flex:1;min-width:150px;margin:0;font-size:16px}
+.ini-rung{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);border:1px solid var(--rule);border-radius:4px;padding:2px 6px}
+.ini-bar{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;color:var(--mute)}
+.ini-bar .track{width:84px;height:6px;background:var(--paper-3);border-radius:99px;overflow:hidden}
+.ini-bar .track i{display:block;height:100%;width:0;background:var(--moss);transition:width .5s ease}
+ol.tasks{list-style:none;margin:9px 0 0;padding:0 0 0 2px}
+ol.tasks .task{display:flex;align-items:baseline;gap:9px;padding:5px 0;font-size:14px;color:#33302a}
+.task .t-what{flex:1}
+.task[data-status="done"] .t-what{color:var(--mute);text-decoration:line-through;text-decoration-color:rgba(23,21,15,.22)}
+.task .t-sess{font-family:var(--mono);font-size:10px;color:var(--mute);white-space:nowrap}
+@media(prefers-reduced-motion:reduce){.plan-overall .track i,.ini-bar .track i{transition:none}}
+
 footer{padding:30px 0 56px;font-family:var(--mono);font-size:11px;color:var(--mute);letter-spacing:.04em;border-top:2px solid var(--ink);margin-top:26px}
 @media(prefers-reduced-motion:reduce){.prog .fill{transition:none}}
