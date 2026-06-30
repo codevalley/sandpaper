@@ -316,9 +316,10 @@ footer{padding:30px 0 56px;font-family:var(--mono);font-size:11px;color:var(--mu
 .door--engineering .tab{background:var(--pine);color:var(--paper)}
 .door--project .tab{background:var(--clay);color:var(--paper)}
 .door-desc{font-family:var(--font-mono);font-size:11.5px;line-height:1.5;color:var(--text-muted)}
-.door-pulse{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
-  font-family:var(--font-mono);font-size:12px;color:var(--ink)}
-.door-pulse b{font-family:var(--font-display);font-size:16px;font-weight:600}
+.door-stat{display:flex;align-items:center;gap:7px;flex-wrap:wrap;
+  font-family:var(--font-mono);font-size:13px;color:var(--ink)}
+.door-stat b{font-family:var(--font-display);font-size:17px;font-weight:600;letter-spacing:-.01em}
+.door-stat-sub{color:var(--mute);font-size:11.5px}
 .door .bar-mini{margin-top:2px}
 .door-latest{font-family:var(--font-mono);font-size:11px;color:var(--mute)}
 .door-go{margin-top:auto;font-family:var(--font-mono);font-size:11.5px;

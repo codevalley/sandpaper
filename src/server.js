@@ -101,10 +101,17 @@ export function startServer(target, port, opts = {}) {
     try { path = decodeURIComponent(url.pathname); }
     catch { res.writeHead(400); return res.end('bad request'); }
 
+    // Root convenience: serving a repo whose brain lives in brain/ — send "/" to the cover so
+    // localhost:<port> just works, no need to know the /brain/index.html path.
+    if (isDir && (path === '/' || path === '') && !existsSync(join(root, 'index.html')) && existsSync(join(root, 'brain', 'index.html'))) {
+      res.writeHead(302, { Location: '/brain/index.html' });
+      return res.end();
+    }
+
     // --- SSE status/reload channel ---
     if (path === '/__sandpaper/events') {
       res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
-      res.write(`data: ${JSON.stringify({ type: 'status', state: 'idle', label: 'Idle — ready when you are' })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'status', state: 'idle', label: 'Ready' })}\n\n`);
       clients.add(res);
       req.on('close', () => clients.delete(res));
       return;
@@ -281,8 +288,16 @@ export function startServer(target, port, opts = {}) {
     }, 120);
   });
 
-  return new Promise((resolve) => {
-    server.listen(port, '127.0.0.1', () => resolve(`http://127.0.0.1:${port}/`));
+  // Listen on `port`, or the next free port if it's taken — so several repos' Sandpapers
+  // can run at once without colliding on 4848. Resolves with the URL of the port we landed on.
+  return new Promise((resolve, reject) => {
+    let p = port, tries = 0;
+    server.on('error', (e) => {
+      if (e.code === 'EADDRINUSE' && tries++ < 50) { p++; setTimeout(() => server.listen(p, '127.0.0.1'), 0); }
+      else reject(e);
+    });
+    server.on('listening', () => resolve(`http://127.0.0.1:${p}/`));
+    server.listen(p, '127.0.0.1');
   });
 }
 

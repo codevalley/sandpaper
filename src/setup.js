@@ -84,6 +84,7 @@ export function scaffold(target, pkg) {
   else {
     writeFileSync(manPath, JSON.stringify({
       version: 1, project, created: date, theme: 'brain/assets/theme.css',
+      port: 4848, // `npx sandpaper open` starts here (auto-bumps if taken); pin a distinct one per repo
       lenses: ['product', 'engineering', 'project'], books: ['log', 'decisions', 'learnings'],
       cidPrefixes: { worklog: 'w', task: 't', decision: 'd', learning: 'l', initiative: 'i' },
       counters: { w: 1, t: 0, d: 0, l: 0, i: 0 },

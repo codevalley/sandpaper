@@ -2,7 +2,7 @@
 // Sandpaper CLI. Subcommands are the "plumbing" (no AI); a bare path falls through to `serve`.
 //   sandpaper install-skill | init | doctor | open | help | <doc.html|dir>
 import { resolve, dirname, join } from 'node:path';
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, statSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { execFile } from 'node:child_process';
 import { startServer } from '../src/server.js';
@@ -10,7 +10,15 @@ import { installSkill, scaffold, doctor } from '../src/setup.js';
 
 const PKG = join(dirname(fileURLToPath(import.meta.url)), '..');
 const [cmd, ...rest] = process.argv.slice(2);
-const port = Number(process.env.SANDPAPER_PORT || 4848);
+
+// Starting port: $SANDPAPER_PORT wins, else the repo's pinned .sandpaper/manifest.json "port",
+// else 4848. The server auto-bumps from here if it's taken, so multiple repos never collide.
+const startPort = () => {
+  if (process.env.SANDPAPER_PORT) return Number(process.env.SANDPAPER_PORT);
+  try { const m = JSON.parse(readFileSync(join(process.cwd(), '.sandpaper', 'manifest.json'), 'utf8')); if (m.port) return Number(m.port); } catch {}
+  return 4848;
+};
+const port = startPort();
 
 const usage = () => console.log(`
   🪵  sandpaper — a living project brain

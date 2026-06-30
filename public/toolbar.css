@@ -24,14 +24,18 @@
 #sp-panel.sp-collapsed{ max-height:none; }
 
 /* dark "console" head — carries the brain's drafting-plate grid so it reads as the same manual */
-#sp-head{ display:flex; align-items:center; gap:8px; padding:12px 15px;
+#sp-head{ display:flex; align-items:center; gap:9px; padding:12px 15px;
   font-family:'IBM Plex Mono',ui-monospace,Menlo,monospace; background:var(--sp-ink); color:var(--sp-paper);
   background-image:linear-gradient(rgba(244,240,230,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(244,240,230,.05) 1px,transparent 1px);
   background-size:18px 18px; }
-#sp-label{ letter-spacing:.02em; }
-#sp-chip{ display:inline-flex; align-items:center; gap:9px; font-size:13px; font-weight:500; color:var(--sp-paper-2); min-width:0; }
-#sp-label{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-#sp-led{ width:10px; height:10px; border-radius:50%; background:var(--sp-mute); flex:none; transition:background .2s; box-shadow:0 0 0 3px rgba(244,240,230,.08); }
+/* identity first, status second — so the head reads "this is Sandpaper, and it's <state>" */
+#sp-brand{ flex:none; font-size:13px; font-weight:600; letter-spacing:.01em; color:var(--sp-paper); }
+#sp-brand span{ color:var(--sp-clay); }
+#sp-chip{ display:inline-flex; align-items:center; gap:7px; min-width:0; flex:0 1 auto; overflow:hidden;
+  font-size:11.5px; font-weight:500; color:var(--sp-mute);
+  padding-left:9px; border-left:1px solid rgba(244,240,230,.14); }
+#sp-label{ letter-spacing:.03em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#sp-led{ width:8px; height:8px; border-radius:50%; background:var(--sp-mute); flex:none; transition:background .2s; box-shadow:0 0 0 3px rgba(244,240,230,.08); }
 #sp-chip.sp-busy #sp-led{ animation:sp-pulse 1.2s ease-in-out infinite; }
 @keyframes sp-pulse{ 0%,100%{ box-shadow:0 0 0 0 currentColor; opacity:1; } 50%{ box-shadow:0 0 0 5px transparent; opacity:.5; } }
 #sp-cost{ margin-left:auto; font-size:11px; color:var(--sp-mute); }
@@ -94,7 +98,9 @@
 #sp-target{ margin:0 12px 8px; font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--sp-pine); background:var(--sp-paper-2);
   border:1px solid rgba(23,21,15,.12); border-radius:6px; padding:5px 8px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
-#sp-form{ display:flex; flex-direction:column; gap:9px; padding:12px; border-top:1px solid rgba(23,21,15,.1); }
+#sp-form{ display:flex; flex-direction:column; gap:9px; padding:12px; }
+/* the composer's top rule is a divider FROM the conversation — show it only when there is one */
+#sp-panel.sp-has-thread:not(.sp-collapsed) #sp-form{ border-top:1px solid rgba(23,21,15,.1); }
 #sp-actions{ display:flex; gap:7px; align-items:center; }
 .sp-spring{ flex:1; }
 #sp-pick{ flex:none; width:36px; height:36px; border:1px solid rgba(23,21,15,.18); border-radius:9px; background:var(--sp-paper-2); color:var(--sp-clay); font-size:15px; cursor:pointer; line-height:1; transition:background .15s,border-color .15s; }

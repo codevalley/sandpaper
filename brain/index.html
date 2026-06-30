@@ -13,10 +13,10 @@
 <!-- BRAIN:DIGEST — machine context for a fresh `claude`: read THIS first (~1KB) to rehydrate. -->
 <script type="application/json" id="brain-state">
 { "v":1, "project":"Sandpaper", "phase":"Phase 1 · packaging", "updated":"2026-06-30",
-  "session":"S11",
-  "focus":{ "one":"Onboarding + theming pass, driven by the real tinysync install. (1) install-skill now AUTO-WIRES the two hooks into .claude/settings.json (preserves existing settings, dedupes by command; --no-hooks opts out) — a user-invoked CLI installing is not the agent self-configuring (D-012, refines D-010). (2) /sandpaper:init gained an INTRODUCE intro (what Sandpaper is + that it is long/token-heavy) and a WELCOME closing summary (open · the 3 tools · re-skin). (3) A one-time on-page first-run TOUR ships in toolbar.js/.css (gated on local+sessionStorage). (4) The floating toolbar now ADOPTS the host theme.css at runtime (getComputedStyle → --sp-*), so a re-skin reaches it too; the tour wears it as well. Verified live via Playwright (indigo skin): toolbar + tour both adopt, tour renders/dismisses. Next: npm publish + rest of G (self-deriving counts t-0028, publish lint t-0019, brain-aware Sand t-0021)", "ref":"decisions.html#d-autowire" },
-  "worklog":[ {"date":"2026-06-30","one":"Onboarding+theming — install-skill auto-wires hooks, init intro/close, on-page tour, toolbar adopts the theme","cid":"w-0170"},
-              {"date":"2026-06-30","one":"Built the npx sandpaper CLI (install-skill/init/doctor/open) — tested e2e, doctor healthy","cid":"w-0169"} ],
+  "session":"S12",
+  "focus":{ "one":"Polish + UX pass from the tinysync test. TOOLBAR: head now leads with the Sandpaper identity, status demoted to a muted secondary (no more cryptic 'Idle — ready when you are'); the orphan separator above the composer is gone (shows only with a live conversation); skin-adoption is now CONTRAST-GUARDED (luminance/polarity check — adopt surfaces only when light-paper/dark-ink holds, take the accent always) so an odd host theme can't wash the chrome out (the tinysync first-run tour bug). SERVE UX: localhost:<port>/ now 302-redirects to /brain/index.html, the port AUTO-BUMPS past conflicts, and the manifest carries a 'port' to pin one per repo. COVER: refreshed the three lens-cards to current/parallel content (Phase 1 · packaging) and dropped the redundant divider under them. All verified live via Playwright on an indigo skin AND a dark blueprint theme. Next: npm publish + rest of G (self-deriving counts t-0028, publish lint t-0019, brain-aware Sand t-0021)", "ref":"learnings.html#l-skin-contrast" },
+  "worklog":[ {"date":"2026-06-30","one":"Polish — toolbar identity+status, dropped orphan separator, contrast-guarded skin, / redirect + port auto-bump, refreshed cover cards","cid":"w-0171"},
+              {"date":"2026-06-30","one":"Onboarding+theming — install-skill auto-wires hooks, init intro/close, on-page tour, toolbar adopts the theme","cid":"w-0170"} ],
   "open":["decisions.html#q-anchoring","decisions.html#q-undo","decisions.html#q-billing"],
   "docs":["../sandpaper.html","../engg-spec.html"] }
 </script>
@@ -46,13 +46,13 @@
   <!-- ZONE A — PLATE: the compact dark NOW "dateline" (where we are) -->
   <!-- BRAIN:EDITION -->
   <header class="plate" data-cid="cover">
-    <div class="pl-meta"><span class="now-tag">Now</span> the build stands at <a href="./project/index.html#i-skeleton">Initiative A — the skeleton</a></div>
+    <div class="pl-meta"><span class="now-tag">Now</span> the build stands at <a href="./project/index.html#i-package">Phase 1 — packaging</a></div>
     <!-- BRAIN:NOW -->
-    <p class="now-line" data-cid="now" data-kind="now" data-ref="decisions.html#d-autowire">
-      Polishing onboarding from the real <strong>tinysync</strong> install — <code>install-skill</code> auto-wires
-      the hooks, <code>/sandpaper:init</code> gained an intro + closing tour, and the floating toolbar now
-      <strong>adopts the host theme</strong> so a re-skin reaches it too.
-      <a class="ref" href="decisions.html#d-autowire">why →</a>
+    <p class="now-line" data-cid="now" data-kind="now" data-ref="learnings.html#l-skin-contrast">
+      A polish pass from the <strong>tinysync</strong> test — the toolbar leads with its identity, the skin-adoption is
+      <strong>contrast-guarded</strong> so odd themes can't wash it out, <code>localhost</code> opens straight to the brain,
+      and ports auto-bump past conflicts.
+      <a class="ref" href="learnings.html#l-skin-contrast">the gotcha →</a>
     </p>
     <!-- /BRAIN:NOW -->
   </header>
@@ -63,30 +63,30 @@
     <a class="door door--product" href="./product/index.html">
       <span class="tab">Product</span>
       <span class="door-desc">what we're building &amp; why</span>
-      <span class="door-pulse">Edition <b>0.5</b> · spec §06</span>
-      <span class="door-latest">latest · lens prose queued</span>
+      <span class="door-stat">Edition <b>0.5</b><span class="door-stat-sub">· spec §06</span></span>
+      <span class="door-latest">latest · the three-lens prose, written</span>
       <span class="door-go">open Product →</span>
     </a>
     <a class="door door--engineering" href="./engineering/index.html">
       <span class="tab">Engineering</span>
       <span class="door-desc">how it's built — bridge, contracts</span>
-      <span class="door-pulse"><span class="sdot ok"></span>Build · Green · <b>5</b> parts</span>
-      <span class="door-latest">latest · theme.css → one skin</span>
+      <span class="door-stat"><span class="sdot ok"></span>Green<span class="door-stat-sub">· 5 parts</span></span>
+      <span class="door-latest">latest · the toolbar adopts your theme</span>
       <span class="door-go">open Engineering →</span>
     </a>
     <a class="door door--project door--on" href="./project/index.html">
       <span class="tab">Project</span>
       <span class="door-desc">the build itself — plan, log, rungs</span>
-      <span class="door-pulse">Initiative A · <b>48%</b></span>
-      <span class="bar-mini" style="--pct:48%"><i></i></span>
-      <span class="door-latest">06-29 · theme.css extracted</span>
+      <span class="door-stat">Phase&nbsp;1 · <b>packaging</b><span class="door-stat-sub">· 50%</span></span>
+      <span class="bar-mini" style="--pct:50%"><i></i></span>
+      <span class="door-latest">latest · install-skill auto-wires the hooks</span>
       <span class="door-go">open Project →</span>
     </a>
   </nav>
 
   <!-- ZONE C — PROGRESS SPINE (derived; the one instrument) -->
   <!-- BRAIN:COUNTS -->
-  <section class="zone" data-cid="s-vitals">
+  <section class="zone flush" data-cid="s-vitals">
     <div class="eyebrow">Where it stands</div>
     <div class="vitals">
       <a class="roadbar" href="./project/index.html" aria-label="The plan: Spine, Brain and Hands done; Living next">
@@ -116,6 +116,7 @@
   <section class="zone" data-cid="s-log">
     <div class="eyebrow">Latest <span id="brain-unseen" class="badge open" hidden></span></div>
     <ol class="timeline" data-cid="logfeed">
+      <li data-kind="worklog" data-cid="w-0171"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Polish — toolbar leads with its identity, contrast-guarded skin, <code>/</code> opens the brain, ports auto-bump, refreshed cover cards.</span><span class="tl-link"><a class="ref" href="./learnings.html#l-skin-contrast">gotcha →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0170"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Onboarding + theming — <code>install-skill</code> auto-wires hooks, init intro/close, on-page tour, toolbar adopts the theme.</span><span class="tl-link"><a class="ref" href="./learnings.html#l-toolbar-skin">gotcha →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0169"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Built the <code>npx sandpaper</code> CLI (install-skill/init/doctor/open) — tested e2e, doctor healthy.</span><span class="tl-link"><a class="ref" href="./decisions.html#d-plumbing">how →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0168"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Made <code>/sandpaper:init</code> smarter — wide artifact discovery + an interactive wizard.</span><span class="tl-link"><a class="ref" href="./project/index.html#i-skill">the plan →</a></span></div></li>

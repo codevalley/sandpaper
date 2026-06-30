@@ -218,7 +218,7 @@ export function runTurn(docPath, prompt, onStatus) {
     if (code && code !== 0) {
       onStatus({ type: 'status', state: 'error', label: `claude exited (${code})`, detail: stderr.slice(0, 300) });
     } else {
-      onStatus({ type: 'status', state: 'idle', label: 'Idle — ready when you are' });
+      onStatus({ type: 'status', state: 'idle', label: 'Ready' });
     }
   });
 

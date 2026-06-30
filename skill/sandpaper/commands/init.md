@@ -50,6 +50,8 @@ template):
 - The current **focus**, near-term **goals**, and any **open decisions/risks** you couldn't infer.
 - A **theme** — a brand colour to skin it (else the warm default)?
 - Do they think in **phases / milestones / rungs**? (to seed the plan board's grouping)
+- A **port** — if they run Sandpaper for several repos at once, suggest pinning a distinct
+  `port` in `.sandpaper/manifest.json` (default 4848; the server auto-bumps if it's taken).
 
 Keep it to ~5–8 questions total; infer everything else.
 

@@ -19,7 +19,8 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
   panel.className = 'sp-collapsed';
   panel.innerHTML =
     '<div id="sp-head">' +
-      '<span id="sp-chip"><span id="sp-led"></span><span id="sp-label">Idle — ready when you are</span></span>' +
+      '<span id="sp-brand">Sand<span>paper</span></span>' +
+      '<span id="sp-chip"><span id="sp-led"></span><span id="sp-label">Ready</span></span>' +
       '<span id="sp-cost"></span>' +
       '<button type="button" id="sp-undo" hidden title="Undo the last direct edit">⟲ undo</button>' +
       '<button type="button" id="sp-min" title="Minimize">–</button>' +
@@ -54,12 +55,38 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
   var SKIN_MAP = { '--sp-paper': '--paper', '--sp-paper-2': '--panel', '--sp-ink': '--ink',
     '--sp-clay': '--clay', '--sp-pine': '--pine', '--sp-moss': '--moss', '--sp-rust': '--rust',
     '--sp-mute': '--mute', '--sp-text-quote': '--text-quote', '--sp-plate': '--plate' };
+  // The chrome pairs LIGHT text on --sp-ink/--sp-plate and DARK text on --sp-paper. Adopting a host
+  // theme that breaks that polarity (e.g. a light --ink used only as body text, never as a fill) makes
+  // the dark head wash out — so adopt the neutral SURFACES only when the host keeps the expected
+  // light-paper / dark-ink contrast; the accent hues are always safe to take.
+  var SKIN_NEUTRALS = ['--sp-paper', '--sp-paper-2', '--sp-ink', '--sp-plate', '--sp-text-quote'];
+  function parseColor(c) {
+    if (!c) return null; c = c.trim();
+    if (c.charAt(0) === '#') { var h = c.slice(1);
+      if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+      if (h.length < 6) return null;
+      return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]; }
+    var m = c.match(/rgba?\(([^)]+)\)/); if (!m) return null;
+    var p = m[1].split(',').map(parseFloat); return [p[0], p[1], p[2]];
+  }
+  function luminance(c) {                              // WCAG relative luminance, 0 (black) … 1 (white)
+    var rgb = parseColor(c); if (!rgb) return null;
+    var a = rgb.map(function (v) { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
+    return 0.2126 * a[0] + 0.7152 * a[1] + 0.0722 * a[2];
+  }
   function adoptHostSkin() {
-    var cs = getComputedStyle(document.documentElement), vals = {}, found = false;
-    for (var k in SKIN_MAP) { var v = cs.getPropertyValue(SKIN_MAP[k]).trim(); if (v) { vals[k] = v; found = true; } }
-    if (!found) return null;                         // arbitrary host page, no Sandpaper theme — keep our shipped defaults
-    for (var k2 in vals) panel.style.setProperty(k2, vals[k2]);
-    return vals;
+    var cs = getComputedStyle(document.documentElement), read = {}, found = false;
+    for (var k in SKIN_MAP) { var v = cs.getPropertyValue(SKIN_MAP[k]).trim(); if (v) { read[k] = v; found = true; } }
+    if (!found) return null;                          // arbitrary host page, no Sandpaper theme — keep our shipped defaults
+    var lp = luminance(read['--sp-paper']), li = luminance(read['--sp-ink']);
+    var polarityOK = lp != null && li != null && lp > 0.55 && li < 0.4 && (lp - li) > 0.4;
+    var vals = {};
+    for (var k2 in read) {
+      if (!polarityOK && SKIN_NEUTRALS.indexOf(k2) >= 0) continue; // skip risky surface swaps; keep our legible defaults
+      vals[k2] = read[k2];
+    }
+    for (var k3 in vals) panel.style.setProperty(k3, vals[k3]);
+    return Object.keys(vals).length ? vals : null;
   }
   var hostSkin = adoptHostSkin();
 
@@ -97,6 +124,7 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
     group.appendChild(think); group.appendChild(prose); group.appendChild(meta);
     box.appendChild(group);
     thread.appendChild(box);
+    panel.classList.add('sp-has-thread'); // the input's top rule only shows once a conversation exists
     return { id: turnId, box: box, proseEl: prose, thinkEl: thinkBody, thinkWrap: think, metaEl: meta,
              editCount: 0, cardEl: null, cardBody: null, cardTitle: null, textBuf: '', thinkBuf: '', raf: 0, changedCids: [] };
   }
@@ -510,7 +538,7 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
   window.addEventListener('load', function () {
     try { var y = sessionStorage.getItem('sp-scroll'); if (y !== null) { window.scrollTo(0, parseInt(y, 10)); sessionStorage.removeItem('sp-scroll'); } } catch (e) {}
     // rehydrate the conversation (our own serialized, escaped DOM)
-    try { var saved = sessionStorage.getItem(SKEY); if (saved) { thread.innerHTML = saved; expand(); thread.scrollTop = thread.scrollHeight; } } catch (e) {}
+    try { var saved = sessionStorage.getItem(SKEY); if (saved) { thread.innerHTML = saved; panel.classList.add('sp-has-thread'); expand(); thread.scrollTop = thread.scrollHeight; } } catch (e) {}
     // flash the changed elements so the eye lands on what moved
     try {
       var cids = JSON.parse(sessionStorage.getItem('sp-flash') || '[]'); sessionStorage.removeItem('sp-flash');
