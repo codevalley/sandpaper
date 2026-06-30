@@ -13,11 +13,11 @@
 <!-- BRAIN:DIGEST — machine context for a fresh `claude`: read THIS first (~1KB) to rehydrate. -->
 <script type="application/json" id="brain-state">
 { "v":1, "project":"Sandpaper", "phase":"Phase 1 · packaging", "updated":"2026-06-30",
-  "session":"S16",
-  "focus":{ "one":"Reworked the canvas from a notebook into a WHITEBOARD (the owner's instinct: show one current thing, not a growing pile). The newest board sits full + live up top; older boards fold into a collapsed 'Earlier' stack — a zero-JS <details> accordion where each row reopens into a full sheet — capped at 5 (oldest falls away). Applied the frontend-design lens: the current board is the one hero, the history is a quiet meaningful index. Also boarded the model + 'what stamping is' explanation as board 003 (with a Canvas→promote→Brain two-layer diagram), closing an adherence gap — I'd answered that in chat when it was board-worthy. Updated the CANVAS discipline (SKILL.md + /canvas) to the whiteboard model. Verified live: current prominent, rows collapse/expand, capped. Next: npm publish + rest of G", "ref":"decisions.html#d-canvas" },
-  "worklog":[ {"date":"2026-06-30","one":"Reworked the canvas into a whiteboard — current board full + live, older ones fold into a collapsed Earlier stack (<details>, capped at 5); boarded the stamping explainer as 003","cid":"w-0177"},
-              {"date":"2026-06-30","one":"Rebalanced the cover (canvas is the hero on the first fold, independent scroll) + wired the SessionStart handoff so Claude Code uses the canvas","cid":"w-0176"},
-              {"date":"2026-06-30","one":"Built the canvas — the cover hosts a feed of rich 'boards' (elevated explanations), + the skill discipline + /canvas + dogfood board 001","cid":"w-0175"} ],
+  "session":"S17",
+  "focus":{ "one":"Two corrections to the canvas, from the owner. (1) STRUCTURE: it's now a true scrollable WHITEBOARD — a white .whiteboard CONTAINER whose content scrolls INSIDE it (a long board scrolls in place, capped at ~one fold), while the box, the 'Earlier' stack, and the portal are ONE normal page scroll. (Before, the feed was the bounded thing and Earlier lived inside it — wrong.) Verified: 1400px of filler scrolls inside the box, the page barely grows. (2) RELIABILITY: my turn summaries weren't being boarded, and 'I'll remember' is not a mechanism — so elevating the turn's summary onto the whiteboard is now STEP 7 of the enforced STAMP (CLAUDE.md + SKILL.md), demote previous to Earlier, cap 5. It rides the same Stop-hook that already blocks an un-stamped turn. Dogfooded board 004 (this turn) — and that satisfied the new CANVAS stamp step. Open: a dedicated Stop-hook check on the canvas region if soft enforcement isn't enough. Next: npm publish + rest of G", "ref":"decisions.html#d-canvas" },
+  "worklog":[ {"date":"2026-06-30","one":"Canvas is a true scrollable whiteboard (content scrolls inside the white box; page scrolls the rest), and boarding the turn summary is now an enforced STAMP step","cid":"w-0178"},
+              {"date":"2026-06-30","one":"Reworked the canvas into a whiteboard — current board full + live, older ones fold into a collapsed Earlier stack (<details>, capped at 5); boarded the stamping explainer as 003","cid":"w-0177"},
+              {"date":"2026-06-30","one":"Rebalanced the cover (canvas is the hero on the first fold, independent scroll) + wired the SessionStart handoff so Claude Code uses the canvas","cid":"w-0176"} ],
   "open":["decisions.html#q-anchoring","decisions.html#q-undo","decisions.html#q-billing"],
   "docs":["../sandpaper.html","../engg-spec.html"] }
 </script>
@@ -50,8 +50,8 @@
     <div class="pl-meta"><span class="now-tag">Now</span> the build stands at <a href="./project/index.html#i-package">Phase 1 — packaging</a></div>
     <!-- BRAIN:NOW -->
     <p class="now-line" data-cid="now" data-kind="now" data-ref="decisions.html#d-canvas">
-      The canvas is a <strong>whiteboard</strong> now — the current board sits full and live; older ones
-      fold into a collapsed <strong>Earlier</strong> stack (capped at five).
+      The canvas is a <strong>scrollable whiteboard</strong> (content scrolls inside the white box; the
+      page scrolls the rest), and boarding the turn's summary is now an <strong>enforced STAMP step</strong>.
       <a class="ref" href="decisions.html#d-canvas">the canvas →</a>
     </p>
     <!-- /BRAIN:NOW -->
@@ -61,19 +61,42 @@
   <!-- ZONE CANVAS — the live working surface: Claude's distilled/elevated boards (newest first). THE HERO. -->
   <section class="canvas" id="s-canvas" data-cid="s-canvas" aria-label="Canvas">
     <div class="canvas-rail">
-      <div class="eyebrow">Canvas <span class="canvas-sub">— what Claude is thinking through, elevated</span></div>
-      <span class="canvas-count" data-cid="canvas-count">3 boards</span>
+      <div class="eyebrow">Canvas <span class="canvas-sub">— the current summary, elevated</span></div>
+      <span class="canvas-count" data-cid="canvas-count">4 boards</span>
     </div>
     <!-- BRAIN:CANVAS — boards prepend here, newest first; .canvas-empty shows when there are none -->
-    <div class="canvas-feed" data-cid="canvasfeed">
-
-      <!-- CURRENT board — full + live -->
-      <article class="board board--live" data-cid="board-0003" data-kind="board" data-date="2026-06-30" data-ref="decisions.html#d-canvas">
+    <!-- the whiteboard: a white container whose CONTENT scrolls inside it; the page scrolls everything else -->
+    <div class="whiteboard" data-cid="whiteboard">
+      <article class="board board--live" data-cid="board-0004" data-kind="board" data-date="2026-06-30" data-ref="decisions.html#d-canvas">
         <header class="board-head">
           <span class="board-dot" aria-hidden="true"></span>
-          <h3 class="board-title">Whiteboard, not notebook — and what “stamping” is</h3>
-          <span class="board-when">06-30 · board 003</span>
+          <h3 class="board-title">A scrollable whiteboard — and boarding that doesn't rely on memory</h3>
+          <span class="board-when">06-30 · board 004</span>
         </header>
+        <div class="board-body">
+          <p>This is a board — the kind you said my summaries should be. Two things landed this turn.</p>
+          <p><strong>1 · The whiteboard is real.</strong> The canvas is now a white <em>container</em> with
+            its own scroll: a long board scrolls <em>inside</em> it, while the whole page — this box,
+            Earlier, the doors, the footer — scrolls together as one. A scrollable whiteboard, not a
+            trapped panel.</p>
+          <p><strong>2 · Boarding no longer relies on me remembering.</strong> Laying the turn's summary
+            here is now a <em>step of the STAMP</em> — the routine a Stop hook already enforces on every
+            substantive turn. So in any repo, when Claude stamps the brain (and it's blocked until it
+            does), it lays the current summary on this whiteboard too. That's the mechanism, not a promise.</p>
+        </div>
+        <footer class="board-foot">
+          <span class="board-tag">dogfood · board 004</span>
+          <a class="ref" href="./decisions.html#d-canvas">the canvas →</a>
+        </footer>
+      </article>
+    </div>
+
+    <!-- Earlier: below the whiteboard, in normal page flow; the stack caps at 5, oldest falls away -->
+    <div class="canvas-earlier" data-cid="canvas-earlier">
+      <div class="earlier-label">Earlier <span class="n">· 3</span></div>
+
+      <details class="board board--past" data-cid="board-0003" data-kind="board" data-date="2026-06-30" data-ref="decisions.html#d-canvas">
+        <summary class="board-row"><span class="board-row-dot" aria-hidden="true"></span><span class="board-row-when">06-30 · 003</span><span class="board-row-title">Whiteboard, not notebook — and what “stamping” is</span><span class="board-row-chev" aria-hidden="true">›</span></summary>
         <div class="board-body">
           <p>You expected the canvas to show <em>one current thing</em>, not a growing pile — the better
             instinct. So it's a <strong>whiteboard</strong> now: the newest board sits full and live up top;
@@ -91,14 +114,10 @@
             <em>formed</em>; stamping is how the durable parts get <em>kept</em>.</p>
         </div>
         <footer class="board-foot">
-          <span class="board-tag">dogfood · board 003</span>
+          <span class="board-tag">board 003</span>
           <a class="ref" href="./decisions.html#d-canvas">the canvas decision →</a>
         </footer>
-      </article>
-
-      <!-- EARLIER — collapsed rows that reopen; the stack caps at 5, oldest falls away -->
-      <div class="canvas-earlier" data-cid="canvas-earlier">
-        <div class="earlier-label">Earlier <span class="n">· 2</span></div>
+      </details>
 
       <details class="board board--past" data-cid="board-0002" data-kind="board" data-date="2026-06-30" data-ref="../bin/brain-inject.js">
         <summary class="board-row"><span class="board-row-dot" aria-hidden="true"></span><span class="board-row-when">06-30 · 002</span><span class="board-row-title">How Claude Code reaches for the canvas</span><span class="board-row-chev" aria-hidden="true">›</span></summary>
@@ -151,9 +170,7 @@
         </footer>
       </details>
 
-      </div><!-- /.canvas-earlier -->
-
-    </div>
+    </div><!-- /.canvas-earlier -->
     <!-- /BRAIN:CANVAS -->
   </section>
 
@@ -215,6 +232,7 @@
   <section class="zone" data-cid="s-log">
     <div class="eyebrow">Latest <span id="brain-unseen" class="badge open" hidden></span></div>
     <ol class="timeline" data-cid="logfeed">
+      <li data-kind="worklog" data-cid="w-0178"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Canvas is a true <strong>scrollable whiteboard</strong> (content scrolls inside the white box); boarding the turn summary is now an <strong>enforced STAMP step</strong>. Dogfood board 004.</span><span class="tl-link"><a class="ref" href="./decisions.html#d-canvas">the canvas →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0177"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Canvas is a <strong>whiteboard</strong> now — current board full + live, older ones fold into a collapsed <em>Earlier</em> stack (capped at 5). Boarded the stamping explainer as 003.</span><span class="tl-link"><a class="ref" href="./decisions.html#d-canvas">the canvas →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0176"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Rebalanced the cover — the <strong>canvas is the hero</strong> on the first fold (own scroll) — and wired the SessionStart <strong>handoff</strong> so Claude Code uses it. Dogfood board 002.</span><span class="tl-link"><a class="ref" href="../bin/brain-inject.js">the hook →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0175"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Built the <strong>canvas</strong> — the cover hosts a feed of rich <strong>boards</strong> (elevated explanations); + skill discipline, <code>/canvas</code>, dogfood board 001.</span><span class="tl-link"><a class="ref" href="./decisions.html#d-canvas">why →</a></span></div></li>

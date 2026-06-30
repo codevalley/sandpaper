@@ -39,25 +39,28 @@ Templated, never free-form. Regenerate whole regions; never prose-edit inside on
    `data-status`. A reversal is a NEW entry with `data-rel="supersedes:<id>"` — never rewrite.
 5. **LEARNINGS** — if a gotcha bit, append one callout.
 6. **PLAN** — flip the relevant task's `data-status`; progress **derives** (never type a number).
+7. **CANVAS** — if the turn produced a substantive summary or explanation, lay it as the current
+   board on the whiteboard (see below) — demote the previous current into *Earlier*, cap at 5. This
+   is how the canvas stays current **without relying on memory**: it rides the same enforced routine.
 
-## CANVAS — elevate substantial explanations onto the cover (not the scrollback)
-The cover hosts a **canvas** (the `<!-- BRAIN:CANVAS -->` region of `index.html`): a **whiteboard**,
-not a notebook — the newest board sits full and live up top; older ones fold into a collapsed
-*Earlier* stack below. When you're about to explain something substantial in the terminal — an
-architecture, a comparison of approaches, a walkthrough, a non-trivial analysis or design — write
-the *elevated* version as the current board instead of a wall of terminal text, and leave the
-terminal one line pointing at it. The terminal **steers**; the canvas **shows**.
+## CANVAS — elevate the turn's summary / substantial explanations onto the cover (not the scrollback)
+The cover hosts a **canvas** (the `<!-- BRAIN:CANVAS -->` region of `index.html`): a **whiteboard** —
+a white `.whiteboard` container whose content scrolls inside it. The newest board sits full and live
+in the whiteboard; older ones fold into a collapsed *Earlier* stack below it (normal page flow). When
+you'd otherwise write a substantial summary or explanation in the terminal — the recap of a turn, an
+architecture, a comparison, a walkthrough, an analysis — write the *elevated* version as the current
+board instead, and leave the terminal one line pointing at it. The terminal **steers**; the canvas **shows**.
 
 - **A board** is freeform, self-contained, theme-skinned rich HTML (SVG/CSS diagrams, tables, code,
   side-by-sides — the things that die in a terminal). NOT the `.entry` grammar — boards are working
   output; lavish is fine.
-- **To add one:** the new board becomes the CURRENT one — an `<article class="board board--live"
-  data-cid="board-NNNN" data-kind="board" data-date="YYYY-MM-DD">…</article>` at the top of the feed.
-  Move the previously-current board into the `.canvas-earlier` list as a collapsed
-  `<details class="board board--past"><summary class="board-row"><span class="board-row-dot"></span><span
-  class="board-row-when">MM-DD · NNN</span><span class="board-row-title">…</span><span class="board-row-chev">›</span></summary>…body…</details>`.
-  Cap the stack at **5 total** — drop the oldest `<details>`. Remove `.canvas-empty` if present; update
-  the `canvas-count` and the `Earlier · N` label. Then in the terminal: `📋 <gist> → on the canvas`.
+- **To add one:** the new board becomes the CURRENT one — replace the `<article class="board board--live"
+  data-cid="board-NNNN" …>…</article>` inside `.whiteboard`. Move the previously-current board to the
+  TOP of the `.canvas-earlier` list (below the whiteboard) as a collapsed `<details class="board board--past">
+  <summary class="board-row"><span class="board-row-dot"></span><span class="board-row-when">MM-DD · NNN</span><span
+  class="board-row-title">…</span><span class="board-row-chev">›</span></summary>…body + foot…</details>`.
+  Cap the stack at **5 total** — drop the oldest `<details>`. Update the `canvas-count` and the
+  `Earlier · N` label. Then in the terminal: `📋 <gist> → on the canvas`.
 - **When NOT to:** short answers, direct edits, confirmations, lookups — those stay in the terminal.
   Don't over-produce; a board is for something worth a second screen.
 - **Canvas → brain.** Boards are the *working* layer; the brain (wiki/decisions/learnings) is the

@@ -169,11 +169,12 @@ function starterCover(project, date) {
       generate the cover, the plan board, and the books.</p>
   </header>
   <section class="canvas" id="s-canvas" data-cid="s-canvas" aria-label="Canvas">
-    <div class="canvas-rail"><div class="eyebrow">Canvas <span class="canvas-sub">— what Claude is thinking through, elevated</span></div></div>
-    <!-- BRAIN:CANVAS — boards prepend here, newest first; .canvas-empty shows when there are none -->
-    <div class="canvas-feed" data-cid="canvasfeed">
-      <div class="canvas-empty" data-cid="canvas-empty">The canvas is clear. When Claude works through something
-        substantial — an architecture, a comparison, a walkthrough — the elevated version lands here, live.</div>
+    <div class="canvas-rail"><div class="eyebrow">Canvas <span class="canvas-sub">— the current summary, elevated</span></div></div>
+    <!-- BRAIN:CANVAS — the current board lives in .whiteboard; older ones fold into .canvas-earlier below -->
+    <div class="whiteboard" data-cid="whiteboard">
+      <p class="canvas-empty" data-cid="canvas-empty">The canvas is clear. When Claude works through something
+        substantial — an architecture, a comparison, a walkthrough, the summary of a turn — the elevated
+        version lands here, live.</p>
     </div>
     <!-- /BRAIN:CANVAS -->
   </section>

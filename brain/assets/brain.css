@@ -300,8 +300,11 @@ footer{padding:30px 0 56px;font-family:var(--mono);font-size:11px;color:var(--mu
 .canvas-rail{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:13px}
 .canvas-sub{color:var(--mute);font-weight:400;text-transform:none;letter-spacing:0}
 .canvas-count{font-family:var(--font-mono);font-size:11px;color:var(--mute);flex:none}
-/* the feed fills the first fold and scrolls on its OWN — boards pile up without pushing the page */
-.canvas-feed{display:flex;flex-direction:column;gap:15px;min-height:44vh;max-height:calc(100vh - 196px);overflow-y:auto;padding-right:4px;overscroll-behavior:contain}
+/* the whiteboard: a white CONTAINER whose content scrolls inside it (a long board scrolls here);
+   everything else — this box, Earlier, the portal, the footer — is one normal page scroll */
+.whiteboard{background:var(--white);border:var(--hairline);border-radius:var(--radius-md);box-shadow:var(--shadow-panel);
+  padding:18px 22px;min-height:240px;max-height:calc(100vh - 184px);overflow-y:auto;overscroll-behavior:contain}
+.whiteboard>.board{background:transparent;border:0;border-radius:0;box-shadow:none;padding:0}
 /* a board = a sheet laid on the drafting table */
 .board{background:var(--white);border:var(--hairline);border-radius:var(--radius-md);padding:18px 20px 15px;box-shadow:var(--shadow-panel)}
 .board--live{border-color:var(--clay);box-shadow:0 0 0 1px var(--tint-clay-badge),var(--shadow-panel)}
@@ -341,7 +344,7 @@ footer{padding:30px 0 56px;font-family:var(--mono);font-size:11px;color:var(--mu
 .layer-link{align-self:center;font-family:var(--font-mono);font-size:10.5px;color:var(--mute);letter-spacing:.04em}
 
 /* ----- the "earlier" stack: current board stays full; older ones fold into quiet rows that reopen ----- */
-.canvas-earlier{display:flex;flex-direction:column;margin-top:8px}
+.canvas-earlier{display:flex;flex-direction:column;margin-top:16px}
 .earlier-label{display:flex;align-items:center;gap:9px;font-family:var(--font-mono);font-size:10px;letter-spacing:.16em;
   text-transform:uppercase;color:var(--mute);margin:2px 2px 2px}
 .earlier-label::before{content:"";width:14px;height:2px;background:var(--rule);border-radius:2px}
@@ -363,9 +366,8 @@ footer{padding:30px 0 56px;font-family:var(--mono);font-size:11px;color:var(--mu
 .board--past[open] .board-row-chev{transform:rotate(90deg);color:var(--clay)}
 .board--past[open] .board-row-title{color:var(--ink)}
 .board--past .board-body{padding-top:2px}
-/* nothing on the canvas yet */
-.canvas-empty{border:1px dashed var(--rule);border-radius:var(--radius-md);padding:22px 24px;background:var(--paper-3);
-  color:var(--text-muted);font-size:14px;line-height:1.55;max-width:46em}
+/* nothing on the canvas yet — plain muted text inside the whiteboard */
+.canvas-empty{color:var(--text-muted);font-size:14px;line-height:1.6;max-width:46em;margin:0}
 @media(max-width:620px){.pipeline{flex-direction:column}.pl-arrow{transform:rotate(90deg)}}
 
 /* ---- the 3 lens doors (navigation, below the canvas) ---- */
