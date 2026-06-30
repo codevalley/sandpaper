@@ -13,11 +13,11 @@
 <!-- BRAIN:DIGEST — machine context for a fresh `claude`: read THIS first (~1KB) to rehydrate. -->
 <script type="application/json" id="brain-state">
 { "v":1, "project":"Sandpaper", "phase":"Phase 1 · packaging", "updated":"2026-06-30",
-  "session":"S19",
-  "focus":{ "one":"Built `sandpaper upgrade` (and `update` alias) — the missing path to get the canvas + board-first into an EXISTING brain (e.g. tinysync, made before the canvas). It refreshes the /sandpaper commands + the hooks (board-first injection) + the engine assets brain.css/brain.js, but PRESERVES the owner's theme.css (their skin), and injects the <!-- BRAIN:CANVAS --> region into a cover that predates it (best-effort anchor: below the NOW plate, else above the doors/first section). Idempotent — re-run says 'already hosts the canvas'. Tested on a simulated old brain: brain.css gained .whiteboard, theme.css preserved, canvas injected, commands+hooks refreshed. Also: README CLI table + the slash /sandpaper:init GENERATE step now includes the canvas, and setup.js shares one canvasSection() between scaffold + upgrade. (Board-first judgment: this turn is tooling/procedural, so it stays in the terminal — no board.) Next: npm publish + rest of G", "ref":"../README.md" },
-  "worklog":[ {"date":"2026-06-30","one":"Added `sandpaper upgrade` — refresh an existing brain's commands/hooks/engine-assets (keep theme.css) + inject the canvas into an old cover; idempotent, tested","cid":"w-0180"},
-              {"date":"2026-06-30","one":"Made board-first the default — substantial replies go on the canvas (the board IS the reply), terminal gets a pointer; dropped the Stop-hook nag; rewrote the discipline; boarded the decision as 005","cid":"w-0179"},
-              {"date":"2026-06-30","one":"Canvas is a true scrollable whiteboard (content scrolls inside the white box; page scrolls the rest), and boarding the turn summary is now an enforced STAMP step","cid":"w-0178"} ],
+  "session":"S20",
+  "focus":{ "one":"Fixed two fresh-install /sandpaper:init bugs the owner caught while testing a clean repo. (1) TEMPLATE HUNTING: the slash command was told to 'write from the shipped templates' but not WHERE they live, and a fresh repo had only commands+hooks (no assets) — so it scanned the filesystem and used the sibling productcraft brain as its reference, which won't exist on a distributed install. Fix: install-skill now ALSO scaffolds the package's assets locally (brain/assets + starter cover + manifest), and init.md is rewritten to USE brain/assets/ and NEVER read templates/a reference brain from any other directory; if missing, run `npx sandpaper init`, don't hunt. (2) PLAIN-PROSE GATE: the go-ahead confirmation + the wizard asked in plain English (broke the flow, had to type) — init.md now says to use the AskUserQuestion tool (a choice dialog) for the gate + shaping questions. Tested: install-skill alone now leaves brain/assets (with the canvas CSS) + cover + manifest, doctor healthy. Learning l-init-templates. (Board-first: a debugging exchange, so it stays in the terminal — no board.) Next: npm publish + rest of G", "ref":"learnings.html#l-init-templates" },
+  "worklog":[ {"date":"2026-06-30","one":"Fixed fresh-install /sandpaper:init: install-skill scaffolds assets locally (no hunting a sibling repo for templates) + the gate/wizard use the AskUserQuestion dialog","cid":"w-0181"},
+              {"date":"2026-06-30","one":"Added `sandpaper upgrade` — refresh an existing brain's commands/hooks/engine-assets (keep theme.css) + inject the canvas into an old cover; idempotent, tested","cid":"w-0180"},
+              {"date":"2026-06-30","one":"Made board-first the default — substantial replies go on the canvas (the board IS the reply), terminal gets a pointer; dropped the Stop-hook nag; rewrote the discipline; boarded the decision as 005","cid":"w-0179"} ],
   "open":["decisions.html#q-anchoring","decisions.html#q-undo","decisions.html#q-billing"],
   "docs":["../sandpaper.html","../engg-spec.html"] }
 </script>
@@ -49,10 +49,10 @@
   <header class="plate" data-cid="cover">
     <div class="pl-meta"><span class="now-tag">Now</span> the build stands at <a href="./project/index.html#i-package">Phase 1 — packaging</a></div>
     <!-- BRAIN:NOW -->
-    <p class="now-line" data-cid="now" data-kind="now" data-ref="../README.md">
-      Shipped <code>sandpaper&nbsp;upgrade</code> — it brings an <strong>existing</strong> brain up to date
-      (assets · hooks · commands · the canvas), keeping your skin, so other repos can get board-first too.
-      <a class="ref" href="../README.md">the README →</a>
+    <p class="now-line" data-cid="now" data-kind="now" data-ref="learnings.html#l-init-templates">
+      Fixed fresh-install <code>/sandpaper:init</code> — <code>install-skill</code> now scaffolds the package's
+      assets locally (no more hunting a sibling repo for templates), and the gate + wizard use the
+      AskUserQuestion dialog. <a class="ref" href="learnings.html#l-init-templates">the gotcha →</a>
     </p>
     <!-- /BRAIN:NOW -->
   </header>
@@ -256,6 +256,7 @@
   <section class="zone" data-cid="s-log">
     <div class="eyebrow">Latest <span id="brain-unseen" class="badge open" hidden></span></div>
     <ol class="timeline" data-cid="logfeed">
+      <li data-kind="worklog" data-cid="w-0181"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Fixed fresh-install <code>/sandpaper:init</code> — <code>install-skill</code> scaffolds assets locally (no hunting a sibling repo) + the gate/wizard use the AskUserQuestion dialog.</span><span class="tl-link"><a class="ref" href="./learnings.html#l-init-templates">the gotcha →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0180"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Shipped <code>sandpaper upgrade</code> — refresh an existing brain (assets · hooks · commands · canvas), keeping your skin. Existing repos can get board-first now.</span><span class="tl-link"><a class="ref" href="../README.md">the README →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0179"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Made <strong>board-first</strong> the default — substantial replies go on the canvas (the board <em>is</em> the reply); dropped the Stop-hook nag. Boarded the decision as 005.</span><span class="tl-link"><a class="ref" href="./decisions.html#d-canvas">the canvas →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0178"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Canvas is a true <strong>scrollable whiteboard</strong> (content scrolls inside the white box); boarding the turn summary is now an <strong>enforced STAMP step</strong>. Dogfood board 004.</span><span class="tl-link"><a class="ref" href="./decisions.html#d-canvas">the canvas →</a></span></div></li>

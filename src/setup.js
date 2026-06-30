@@ -68,7 +68,10 @@ export function installSkill(target, pkg, opts = {}) {
     if (r.ok) ok(r.added ? 'auto-update hooks wired into .claude/settings.json  (delete them there, or re-run with --no-hooks, to disable)' : 'auto-update hooks already wired');
     else { warn(r.reason + ' — add this by hand:'); console.log('\n' + hooksSnippet()); }
   }
-  console.log('\n  Next: run /sandpaper:init in Claude Code to harvest this repo and generate the brain.\n');
+  // Scaffold the brain from THIS package now, so /sandpaper:init has the design-system assets
+  // LOCALLY and never has to hunt the filesystem for a reference brain. scaffold prints its own
+  // "Next: …" closing.
+  scaffold(target, pkg);
 }
 
 // ---- init: scaffold brain/ (assets + manifest + a starter cover) — the mechanical part ----

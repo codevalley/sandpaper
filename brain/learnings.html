@@ -42,6 +42,11 @@
   </section>
 
   <section class="zone flush col">
+    <aside class="entry entry--learning callout gotcha" data-kind="learning" data-lens="engineering" id="l-init-templates" data-cid="l-init-templates" data-status="active" data-date="2026-06-30" data-area="distribution" data-tags="init slash templates assets hunting sibling package scaffold distribution askuserquestion">
+      <div class="eyebrow">▲ Gotcha · distribution</div>
+      <p><strong>“Write from the shipped templates” without saying WHERE makes the agent hunt — and grab the dev's own repo.</strong> A fresh <code>/sandpaper:init</code> needed <code>theme.css</code>/<code>brain.css</code>/<code>brain.js</code> but they weren't local (install-skill only copied commands + hooks), so it scanned the filesystem and used the sibling <code>productcraft</code> brain as its reference — which won't exist on a distributed install. Fix: <code>install-skill</code> now scaffolds the package's assets locally, and the slash command is told to USE <code>brain/assets/</code> and NEVER read templates from any other directory. (Same pass: the go-ahead gate + wizard now use the AskUserQuestion dialog, not plain prose.) <a class="ref" href="../skill/sandpaper/commands/init.md">the command →</a></p>
+    </aside>
+
     <aside class="entry entry--learning callout gotcha" data-kind="learning" data-lens="engineering" id="l-toolbar-skin" data-cid="l-toolbar-skin" data-status="active" data-date="2026-06-30" data-area="theming" data-tags="toolbar theme tokens reskin host injected scope adopt">
       <div class="eyebrow">▲ Gotcha · theming</div>
       <p><strong>An injected widget that ships its own token copy won't re-skin with the host.</strong> The toolbar carries a private <code>#sp-panel</code> <code>--sp-*</code> palette so it stands alone on any page — so a <code>theme.css</code> re-skin reached the brain but <em>not</em> the floating toolbar. Fix: read the host's <code>:root</code> tokens at runtime (<code>getComputedStyle</code>) and override the copy when present; the shipped values become a fallback for un-themed pages. The toolbar re-runs each live-reload, so the sync is automatic. <a class="ref" href="./engineering/index.html">engineering →</a></p>

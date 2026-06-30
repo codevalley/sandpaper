@@ -18,10 +18,11 @@ framing (3–4 lines) so the owner knows what they've started:
 
 Then **stop and get an explicit go-ahead before the heavy harvest** — don't free-fall into it. Do a
 quick, cheap size read first (count source files + rough LOC, list the top-level dirs — do NOT read
-everything yet), turn it into a rough estimate, and ask. Something like: *"This looks like a ~medium
-repo (≈N source files across M dirs) — a full harvest will take roughly X–Y minutes and a fair chunk
-of tokens. Want me to go ahead, or scope it down first (just the code, or one subtree)?"* Begin
-DISCOVER only once they say go; if they'd rather scope it down, harvest just that slice.
+everything yet), turn it into a rough estimate, and ask **with the AskUserQuestion tool, not plain
+prose** — a plain-text question breaks the flow and forces them to type. Frame it as a choice, e.g.
+header "Harvest?", question *"Found a ~medium repo (≈N source files / M dirs) — a full harvest takes
+~X–Y min and some tokens. Proceed?"*, options like **Go ahead** · **Scope it down (just the code)** ·
+**Just one subtree**. Begin DISCOVER only once they pick; honor a scoped choice.
 
 ## 1. DISCOVER — cast a wide net; classify by content, not filename
 Projects are organised every which way, so don't assume fixed paths. Glob broadly
@@ -42,7 +43,8 @@ work, the apparent roadmap, and any decisions/gotchas already written down somew
 
 ## 2. WIZARD — interactive; never guess what you can ask
 Show the owner a short summary of what you found, **grouped** (code · specs · logs · docs ·
-external links). Then run a brief wizard — ask in small batches, not a wall:
+external links). Then run a brief wizard — **use the AskUserQuestion tool for the shaping choices**
+(lenses, books, theme, phases), not a wall of prose; ask in small batches:
 
 **a. Fill discovery gaps.** "Did I miss anything? Where's your spec / design / roadmap if I didn't
 find it? Any external docs (Notion / wiki / Figma) I should fold in by hand?" Let them point you at
@@ -61,8 +63,15 @@ template):
 Keep it to ~5–8 questions total; infer everything else.
 
 ## 3. GENERATE — seeded with REAL content, shaped by the answers
-Write the brain from the shipped templates (`theme.css` + `brain.css` + `brain.js` copied verbatim)
-and the `.entry` grammar (`data-cid`→`id`, `data-kind`, `data-status`, `data-date`, ≥1 `data-ref`,
+The design-system assets are **already in `brain/assets/`** (`theme.css` + `brain.css` + `brain.js`) —
+`install-skill` scaffolded them from the Sandpaper package, along with a starter `brain/index.html`.
+**Use them as-is.** Do NOT regenerate the assets, and **NEVER read, copy, or take templates / a
+reference brain from any other directory or sibling project on disk** — that's someone else's repo,
+not the Sandpaper package, and it won't exist on a distributed install. If `brain/assets/` is somehow
+missing, stop and run `npx sandpaper init` (or ask the owner for the package path) — never go hunting.
+
+Build the cover (including the `<!-- BRAIN:CANVAS -->` canvas region) and the chosen books with the
+`.entry` grammar (`data-cid`→`id`, `data-kind`, `data-status`, `data-date`, ≥1 `data-ref`,
 optional `data-lens`). **Link, never copy** — `data-ref` points at the real artifacts you
 discovered (a spec's heading anchor if it has one, else the source file / README section). Generate
 ONLY the lenses + books the owner chose; dim any deferred chrome so nothing dangles. Seed the plan
