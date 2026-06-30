@@ -33,13 +33,13 @@ h1,h2,h3{font-family:var(--serif);font-weight:600;letter-spacing:-.015em;margin:
 .brain-nav .ext{color:var(--clay)}
 
 /* ---- cover: dark drafting plate ---- */
-.plate{margin:32px 0 28px;background:var(--ink);color:var(--paper);border-radius:12px;padding:36px 38px 32px;
+.plate{margin:16px 0 14px;background:var(--ink);color:var(--paper);border-radius:10px;padding:13px 20px;
   background-image:linear-gradient(var(--tint-paper-grid) 1px,transparent 1px),linear-gradient(90deg,var(--tint-paper-grid) 1px,transparent 1px);
-  background-size:24px 24px}
+  background-size:22px 22px}
 .plate .pl-top{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap}
 .brain-mark{font-family:var(--serif);font-weight:600;font-size:clamp(40px,8vw,68px);line-height:.92;letter-spacing:-.04em;color:var(--paper)}
 .brain-mark .a{color:var(--clay)}
-.pl-meta{font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--on-plate-meta);margin-top:10px}
+.pl-meta{font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--on-plate-meta);margin-top:0}
 .pl-meta a{color:var(--on-plate-link)}
 .health{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;
   text-transform:uppercase;text-decoration:none;color:var(--paper);border:1px solid var(--tint-paper-border);
@@ -47,8 +47,8 @@ h1,h2,h3{font-family:var(--serif);font-weight:600;letter-spacing:-.015em;margin:
 .health:hover{border-color:var(--moss)}
 .health .dot{width:9px;height:9px;border-radius:50%;background:var(--moss);box-shadow:0 0 0 3px var(--tint-moss-glow)}
 
-/* NOW hero (inside the plate) */
-.now-line{font-family:var(--serif);font-weight:500;font-size:clamp(17px,2.2vw,21px);line-height:1.34;color:var(--paper);margin:22px 0 0;max-width:34em}
+/* NOW — a slim dark dateline above the canvas (no longer the hero) */
+.now-line{font-family:var(--serif);font-weight:500;font-size:15.5px;line-height:1.42;color:var(--paper);margin:5px 0 0;max-width:64em}
 .now-line strong{color:var(--paper);font-weight:600}
 .now-line em{font-style:italic;color:var(--on-plate-em)}
 .now-line .ref{font-family:var(--mono);font-size:13px;color:var(--clay);white-space:nowrap}
@@ -300,7 +300,8 @@ footer{padding:30px 0 56px;font-family:var(--mono);font-size:11px;color:var(--mu
 .canvas-rail{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:13px}
 .canvas-sub{color:var(--mute);font-weight:400;text-transform:none;letter-spacing:0}
 .canvas-count{font-family:var(--font-mono);font-size:11px;color:var(--mute);flex:none}
-.canvas-feed{display:flex;flex-direction:column;gap:15px;max-height:68vh;overflow-y:auto;padding-right:2px}
+/* the feed fills the first fold and scrolls on its OWN — boards pile up without pushing the page */
+.canvas-feed{display:flex;flex-direction:column;gap:15px;min-height:44vh;max-height:calc(100vh - 196px);overflow-y:auto;padding-right:4px;overscroll-behavior:contain}
 /* a board = a sheet laid on the drafting table */
 .board{background:var(--white);border:var(--hairline);border-radius:var(--radius-md);padding:18px 20px 15px;box-shadow:var(--shadow-panel)}
 .board--live{border-color:var(--clay);box-shadow:0 0 0 1px var(--tint-clay-badge),var(--shadow-panel)}
@@ -323,6 +324,13 @@ footer{padding:30px 0 56px;font-family:var(--mono);font-size:11px;color:var(--mu
 .pl-term,.pl-brain{background:var(--panel)}
 .pl-canvas{background:var(--card-feature);border-color:var(--clay)}
 .pl-arrow{align-self:center;color:var(--mute);font-size:15px;flex:none}
+/* a numbered step list inside a board (e.g. the handoff chain) */
+.handoff{display:flex;flex-direction:column;gap:8px;margin:13px 0}
+.ho-step{display:flex;gap:11px;align-items:flex-start}
+.ho-n{flex:none;width:22px;height:22px;border-radius:50%;background:var(--ink);color:var(--paper);
+  font-family:var(--font-mono);font-size:11px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;margin-top:1px}
+.ho-step>div b{display:block;font-size:13px;color:var(--ink)}
+.ho-step>div span{display:block;font-family:var(--font-mono);font-size:11px;color:var(--mute);line-height:1.45}
 /* nothing on the canvas yet */
 .canvas-empty{border:1px dashed var(--rule);border-radius:var(--radius-md);padding:22px 24px;background:var(--paper-3);
   color:var(--text-muted);font-size:14px;line-height:1.55;max-width:46em}

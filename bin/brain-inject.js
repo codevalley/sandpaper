@@ -15,6 +15,7 @@ try {
     `NOW — ${d.focus?.one || ''}${d.focus?.ref ? ` (${d.focus.ref})` : ''}`,
     `Recent: ${(d.worklog || []).map((w) => w.one).join(' · ')}`,
     (d.open && d.open.length) ? `Needs you: ${d.open.join(', ')}` : '',
+    `Canvas — when you work through something substantial (an architecture, a comparison, a walkthrough, a non-trivial analysis), write the ELEVATED version as a board into brain/index.html's <!-- BRAIN:CANVAS --> region and leave just a one-line pointer in the terminal; don't fill the scrollback. The cover hosts the canvas. See the CANVAS discipline in the skill; /sandpaper:canvas forces one.`,
     `Read brain/index.html to navigate. Stamp the brain after substantive turns (CLAUDE.md → "The project brain").`,
   ].filter(Boolean).join('\n');
   process.stdout.write(out + '\n');
