@@ -42,6 +42,16 @@
   </section>
 
   <section class="band" style="border-top:0;padding-top:0">
+    <article class="entry entry--decision" data-lens="engineering" data-kind="decision" id="d-autobrain" data-cid="d-autobrain" data-status="accepted" data-date="2026-06-30" data-ref="../skill/sandpaper/SKILL.md" data-tags="hooks auto-update immune-system skill stamp">
+      <div class="entry-head"><span class="entry-id">D-010</span><h3>The brain auto-updates via hooks — no prodding</h3><span class="badge accepted">Accepted</span></div>
+      <dl class="entry-fields">
+        <div><dt>Decision</dt><dd>Two Claude Code hooks keep the brain current automatically: <strong>SessionStart</strong> (<code>bin/brain-inject.js</code>) surfaces the digest so a fresh session rehydrates; <strong>Stop</strong> (<code>bin/brain-stamp-check.js</code>) blocks once if a turn changed code but didn't stamp the brain. Self-limiting (honors <code>stop_hook_active</code>, idempotent). The skill ships them; <em>installing</em> is opt-in (merge into <code>.claude/settings.json</code>).</dd></div>
+        <div><dt>Because</dt><dd>A brain that relies on the agent remembering will drift. A Stop hook makes stamping non-skippable without the user having to prod — the difference between a discipline and a system.</dd></div>
+        <div><dt>Instead of</dt><dd>The CLAUDE.md contract alone + the user reminding the agent. (Auto-installing the hooks was correctly blocked as a self-config change — opt-in is right.)</dd></div>
+      </dl>
+      <div class="entry-foot"><a class="ref" href="../skill/sandpaper/SKILL.md">the skill →</a> &nbsp; <a class="ref" href="./project/index.html#i-skill">the plan →</a></div>
+    </article>
+
     <article class="entry entry--decision" data-lens="project" data-kind="decision" id="d-phases" data-cid="d-phases" data-status="accepted" data-date="2026-06-30" data-ref="./project/index.html" data-tags="phases roadmap distribution dogfood">
       <div class="entry-head"><span class="entry-id">D-009</span><h3>Two phases: make it work for us, then package it</h3><span class="badge accepted">Accepted</span></div>
       <dl class="entry-fields">

@@ -14,9 +14,9 @@
 <script type="application/json" id="brain-state">
 { "v":1, "project":"Sandpaper", "phase":"Phase 1 · packaging", "updated":"2026-06-30",
   "session":"S10",
-  "focus":{ "one":"Reorganised the plan board around Phase 0 / Phase 1 (the brain now mirrors our own structure, derived phase bars: P0 95%, P1 0%) and moving into Phase 1 — building the Sandpaper skill + designing an auto-updating brain (Claude Code hooks, no user prodding)", "ref":"project/index.html" },
-  "worklog":[ {"date":"2026-06-30","one":"Brain now shows our Phase 0 / Phase 1 split (derived); into Phase 1","cid":"w-0163"},
-              {"date":"2026-06-30","one":"Coherence pass — badge glyphs as one family, toolbar craft, audit icon fixes","cid":"w-0162"} ],
+  "focus":{ "one":"Phase 1 started — built the auto-updating brain (bin/brain-inject.js SessionStart rehydrate + bin/brain-stamp-check.js Stop stamp-enforcer, tested, self-limiting) and the Sandpaper skill (skill/sandpaper/SKILL.md); hooks are opt-in (merge into .claude/settings.json — auto-install was correctly blocked as a self-config change). Next: enable the hooks + build the /commands (/init, /stamp, /sync)", "ref":"decisions.html#d-autobrain" },
+  "worklog":[ {"date":"2026-06-30","one":"Built the auto-updating brain (hooks) + the Sandpaper skill scaffold","cid":"w-0164"},
+              {"date":"2026-06-30","one":"Brain now shows our Phase 0 / Phase 1 split (derived); into Phase 1","cid":"w-0163"} ],
   "open":["decisions.html#q-anchoring","decisions.html#q-undo","decisions.html#q-billing"],
   "docs":["../sandpaper.html","../engg-spec.html"] }
 </script>
@@ -49,9 +49,9 @@
     <div class="pl-meta"><span class="now-tag">Now</span> the build stands at <a href="./project/index.html#i-skeleton">Initiative A — the skeleton</a></div>
     <!-- BRAIN:NOW -->
     <p class="now-line" data-cid="now" data-kind="now" data-ref="project/index.html">
-      The brain now shows its own <strong>Phase 0 / Phase 1</strong> split (derived) — Phase 0 at 95%,
-      moving into <em>Phase 1</em> (the skill + an auto-updating brain).
-      <a class="ref" href="project/index.html">the plan →</a>
+      Built the <strong>auto-updating brain</strong> — a SessionStart hook rehydrates, a Stop hook enforces
+      the stamp (no prodding) — and the Sandpaper <em>skill</em>. Next: turn it on + the /commands.
+      <a class="ref" href="decisions.html#d-autobrain">how →</a>
     </p>
     <!-- /BRAIN:NOW -->
   </header>
@@ -93,7 +93,7 @@
       </a>
       <a class="vital" href="./decisions.html#open"><b data-count="question:open">3</b> open</a>
       <a class="vital" href="./map.html"><b data-count="component:built">3</b>/5 built</a>
-      <a class="vital" href="./decisions.html"><b data-count="decision">9</b> decisions</a>
+      <a class="vital" href="./decisions.html"><b data-count="decision">10</b> decisions</a>
     </div>
   </section>
   <!-- /BRAIN:COUNTS -->
@@ -115,9 +115,9 @@
   <section class="zone" data-cid="s-log">
     <div class="eyebrow">Latest <span id="brain-unseen" class="badge open" hidden></span></div>
     <ol class="timeline" data-cid="logfeed">
+      <li data-kind="worklog" data-cid="w-0164"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Built the auto-updating brain (hooks) + the Sandpaper skill — no more prodding.</span><span class="tl-link"><a class="ref" href="./decisions.html#d-autobrain">how →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0163"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Brain now shows our own Phase 0 / Phase 1 split (derived bars). Into Phase 1.</span><span class="tl-link"><a class="ref" href="./project/index.html">the plan →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0162"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Coherence pass — badge glyphs as one family, toolbar craft, audit icon fixes.</span><span class="tl-link"><a class="ref" href="./decisions.html#d-phases">phases →</a></span></div></li>
-      <li data-kind="worklog" data-cid="w-0161"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Detail pass — semantic badges + glyphs, timeline fix, section kickers, dark console toolbar.</span><span class="tl-link"><a class="ref" href="./decisions.html#d-phases">phases →</a></span></div></li>
     </ol>
     <div style="margin-top:8px"><a class="ref" href="./log.html">full log →</a> &nbsp; <button id="brain-markseen" class="facet" type="button">Mark all seen</button></div>
   </section>
