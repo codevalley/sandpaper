@@ -39,17 +39,23 @@ Templated, never free-form. Regenerate whole regions; never prose-edit inside on
    `data-status`. A reversal is a NEW entry with `data-rel="supersedes:<id>"` — never rewrite.
 5. **LEARNINGS** — if a gotcha bit, append one callout.
 6. **PLAN** — flip the relevant task's `data-status`; progress **derives** (never type a number).
-7. **CANVAS** — if the turn produced a substantive summary or explanation, lay it as the current
-   board on the whiteboard (see below) — demote the previous current into *Earlier*, cap at 5. This
-   is how the canvas stays current **without relying on memory**: it rides the same enforced routine.
+7. **CANVAS** — board-first (see below): if the turn's reply is a substantive summary or explanation,
+   it should already BE the current board on the whiteboard — demote the previous current into
+   *Earlier*, cap at 5, leave a `📋 … → on the canvas` pointer. (Pure-conversation turns don't stamp,
+   but board-first still applies to their replies.)
 
-## CANVAS — elevate the turn's summary / substantial explanations onto the cover (not the scrollback)
+## CANVAS — board-first: substantial replies go on the cover, not the scrollback
 The cover hosts a **canvas** (the `<!-- BRAIN:CANVAS -->` region of `index.html`): a **whiteboard** —
 a white `.whiteboard` container whose content scrolls inside it. The newest board sits full and live
-in the whiteboard; older ones fold into a collapsed *Earlier* stack below it (normal page flow). When
-you'd otherwise write a substantial summary or explanation in the terminal — the recap of a turn, an
-architecture, a comparison, a walkthrough, an analysis — write the *elevated* version as the current
-board instead, and leave the terminal one line pointing at it. The terminal **steers**; the canvas **shows**.
+in the whiteboard; older ones fold into a collapsed *Earlier* stack below it (normal page flow).
+
+**Board-first is the default.** When your reply would be a substantial summary or explanation — the
+recap of a turn, an architecture, a comparison, a walkthrough, an analysis — the **board IS the reply**:
+write the elevated version as the current board and leave the terminal ONE line (`📋 <gist> → on the
+canvas`). Don't write it twice. Short answers, confirmations, and the back-and-forth stay in the
+terminal. The terminal **steers**; the canvas **shows**. No hook enforces this — boarding a *judgment*
+can't be enforced the way "you changed code, go stamp" can; the pointer is the tripwire (no pointer
+means nothing was boarded).
 
 - **A board** is freeform, self-contained, theme-skinned rich HTML (SVG/CSS diagrams, tables, code,
   side-by-sides — the things that die in a terminal). NOT the `.entry` grammar — boards are working

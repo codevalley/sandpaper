@@ -342,6 +342,13 @@ footer{padding:30px 0 56px;font-family:var(--mono);font-size:11px;color:var(--mu
 .layer--canvas{background:var(--card-feature);border-color:var(--clay)}
 .layer--brain{background:var(--panel)}
 .layer-link{align-self:center;font-family:var(--font-mono);font-size:10.5px;color:var(--mute);letter-spacing:.04em}
+/* a two-column "what goes where" split inside a board */
+.split{display:flex;gap:10px;margin:13px 0;flex-wrap:wrap}
+.split-col{flex:1;min-width:170px;border:var(--hairline);border-radius:var(--radius);padding:10px 13px;display:flex;flex-direction:column;gap:3px}
+.split-col:first-child{background:var(--panel)}
+.split-col:last-child{background:var(--card-feature);border-color:var(--clay)}
+.split-k{font-family:var(--font-mono);font-size:12px;font-weight:600;color:var(--ink)}
+.split-d{font-family:var(--font-mono);font-size:10.5px;color:var(--mute);line-height:1.5}
 
 /* ----- the "earlier" stack: current board stays full; older ones fold into quiet rows that reopen ----- */
 .canvas-earlier{display:flex;flex-direction:column;margin-top:16px}

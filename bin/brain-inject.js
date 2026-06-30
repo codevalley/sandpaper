@@ -15,7 +15,7 @@ try {
     `NOW — ${d.focus?.one || ''}${d.focus?.ref ? ` (${d.focus.ref})` : ''}`,
     `Recent: ${(d.worklog || []).map((w) => w.one).join(' · ')}`,
     (d.open && d.open.length) ? `Needs you: ${d.open.join(', ')}` : '',
-    `Canvas — when you work through something substantial (an architecture, a comparison, a walkthrough, a non-trivial analysis), write the ELEVATED version as a board into brain/index.html's <!-- BRAIN:CANVAS --> region and leave just a one-line pointer in the terminal; don't fill the scrollback. The cover hosts the canvas. See the CANVAS discipline in the skill; /sandpaper:canvas forces one.`,
+    `Canvas (board-first) — when your reply would be a substantial summary or explanation (a recap, an architecture, a comparison, a walkthrough, an analysis), the BOARD IS THE REPLY: write the elevated version as the current board in brain/index.html's <!-- BRAIN:CANVAS --> region (the .whiteboard; demote the previous to Earlier, cap 5) and leave just ONE line in the terminal — "📋 <gist> → on the canvas". Don't write it twice. Short answers and back-and-forth stay in the terminal. See the CANVAS discipline in the skill; /sandpaper:canvas forces one.`,
     `Read brain/index.html to navigate. Stamp the brain after substantive turns (CLAUDE.md → "The project brain").`,
   ].filter(Boolean).join('\n');
   process.stdout.write(out + '\n');
