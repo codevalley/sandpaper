@@ -30,7 +30,7 @@ h1,h2,h3{font-family:var(--serif);font-weight:600;letter-spacing:-.015em;margin:
 .brain-nav .ext{color:var(--clay)}
 
 /* ---- cover: dark drafting plate ---- */
-.plate{margin-top:18px;background:var(--ink);color:var(--paper);border-radius:10px;padding:30px 30px 26px;
+.plate{margin:32px 0 28px;background:var(--ink);color:var(--paper);border-radius:12px;padding:36px 38px 32px;
   background-image:linear-gradient(var(--tint-paper-grid) 1px,transparent 1px),linear-gradient(90deg,var(--tint-paper-grid) 1px,transparent 1px);
   background-size:24px 24px}
 .plate .pl-top{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap}
@@ -45,7 +45,7 @@ h1,h2,h3{font-family:var(--serif);font-weight:600;letter-spacing:-.015em;margin:
 .health .dot{width:9px;height:9px;border-radius:50%;background:var(--moss);box-shadow:0 0 0 3px var(--tint-moss-glow)}
 
 /* NOW hero (inside the plate) */
-.now-line{font-family:var(--serif);font-weight:500;font-size:clamp(17px,2.2vw,21px);line-height:1.34;color:var(--paper);margin:18px 0 0;max-width:34em}
+.now-line{font-family:var(--serif);font-weight:500;font-size:clamp(17px,2.2vw,21px);line-height:1.34;color:var(--paper);margin:22px 0 0;max-width:34em}
 .now-line strong{color:var(--paper);font-weight:600}
 .now-line em{font-style:italic;color:var(--on-plate-em)}
 .now-line .ref{font-family:var(--mono);font-size:13px;color:var(--clay);white-space:nowrap}
@@ -61,8 +61,8 @@ h1,h2,h3{font-family:var(--serif);font-weight:600;letter-spacing:-.015em;margin:
 .vital b{font-family:var(--serif);font-size:16px}
 .vital:hover{border-color:var(--clay);color:var(--clay)}
 
-/* ---- generic bands / sections ---- */
-.zone{padding:26px 0;border-top:1px solid var(--rule)}
+/* ---- generic bands / sections (newspaper rhythm: a hairline rule + generous air) ---- */
+.zone{padding:34px 0;border-top:1px solid var(--rule)}
 .zone.flush{border-top:0;padding-top:22px}
 .band{border-top:1px solid var(--rule);padding:34px 0}
 h2.h{font-size:22px;margin:0 0 4px}
@@ -267,7 +267,7 @@ footer{padding:30px 0 56px;font-family:var(--mono);font-size:11px;color:var(--mu
 @media(max-width:760px){.shell-id{padding:8px 0 6px}.shell-rail{font-size:11px}}
 
 /* ---- the 3 lens doors (HERO; docked flush under the plate) ---- */
-.doors{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:18px}
+.doors{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:26px}
 .door{position:relative;display:flex;flex-direction:column;gap:9px;min-height:188px;
   background:var(--panel);border:var(--hairline);border-radius:var(--radius-md);
   padding:26px 18px 16px;text-decoration:none;color:var(--ink);
@@ -334,6 +334,4 @@ footer{padding:30px 0 56px;font-family:var(--mono);font-size:11px;color:var(--mu
 .lens-hero p{font-size:15.5px;color:var(--text-prose);max-width:42em;margin:0}
 .lens-views{margin-top:4px}
 
-/* Tighten the cover plate so doors peek above the fold. */
-.cover-tight .plate{padding:24px 28px 22px}
-.cover-tight .now-line{margin-top:14px}
+/* (cover-tight retired — the plate now breathes; the class is harmless if still present) */

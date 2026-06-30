@@ -22,6 +22,7 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
       '<span id="sp-chip"><span id="sp-led"></span><span id="sp-label">Idle — ready when you are</span></span>' +
       '<span id="sp-cost"></span>' +
       '<button type="button" id="sp-undo" hidden title="Undo the last direct edit">⟲ undo</button>' +
+      '<button type="button" id="sp-min" title="Minimize">–</button>' +
       '<button type="button" id="sp-toggle" aria-label="Expand or collapse">▴</button>' +
     '</div>' +
     '<div id="sp-thread" hidden></div>' +
@@ -238,6 +239,11 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
   });
   toggleBtn.addEventListener('click', function () { panel.classList.contains('sp-collapsed') ? expand() : collapse(); });
 
+  // minimize to a small status pill (gets the toolbar out of the way); click the pill to restore
+  var minBtn = panel.querySelector('#sp-min');
+  minBtn.addEventListener('click', function (e) { e.stopPropagation(); panel.classList.add('sp-min'); });
+  panel.querySelector('#sp-head').addEventListener('click', function () { if (panel.classList.contains('sp-min')) panel.classList.remove('sp-min'); });
+
   // ---------- click-to-scope ----------
   function cssPath(t) {
     if (t.id) return '#' + CSS.escape(t.id);
@@ -379,7 +385,9 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
     dragEl = hoverRow; dragCid = dragEl.getAttribute('data-cid');
     e.dataTransfer.effectAllowed = 'move';
     try { e.dataTransfer.setData('text/plain', dragCid); } catch (x) {}
-    document.body.classList.add('sp-dragging'); rowctl.hidden = true;
+    try { e.dataTransfer.setDragImage(dragEl, 14, 14); } catch (x) {} // the BLOCK follows the cursor, not the 8px grip
+    document.body.classList.add('sp-dragging');
+    setTimeout(function () { rowctl.hidden = true; }, 0);             // hide the handle AFTER the drag latches (don't kill the source)
   });
   grip.addEventListener('dragend', clearDrag);
   document.addEventListener('dragover', function (e) {

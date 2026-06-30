@@ -31,6 +31,14 @@
 @keyframes sp-pulse{ 0%,100%{ box-shadow:0 0 0 0 currentColor; opacity:1; } 50%{ box-shadow:0 0 0 5px transparent; opacity:.5; } }
 #sp-cost{ margin-left:auto; font-size:11px; color:var(--sp-mute); }
 #sp-toggle{ border:0; background:transparent; color:var(--sp-mute); cursor:pointer; font-size:13px; padding:2px 4px; line-height:1; }
+#sp-min{ border:0; background:transparent; color:var(--sp-mute); cursor:pointer; font-size:17px; padding:0 6px 3px; line-height:1; }
+#sp-min:hover{ color:var(--sp-clay); }
+/* minimized → a small status pill; click it to restore */
+#sp-panel.sp-min{ width:auto; max-width:300px; cursor:pointer; }
+#sp-panel.sp-min #sp-thread, #sp-panel.sp-min #sp-target, #sp-panel.sp-min #sp-form,
+#sp-panel.sp-min #sp-cost, #sp-panel.sp-min #sp-undo, #sp-panel.sp-min #sp-min, #sp-panel.sp-min #sp-toggle{ display:none; }
+#sp-panel.sp-min #sp-head{ border-bottom:0; padding:9px 15px; }
+#sp-panel.sp-min #sp-chip::after{ content:"▸"; color:var(--sp-mute); margin-left:9px; font-size:11px; }
 
 #sp-thread{ overflow-y:auto; padding:12px; display:flex; flex-direction:column; gap:14px; min-height:0; max-height:58vh; }
 .sp-turn{ display:flex; flex-direction:column; gap:6px; }
