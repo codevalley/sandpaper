@@ -40,6 +40,26 @@ Templated, never free-form. Regenerate whole regions; never prose-edit inside on
 5. **LEARNINGS** — if a gotcha bit, append one callout.
 6. **PLAN** — flip the relevant task's `data-status`; progress **derives** (never type a number).
 
+## CANVAS — elevate substantial explanations onto the cover (not the scrollback)
+The cover hosts a **canvas**: a scrollable feed of rich **boards** (the `<!-- BRAIN:CANVAS -->`
+region of `index.html`). When you're about to explain something substantial in the terminal — an
+architecture, a comparison of approaches, a walkthrough, a non-trivial analysis or design — write
+the *elevated* version as a board instead of a wall of terminal text, and leave the terminal one
+line pointing at it. The terminal **steers**; the canvas **shows**.
+
+- **A board** is freeform, self-contained, theme-skinned rich HTML (SVG/CSS diagrams, tables, code,
+  side-by-sides — the things that die in a terminal). NOT the `.entry` grammar — boards are working
+  output; lavish is fine.
+- **To add one:** prepend `<article class="board board--live" data-cid="board-NNNN" data-kind="board"
+  data-date="YYYY-MM-DD">…</article>` to the feed; drop `board--live` from the previous newest;
+  remove the `.canvas-empty` placeholder if present; update the `data-cid="canvas-count"` label.
+  Then in the terminal: `📋 <one-line gist> → on the canvas`.
+- **When NOT to:** short answers, direct edits, confirmations, lookups — those stay in the terminal.
+  Don't over-produce; a board is for something worth a second screen.
+- **Canvas → brain.** Boards are the *working* layer; the brain (wiki/decisions/learnings) is the
+  *settled* layer. Promote a board only when it proves durable — via the STAMP — and never write
+  live explanations straight into the wiki. `/sandpaper:canvas <topic>` forces a board on demand.
+
 ## Plan model
 `phase → initiative → task → session`. Initiatives carry `data-phase`; tasks carry
 `data-initiative`/`data-status`/`data-session`. `brain.js` sums task status into the
@@ -71,7 +91,8 @@ you might forget and a system that cannot silently drift.
 
 ## Commands
 `/help` (this list) · `/init` (harvest → interview → generate a brain) · `/stamp` (the 6-step
-stamp) · `/plan` · `/decide` · `/learn` · `/log` · `/sync` (reconcile + heal drift) ·
+stamp) · `/canvas` (elevate an explanation into a board on the cover) · `/plan` · `/decide` ·
+`/learn` · `/log` · `/sync` (reconcile + heal drift) ·
 `/open` (serve + open the brain in a browser) · `/serve` (on-page refine toolbar) · `/theme`
 (re-skin from a brand hex). Run `/sandpaper:help` for the full grouped list.
 

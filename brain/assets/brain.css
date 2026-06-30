@@ -295,7 +295,40 @@ footer{padding:30px 0 56px;font-family:var(--mono);font-size:11px;color:var(--mu
   white-space:nowrap;pointer-events:none}
 @media(max-width:760px){.shell-id{padding:8px 0 6px}.shell-rail{font-size:11px}}
 
-/* ---- the 3 lens doors (HERO; docked flush under the plate) ---- */
+/* ===== CANVAS — the live working surface: Claude's distilled/elevated boards (THE HERO) ===== */
+.canvas{padding:24px 0 6px}
+.canvas-rail{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:13px}
+.canvas-sub{color:var(--mute);font-weight:400;text-transform:none;letter-spacing:0}
+.canvas-count{font-family:var(--font-mono);font-size:11px;color:var(--mute);flex:none}
+.canvas-feed{display:flex;flex-direction:column;gap:15px;max-height:68vh;overflow-y:auto;padding-right:2px}
+/* a board = a sheet laid on the drafting table */
+.board{background:var(--white);border:var(--hairline);border-radius:var(--radius-md);padding:18px 20px 15px;box-shadow:var(--shadow-panel)}
+.board--live{border-color:var(--clay);box-shadow:0 0 0 1px var(--tint-clay-badge),var(--shadow-panel)}
+.board-head{display:flex;align-items:center;gap:9px;margin-bottom:10px}
+.board-dot{width:7px;height:7px;border-radius:50%;background:var(--mute);flex:none}
+.board--live .board-dot{background:var(--clay);box-shadow:0 0 0 3px var(--tint-clay-badge)}
+.board-title{font-family:var(--font-display);font-size:19px;font-weight:600;letter-spacing:-.01em;margin:0;flex:1;min-width:0}
+.board-when{font-family:var(--font-mono);font-size:10.5px;color:var(--mute);flex:none}
+.board-body{color:var(--text);font-size:14.5px;line-height:1.6}
+.board-body p{margin:0 0 10px}
+.board-body p:last-child{margin-bottom:0}
+.board-body strong{color:var(--ink)}
+.board-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:13px;padding-top:10px;border-top:1px solid var(--rule-2)}
+.board-tag{font-family:var(--font-mono);font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--mute)}
+/* a self-contained flow diagram inside a board */
+.pipeline{display:flex;align-items:stretch;gap:9px;margin:13px 0;flex-wrap:wrap}
+.pl-node{flex:1;min-width:118px;border:var(--hairline);border-radius:var(--radius);padding:9px 12px;display:flex;flex-direction:column;gap:2px}
+.pl-k{font-family:var(--font-mono);font-size:12px;font-weight:600;color:var(--ink)}
+.pl-d{font-family:var(--font-mono);font-size:10.5px;color:var(--mute)}
+.pl-term,.pl-brain{background:var(--panel)}
+.pl-canvas{background:var(--card-feature);border-color:var(--clay)}
+.pl-arrow{align-self:center;color:var(--mute);font-size:15px;flex:none}
+/* nothing on the canvas yet */
+.canvas-empty{border:1px dashed var(--rule);border-radius:var(--radius-md);padding:22px 24px;background:var(--paper-3);
+  color:var(--text-muted);font-size:14px;line-height:1.55;max-width:46em}
+@media(max-width:620px){.pipeline{flex-direction:column}.pl-arrow{transform:rotate(90deg)}}
+
+/* ---- the 3 lens doors (navigation, below the canvas) ---- */
 .doors{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:26px}
 .door{position:relative;display:flex;flex-direction:column;gap:9px;min-height:188px;
   background:var(--panel);border:var(--hairline);border-radius:var(--radius-md);

@@ -13,12 +13,11 @@
 <!-- BRAIN:DIGEST — machine context for a fresh `claude`: read THIS first (~1KB) to rehydrate. -->
 <script type="application/json" id="brain-state">
 { "v":1, "project":"Sandpaper", "phase":"Phase 1 · packaging", "updated":"2026-06-30",
-  "session":"S13",
-  "focus":{ "one":"Toolbar nits: the head reads '● Claude Code · idle' (Claude Code reads as a tool, not a bare first name), and the ⌖/✎ icons are now crisp centred stroke SVGs (the ⌖ glyph was off-centre + muddy). Earlier this session, toolbar round 2: dropped the Sandpaper wordmark for readable light text + lowercase live states (idle · thinking… · editing <doc> · done) — dropped the redundant Sandpaper wordmark, switched to readable light text on the dark head, and lowercased the live states (claude.js/server.js: idle · thinking… · editing <doc> · done). The ⌖ ✎ >_ action icons are now ONE monochrome ink family (active toggle fills ink, like SAND), so they read clearly. And the doubled rule under a .lens-hero card is gone on EVERY lens page via one CSS adjacency (.lens-hero + .zone → border-top:0) — the cover was already flush. Verified live (Playwright) on the cover + product page. Note: a server started before a code change keeps the OLD in-memory label, so a stale screenshot can show the old text — restart the serve. Next: npm publish + rest of G (self-deriving counts t-0028, publish lint t-0019, brain-aware Sand t-0021)", "ref":"../public/toolbar.css" },
-  "worklog":[ {"date":"2026-06-30","one":"/sandpaper:init now gates on an explicit go-ahead (size read + estimate) before the heavy harvest","cid":"w-0174"},
-              {"date":"2026-06-30","one":"Toolbar nits — head reads '● Claude Code · idle', ⌖/✎ became crisp centred SVG icons","cid":"w-0173"},
-              {"date":"2026-06-30","one":"Toolbar round 2 — head reads '● Claude · idle' (no branding, readable), monochrome icons, under-hero rule removed on lens pages","cid":"w-0172"},
-              {"date":"2026-06-30","one":"Polish — toolbar identity+status, dropped orphan separator, contrast-guarded skin, / redirect + port auto-bump, refreshed cover cards","cid":"w-0171"} ],
+  "session":"S14",
+  "focus":{ "one":"Built the CANVAS (MVP + dogfood). The cover now HOSTS a canvas — a scrollable feed of rich 'boards' that are the elevated version of what Claude works through (an architecture, a comparison, a walkthrough), instead of that dying in the terminal scrollback. The canvas is the cover's hero (lens doors demoted to nav below it); boards are freeform theme-skinned HTML, refinable with the toolbar; durable ones get promoted into the curated brain — the canvas never writes straight to the wiki. Mechanism: a CANVAS discipline in SKILL.md (twin of STAMP) + a /sandpaper:canvas command + a fresh-repo empty state (setup.js). Decision d-canvas. Dogfooded board 001 ('The cover becomes the canvas') with a terminal→canvas→brain pipeline diagram. Verified live + the empty state on a fresh scaffold. Open: should the dark NOW plate slim down so the canvas is unambiguously the hero? Earlier this session: toolbar head reads '● Claude Code · idle' with crisp centred SVG icons, and /init gates on a go-ahead", "ref":"decisions.html#d-canvas" },
+  "worklog":[ {"date":"2026-06-30","one":"Built the canvas — the cover hosts a feed of rich 'boards' (elevated explanations), + the skill discipline + /canvas + dogfood board 001","cid":"w-0175"},
+              {"date":"2026-06-30","one":"/sandpaper:init now gates on an explicit go-ahead (size read + estimate) before the heavy harvest","cid":"w-0174"},
+              {"date":"2026-06-30","one":"Toolbar nits — head reads '● Claude Code · idle', ⌖/✎ became crisp centred SVG icons","cid":"w-0173"} ],
   "open":["decisions.html#q-anchoring","decisions.html#q-undo","decisions.html#q-billing"],
   "docs":["../sandpaper.html","../engg-spec.html"] }
 </script>
@@ -50,17 +49,62 @@
   <header class="plate" data-cid="cover">
     <div class="pl-meta"><span class="now-tag">Now</span> the build stands at <a href="./project/index.html#i-package">Phase 1 — packaging</a></div>
     <!-- BRAIN:NOW -->
-    <p class="now-line" data-cid="now" data-kind="now" data-ref="../public/toolbar.js">
-      Tuning the on-page toolbar from <strong>tinysync</strong> feedback — the head now reads
-      <code>● Claude Code · idle</code> in readable light text, the action icons are crisp centred
-      <strong>monochrome</strong> SVGs, and the doubled rule under each lens hero is gone.
-      <a class="ref" href="../public/toolbar.js">the chrome →</a>
+    <p class="now-line" data-cid="now" data-kind="now" data-ref="decisions.html#d-canvas">
+      The cover now <strong>hosts the canvas</strong> — Claude's substantial explanations land here as
+      rich <strong>boards</strong> (the elevated second screen), not the terminal scrollback.
+      <a class="ref" href="decisions.html#d-canvas">why →</a>
     </p>
     <!-- /BRAIN:NOW -->
   </header>
   <!-- /BRAIN:EDITION -->
 
-  <!-- ZONE B — THE THREE LENS DOORS (the hero: pick a lens) -->
+  <!-- ZONE CANVAS — the live working surface: Claude's distilled/elevated boards (newest first). THE HERO. -->
+  <section class="canvas" id="s-canvas" data-cid="s-canvas" aria-label="Canvas">
+    <div class="canvas-rail">
+      <div class="eyebrow">Canvas <span class="canvas-sub">— what Claude is thinking through, elevated</span></div>
+      <span class="canvas-count" data-cid="canvas-count">1 board</span>
+    </div>
+    <!-- BRAIN:CANVAS — boards prepend here, newest first; .canvas-empty shows when there are none -->
+    <div class="canvas-feed" data-cid="canvasfeed">
+
+      <article class="board board--live" data-cid="board-0001" data-kind="board" data-date="2026-06-30" data-ref="decisions.html#d-canvas">
+        <header class="board-head">
+          <span class="board-dot" aria-hidden="true"></span>
+          <h3 class="board-title">The cover becomes the canvas</h3>
+          <span class="board-when">06-30 · board 001</span>
+        </header>
+        <div class="board-body">
+          <p>The founding idea, made real: when Claude explains something substantial, the rich version
+            shouldn't scroll past in the terminal — it should land <em>here</em>, on the surface, where it
+            can be read, re-read, and refined in place. The terminal <strong>steers</strong>; the canvas
+            <strong>shows</strong>.</p>
+
+          <div class="pipeline" aria-label="terminal then canvas then brain">
+            <div class="pl-node pl-term"><span class="pl-k">Terminal</span><span class="pl-d">steer · short commands</span></div>
+            <span class="pl-arrow" aria-hidden="true">→</span>
+            <div class="pl-node pl-canvas"><span class="pl-k">Canvas</span><span class="pl-d">see · live rich boards</span></div>
+            <span class="pl-arrow" aria-hidden="true">→</span>
+            <div class="pl-node pl-brain"><span class="pl-k">Brain</span><span class="pl-d">settle · curated state</span></div>
+          </div>
+
+          <p>This board <em>is</em> the dogfood — the first elevated explanation written to the cover
+            instead of the scrollback. A <strong>board</strong> is freeform rich HTML (diagrams, tables,
+            code), themed to match, refinable with the toolbar like any Sandpaper surface. Boards live on
+            the canvas; only the durable ones get <em>promoted</em> into the curated brain — the canvas
+            never dumps into the <a class="ref" href="./wiki/index.html">wiki</a> or
+            <a class="ref" href="./decisions.html">decisions</a>.</p>
+        </div>
+        <footer class="board-foot">
+          <span class="board-tag">dogfood · board 001</span>
+          <a class="ref" href="./decisions.html#d-canvas">why the cover hosts it →</a>
+        </footer>
+      </article>
+
+    </div>
+    <!-- /BRAIN:CANVAS -->
+  </section>
+
+  <!-- ZONE B — THE THREE LENS DOORS (now navigation, below the canvas) -->
   <nav class="doors" aria-label="The three lenses">
     <a class="door door--product" href="./product/index.html">
       <span class="tab">Product</span>
@@ -96,7 +140,7 @@
       </a>
       <a class="vital" href="./decisions.html#open"><b data-count="question:open">3</b> open</a>
       <a class="vital" href="./map.html"><b data-count="component:built">3</b>/5 built</a>
-      <a class="vital" href="./decisions.html"><b data-count="decision">12</b> decisions</a>
+      <a class="vital" href="./decisions.html"><b data-count="decision">13</b> decisions</a>
     </div>
   </section>
   <!-- /BRAIN:COUNTS -->
@@ -118,6 +162,8 @@
   <section class="zone" data-cid="s-log">
     <div class="eyebrow">Latest <span id="brain-unseen" class="badge open" hidden></span></div>
     <ol class="timeline" data-cid="logfeed">
+      <li data-kind="worklog" data-cid="w-0175"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Built the <strong>canvas</strong> — the cover hosts a feed of rich <strong>boards</strong> (elevated explanations); + skill discipline, <code>/canvas</code>, dogfood board 001.</span><span class="tl-link"><a class="ref" href="./decisions.html#d-canvas">why →</a></span></div></li>
+      <li data-kind="worklog" data-cid="w-0174"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what"><code>/sandpaper:init</code> now gates on an explicit go-ahead (size read + estimate) before the heavy harvest.</span><span class="tl-link"><a class="ref" href="../skill/sandpaper/commands/init.md">the command →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0173"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Toolbar nits — head reads <code>● Claude Code · idle</code>, the <code>⌖/✎</code> icons are crisp centred SVGs now.</span><span class="tl-link"><a class="ref" href="../public/toolbar.js">toolbar →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0172"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Toolbar round 2 — head reads <code>● Claude · idle</code> (readable, unbranded), monochrome icons, under-hero rule removed.</span><span class="tl-link"><a class="ref" href="../public/toolbar.js">toolbar →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0171"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Polish — toolbar leads with its identity, contrast-guarded skin, <code>/</code> opens the brain, ports auto-bump, refreshed cover cards.</span><span class="tl-link"><a class="ref" href="./learnings.html#l-skin-contrast">gotcha →</a></span></div></li>

@@ -168,6 +168,15 @@ function starterCover(project, date) {
       repository and fill the brain — it will discover your code, specs, and docs, ask a few questions, then
       generate the cover, the plan board, and the books.</p>
   </header>
+  <section class="canvas" id="s-canvas" data-cid="s-canvas" aria-label="Canvas">
+    <div class="canvas-rail"><div class="eyebrow">Canvas <span class="canvas-sub">— what Claude is thinking through, elevated</span></div></div>
+    <!-- BRAIN:CANVAS — boards prepend here, newest first; .canvas-empty shows when there are none -->
+    <div class="canvas-feed" data-cid="canvasfeed">
+      <div class="canvas-empty" data-cid="canvas-empty">The canvas is clear. When Claude works through something
+        substantial — an architecture, a comparison, a walkthrough — the elevated version lands here, live.</div>
+    </div>
+    <!-- /BRAIN:CANVAS -->
+  </section>
   <section class="zone"><div class="eyebrow">Next</div>
     <p class="muted">Once filled, <code>npx sandpaper open</code> serves this with the on-page refine toolbar.</p>
   </section>
