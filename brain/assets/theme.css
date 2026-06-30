@@ -10,8 +10,9 @@
    brain.css's existing var(--serif)/var(--paper-2)/... references resolving.
 
    NOTE: toolbar.css does NOT import this file (it is injected into arbitrary host
-   pages and must stand alone) — it carries its own #sp-panel-scoped --sp-* copy of
-   these values. Keep the two in sync by hand. */
+   pages and must stand alone) — it carries its own #sp-panel-scoped --sp-* copy as a
+   fallback. But toolbar.js reads these :root tokens at runtime and overrides that copy
+   when present, so re-skinning here reaches the floating toolbar too — no hand-sync. */
 :root{
   /* ---- paper / surfaces (warm service-manual stock) ---- */
   --paper:#F4F0E6;          /* base page background */

@@ -27,8 +27,32 @@ const projectName = (target) => {
 };
 const today = () => new Date().toISOString().slice(0, 10);
 
-// ---- install-skill: make /sandpaper:* available + drop the hooks; settings are opt-in ----
-export function installSkill(target, pkg) {
+// ---- install-skill: make /sandpaper:* available + wire the auto-update hooks (use --no-hooks to skip) ----
+const HOOKS = [
+  ['SessionStart', 'node .sandpaper/hooks/brain-inject.js', 10],
+  ['Stop', 'node .sandpaper/hooks/brain-stamp-check.js', 20],
+];
+const hooksSnippet = () => JSON.stringify({ hooks: Object.fromEntries(HOOKS.map(([e, c, t]) =>
+  [e, [{ matcher: '*', hooks: [{ type: 'command', command: c, timeout: t }] }]])) }, null, 2)
+  .split('\n').map((l) => '    ' + l).join('\n');
+
+// merge our hooks into the target's .claude/settings.json — preserve existing settings, dedupe by command
+function wireHooks(target) {
+  const sp = join(target, '.claude', 'settings.json');
+  let s = {};
+  if (existsSync(sp)) { try { s = JSON.parse(readFileSync(sp, 'utf8')); } catch { return { ok: false, reason: '.claude/settings.json exists but is not valid JSON — left it untouched' }; } }
+  s.hooks = s.hooks || {};
+  let added = 0;
+  for (const [evt, cmd, to] of HOOKS) {
+    s.hooks[evt] = s.hooks[evt] || [];
+    const present = s.hooks[evt].some((g) => (g.hooks || []).some((h) => h.command === cmd));
+    if (!present) { s.hooks[evt].push({ matcher: '*', hooks: [{ type: 'command', command: cmd, timeout: to }] }); added++; }
+  }
+  try { ensureDir(dirname(sp)); writeFileSync(sp, JSON.stringify(s, null, 2) + '\n'); return { ok: true, added }; }
+  catch (e) { return { ok: false, reason: 'could not write .claude/settings.json (' + e.message + ')' }; }
+}
+
+export function installSkill(target, pkg, opts = {}) {
   console.log(`\n  🪵  Installing the Sandpaper skill into ${target}\n`);
   const nCmds = copyDirFiles(join(pkg, 'skill', 'sandpaper', 'commands'), join(target, '.claude', 'commands', 'sandpaper'));
   ok(`${nCmds} commands → .claude/commands/sandpaper/  (use them as /sandpaper:<name>)`);
@@ -36,11 +60,14 @@ export function installSkill(target, pkg) {
   ensureDir(hookDir);
   for (const h of ['brain-inject.js', 'brain-stamp-check.js']) copyFileSync(join(pkg, 'bin', h), join(hookDir, h));
   ok('2 hooks → .sandpaper/hooks/');
-  console.log('\n  To enable the auto-updating brain, merge this into .claude/settings.json (opt-in):\n');
-  console.log(JSON.stringify({ hooks: {
-    SessionStart: [{ matcher: '*', hooks: [{ type: 'command', command: 'node .sandpaper/hooks/brain-inject.js', timeout: 10 }] }],
-    Stop: [{ matcher: '*', hooks: [{ type: 'command', command: 'node .sandpaper/hooks/brain-stamp-check.js', timeout: 20 }] }],
-  } }, null, 2).split('\n').map((l) => '    ' + l).join('\n'));
+  if (opts.noHooks) {
+    warn('--no-hooks: skipped wiring the auto-update hooks. To enable later, add to .claude/settings.json:');
+    console.log('\n' + hooksSnippet());
+  } else {
+    const r = wireHooks(target);
+    if (r.ok) ok(r.added ? 'auto-update hooks wired into .claude/settings.json  (delete them there, or re-run with --no-hooks, to disable)' : 'auto-update hooks already wired');
+    else { warn(r.reason + ' — add this by hand:'); console.log('\n' + hooksSnippet()); }
+  }
   console.log('\n  Next: run /sandpaper:init in Claude Code to harvest this repo and generate the brain.\n');
 }
 

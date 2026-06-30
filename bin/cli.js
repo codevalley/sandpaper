@@ -39,7 +39,7 @@ const serve = async (target, openBrowser) => {
 (async () => {
   try {
     if (!cmd || cmd === 'help' || cmd === '-h' || cmd === '--help') return usage();
-    if (cmd === 'install-skill') return installSkill(process.cwd(), PKG);
+    if (cmd === 'install-skill') return installSkill(process.cwd(), PKG, { noHooks: rest.includes('--no-hooks') });
     if (cmd === 'init') return scaffold(process.cwd(), PKG);
     if (cmd === 'doctor') return doctor(process.cwd());
     if (cmd === 'open') return serve(process.cwd(), true);

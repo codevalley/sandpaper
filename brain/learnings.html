@@ -42,6 +42,11 @@
   </section>
 
   <section class="zone flush col">
+    <aside class="entry entry--learning callout gotcha" data-kind="learning" data-lens="engineering" id="l-toolbar-skin" data-cid="l-toolbar-skin" data-status="active" data-date="2026-06-30" data-area="theming" data-tags="toolbar theme tokens reskin host injected scope adopt">
+      <div class="eyebrow">▲ Gotcha · theming</div>
+      <p><strong>An injected widget that ships its own token copy won't re-skin with the host.</strong> The toolbar carries a private <code>#sp-panel</code> <code>--sp-*</code> palette so it stands alone on any page — so a <code>theme.css</code> re-skin reached the brain but <em>not</em> the floating toolbar. Fix: read the host's <code>:root</code> tokens at runtime (<code>getComputedStyle</code>) and override the copy when present; the shipped values become a fallback for un-themed pages. The toolbar re-runs each live-reload, so the sync is automatic. <a class="ref" href="./engineering/index.html">engineering →</a></p>
+    </aside>
+
     <aside class="entry entry--learning callout verdict" data-kind="learning" data-lens="project" id="l-init-validated" data-cid="l-init-validated" data-status="active" data-date="2026-06-30" data-area="skill · /init" data-tags="init validation harvest portability packaging">
       <div class="eyebrow">◆ Verdict · /init validation</div>
       <p><strong>/init works — the harvest is the strong part; the template's assumptions are the gap.</strong> On a cold repo (`linkrot`) it read the source against the README and surfaced REAL defects (a directory <code>EISDIR</code>, a missing test) as the honest plan spine — not filler. But the template assumes a spec to anchor into, a count-deriving sidecar, and an id manifest — none exist in a stranger's repo, so I had to hand-patch them. Those assumptions ARE the packaging spec. <a class="ref" href="./project/index.html#i-package">the plan →</a></p>

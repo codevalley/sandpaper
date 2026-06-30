@@ -46,6 +46,23 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
       editBtn = panel.querySelector('#sp-edit'), undoBtn = panel.querySelector('#sp-undo'),
       targetTag = panel.querySelector('#sp-target'), toggleBtn = panel.querySelector('#sp-toggle');
 
+  // ---------- adopt the host's skin when it has one ----------
+  // The toolbar ships a hardcoded --sp-* palette so it stands alone on ANY page. But when it is
+  // injected into a themed Sandpaper surface (the brain), the host defines theme.css tokens on :root —
+  // read them and override our defaults so a re-skin reaches the toolbar too. No host theme → no-op.
+  // Re-runs on every live-reload, so a /sandpaper:theme change propagates here on the next reload.
+  var SKIN_MAP = { '--sp-paper': '--paper', '--sp-paper-2': '--panel', '--sp-ink': '--ink',
+    '--sp-clay': '--clay', '--sp-pine': '--pine', '--sp-moss': '--moss', '--sp-rust': '--rust',
+    '--sp-mute': '--mute', '--sp-text-quote': '--text-quote', '--sp-plate': '--plate' };
+  function adoptHostSkin() {
+    var cs = getComputedStyle(document.documentElement), vals = {}, found = false;
+    for (var k in SKIN_MAP) { var v = cs.getPropertyValue(SKIN_MAP[k]).trim(); if (v) { vals[k] = v; found = true; } }
+    if (!found) return null;                         // arbitrary host page, no Sandpaper theme — keep our shipped defaults
+    for (var k2 in vals) panel.style.setProperty(k2, vals[k2]);
+    return vals;
+  }
+  var hostSkin = adoptHostSkin();
+
   var turns = Object.create(null);  // turnId -> live turn record
   var pendingTurn = null;           // optimistic user turn awaiting its server turnId
   var sel = null, picking = false;
@@ -433,6 +450,59 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
       .then(function (r) { if (!r.ok) throw new Error(); /* server restores → watcher → reload */ })
       .catch(function () { setChip({ state: 'error', label: 'Nothing to undo' }); });
   });
+
+  // ---------- first-run welcome — a one-time, on-page tour of the three tools ----------
+  // Shows once per browser. Gated on BOTH localStorage (across sessions) and sessionStorage
+  // (survives the live-reload even when localStorage is blocked, e.g. private mode).
+  var WELCOMED = 'sp-welcomed:v1';
+  function welcomed() {
+    try { if (localStorage.getItem(WELCOMED) === '1') return true; } catch (e) {}
+    try { if (sessionStorage.getItem(WELCOMED) === '1') return true; } catch (e) {}
+    return false;
+  }
+  function setWelcomed() {
+    try { localStorage.setItem(WELCOMED, '1'); } catch (e) {}
+    try { sessionStorage.setItem(WELCOMED, '1'); } catch (e) {}
+  }
+  function pulsePanel() { panel.classList.add('sp-attn'); setTimeout(function () { panel.classList.remove('sp-attn'); }, 1600); }
+
+  function maybeWelcome() {
+    if (welcomed()) return;
+    var w = el('div'); w.id = 'sp-welcome'; w.setAttribute('role', 'dialog'); w.setAttribute('aria-modal', 'true'); w.setAttribute('aria-label', 'Welcome to Sandpaper');
+    if (hostSkin) for (var sk in hostSkin) w.style.setProperty(sk, hostSkin[sk]); // the tour wears the host skin too
+    w.innerHTML =                                                        // static template — no untrusted data
+      '<div class="sp-w-card">' +
+        '<div class="sp-w-head"><span class="sp-w-mark">Sand<span>paper</span></span>' +
+          '<button type="button" class="sp-w-x" aria-label="Close">×</button></div>' +
+        '<div class="sp-w-body">' +
+          '<h2 class="sp-w-title">This page is your project&rsquo;s brain.</h2>' +
+          '<p class="sp-w-lede">It mirrors where the project stands — and you refine it right here, in the page. Three ways:</p>' +
+          '<ul class="sp-w-tools">' +
+            '<li><span class="sp-w-g sp-w-sand">Sand</span><div><b>Say a change</b><span class="d">Describe it in plain words — Claude edits the page, scoped to whatever you point at.</span></div></li>' +
+            '<li><span class="sp-w-g sp-w-hands">✎</span><div><b>Use your hands</b><span class="d">Edit text, drag to reorder, or delete — directly, no AI.</span></div></li>' +
+            '<li><span class="sp-w-g sp-w-sling">&gt;_</span><div><b>Sling to terminal</b><span class="d">Copy a ready-made instruction for bigger, cross-page work.</span></div></li>' +
+          '</ul>' +
+          '<p class="sp-w-tip">Try first: re-skin it to your brand with <code>/sandpaper:theme #yourhex</code>, or hit <b>✎</b> and rewrite the line up top.</p>' +
+        '</div>' +
+        '<div class="sp-w-foot"><span class="sp-w-point">your tools live down here ↘</span>' +
+          '<button type="button" class="sp-w-go">Start refining →</button></div>' +
+      '</div>';
+    document.body.appendChild(w);
+    requestAnimationFrame(function () { w.classList.add('sp-w-in'); });
+    function close() {
+      setWelcomed();
+      w.classList.remove('sp-w-in');
+      document.removeEventListener('keydown', onKey, true);
+      setTimeout(function () { w.remove(); pulsePanel(); }, 240);       // then nudge the eye to the real toolbar
+    }
+    function onKey(e) { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); } }
+    w.querySelector('.sp-w-go').addEventListener('click', close);
+    w.querySelector('.sp-w-x').addEventListener('click', close);
+    w.addEventListener('click', function (e) { if (e.target === w) close(); }); // click the backdrop to dismiss
+    document.addEventListener('keydown', onKey, true);
+    w.querySelector('.sp-w-go').focus();
+  }
+  window.addEventListener('load', maybeWelcome);
 
   // ---------- persistence + rehydrate (survive the live-reload) ----------
   function persist() { try { sessionStorage.setItem(SKEY, thread.innerHTML); } catch (e) {} }

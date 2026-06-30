@@ -2,8 +2,21 @@
 description: Scaffold a living Sandpaper brain for this repo — discover widely, run a wizard, generate
 ---
 
-Build a living project brain (`brain/`) for this repo in three movements: **DISCOVER** (scan the
-whole repo, not just code), **WIZARD** (interactive — fill the gaps + shape the brain), **GENERATE**.
+Build a living project brain (`brain/`) for this repo. Five movements: **INTRODUCE**, **DISCOVER**
+(scan widely), **WIZARD** (interactive — fill the gaps + shape the brain), **GENERATE**, **WELCOME**.
+
+## 0. INTRODUCE — orient the owner before the (long) run
+This command reads a lot and runs for a while, so don't dive in cold. Open with a short, friendly
+framing (3–4 lines) so the owner knows what they've started:
+- **What Sandpaper is** — a living project *brain*: a small, navigable web "service manual" that
+  mirrors this project's state (what it is, the plan, decisions, the work log) and that you, the
+  agent, keep current after each working turn — so the project never drifts out of sync with its docs.
+- **What this command will do now** — scan the repo widely (code · specs · logs · docs), show you
+  what it found, ask a handful of questions, then generate the brain. It reads a lot, **so it takes
+  a few minutes and a fair chunk of tokens** — a one-time cost.
+- **You're in control** — they can stop you at any point, and nothing is published anywhere.
+
+Then begin the harvest.
 
 ## 1. DISCOVER — cast a wide net; classify by content, not filename
 Projects are organised every which way, so don't assume fixed paths. Glob broadly
@@ -48,5 +61,18 @@ discovered (a spec's heading anchor if it has one, else the source file / README
 ONLY the lenses + books the owner chose; dim any deferred chrome so nothing dangles. Seed the plan
 board from the discovered state (shipped = `done`; gaps between the code and the README/spec = the
 honest backlog), the log from the git history, and the decisions/learnings books from anything
-already written down. Stamp the first log row, verify the `#brain-state` JSON parses and links
-resolve, then offer `/sandpaper:open` to view it.
+already written down. Stamp the first log row, verify the `#brain-state` JSON parses and links resolve.
+
+## 4. WELCOME — close the loop; don't just stop
+After it's generated, give the owner a short, warm close so the payoff is obvious and they know what
+to do next. Keep it to a handful of lines:
+- **See it** — `npx sandpaper open` (or `/sandpaper:open`) serves the brain and opens it in a
+  browser. The first visit greets them with a one-time tour of the page.
+- **Refine it right on the page** — the on-page toolbar has three tools: **Sand** (say a change in
+  plain words → the agent edits the file, scoped to what you clicked), **✎ Hands** (edit text, drag
+  to reorder, or delete — directly, no AI), and **❯ Sling** (copy a terminal-ready instruction for
+  bigger, cross-file work). Suggest a concrete first move: *re-skin it to your brand* with
+  `/sandpaper:theme #yourhex`, or tweak the NOW line in place with Hands.
+- **It stays current on its own** — the auto-update hooks stamp the brain as you work; or drive it
+  by hand with `/sandpaper:stamp`, `/sandpaper:plan`, `/sandpaper:decide`, `/sandpaper:sync`.
+- **Everything else** — `/sandpaper:help` lists every command.

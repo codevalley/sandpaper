@@ -1,8 +1,10 @@
 /* toolbar.css — Sandpaper conversation surface. Warm palette to match the documents. */
 
-/* Self-sufficient token copy. Injected into arbitrary host pages, so the toolbar must NOT
-   depend on the host's theme: these mirror the documents' theme.css palette byte-for-byte
-   and are scoped to #sp-panel. Keep in sync with theme.css by hand. */
+/* Self-sufficient token copy = the FALLBACK skin. Injected into arbitrary host pages, so the
+   toolbar must stand alone: these mirror theme.css and are scoped to #sp-panel. On a themed
+   Sandpaper surface, toolbar.js reads the host's theme.css :root tokens at runtime and overrides
+   these (see adoptHostSkin) — so a /sandpaper:theme re-skin reaches the toolbar with no hand-sync.
+   These values only show through on a host page that defines no theme. */
 #sp-panel{
   --sp-paper:#F4F0E6; --sp-paper-2:#EFEADD; --sp-ink:#17150F;
   --sp-clay:#C75B39; --sp-pine:#3F5247; --sp-moss:#4E7C59;
@@ -145,6 +147,59 @@ body.sp-dragging .sp-editable{ transition:none; }
 .sp-flash{ animation:sp-flash 2.2s ease-out 1; }
 @keyframes sp-flash{ 0%{ box-shadow:0 0 0 3px rgba(199,91,57,.6); background:rgba(199,91,57,.14); } 100%{ box-shadow:0 0 0 0 transparent; background:transparent; } }
 
+/* ---------- first-run welcome (one-time on-page tour) ----------
+   Lives OUTSIDE #sp-panel, so it can't read the panel's scoped tokens. It wears the host skin via
+   var(--sp-*, …) — toolbar.js applies the adopted tokens to #sp-welcome; the fallbacks are the
+   shipped warm defaults, so on an un-themed page it looks identical. */
+#sp-welcome{ position:fixed; inset:0; z-index:2147483646; display:flex; align-items:center; justify-content:center;
+  padding:24px; background:rgba(23,21,15,.46); backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px);
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  opacity:0; transition:opacity .24s ease; }
+#sp-welcome.sp-w-in{ opacity:1; }
+.sp-w-card{ width:460px; max-width:100%; max-height:88vh; overflow:auto;
+  background:var(--sp-paper,#F4F0E6); color:var(--sp-ink,#17150F); border:1px solid rgba(23,21,15,.3); border-radius:16px;
+  box-shadow:0 24px 70px rgba(23,21,15,.42); transform:translateY(10px) scale(.985);
+  transition:transform .26s cubic-bezier(.2,.7,.3,1); }
+#sp-welcome.sp-w-in .sp-w-card{ transform:none; }
+
+.sp-w-head{ display:flex; align-items:center; justify-content:space-between; padding:14px 18px;
+  background:var(--sp-ink,#17150F); color:var(--sp-paper,#F4F0E6);
+  background-image:linear-gradient(rgba(244,240,230,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(244,240,230,.05) 1px,transparent 1px);
+  background-size:18px 18px; }
+.sp-w-mark{ font-family:'IBM Plex Mono',ui-monospace,Menlo,monospace; font-size:14px; font-weight:600; letter-spacing:.02em; }
+.sp-w-mark span{ color:var(--sp-clay,#C75B39); }
+.sp-w-x{ border:0; background:transparent; color:var(--sp-paper-2,#EFEADD); font-size:20px; line-height:1; cursor:pointer; padding:0 2px; opacity:.7; }
+.sp-w-x:hover{ opacity:1; color:var(--sp-clay,#C75B39); }
+
+.sp-w-body{ padding:20px 18px 4px; }
+.sp-w-title{ font-family:'Fraunces','Georgia',serif; font-size:23px; font-weight:600; line-height:1.16; letter-spacing:-.01em; margin:0 0 8px; }
+.sp-w-lede{ font-size:13.5px; line-height:1.5; color:var(--sp-text-quote,#3a372e); margin:0 0 16px; }
+.sp-w-tools{ list-style:none; margin:0 0 15px; padding:0; display:flex; flex-direction:column; gap:11px; }
+.sp-w-tools li{ display:flex; gap:12px; align-items:flex-start; }
+.sp-w-g{ flex:none; width:48px; height:31px; display:inline-flex; align-items:center; justify-content:center;
+  border-radius:8px; font-family:'IBM Plex Mono',ui-monospace,monospace; line-height:1; margin-top:1px; }
+.sp-w-sand{ background:var(--sp-ink,#17150F); color:var(--sp-paper,#F4F0E6); font-size:10px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; }
+.sp-w-hands{ background:var(--sp-paper-2,#EFEADD); color:var(--sp-pine,#3F5247); border:1px solid rgba(63,82,71,.4); font-size:15px; }
+.sp-w-sling{ background:var(--sp-paper-2,#EFEADD); color:var(--sp-pine,#3F5247); border:1px solid rgba(23,21,15,.2); font-size:13px; font-weight:600; letter-spacing:-1px; }
+.sp-w-tools b{ display:block; font-size:13px; font-weight:600; color:var(--sp-ink,#17150F); margin-bottom:1px; }
+.sp-w-tools .d{ display:block; font-size:12.5px; line-height:1.42; color:#6b6657; }
+.sp-w-tip{ font-size:12.5px; line-height:1.5; color:var(--sp-text-quote,#3a372e); background:var(--sp-paper-2,#EFEADD); border-left:2px solid var(--sp-clay,#C75B39);
+  border-radius:0 7px 7px 0; padding:9px 12px; margin:0; }
+.sp-w-tip code{ font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:.92em; background:rgba(23,21,15,.07); padding:1px 5px; border-radius:3px; }
+
+.sp-w-foot{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 18px 18px; }
+.sp-w-point{ font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:11px; color:var(--sp-mute,#8A8578); }
+.sp-w-go{ flex:none; border:0; border-radius:9px; cursor:pointer; background:var(--sp-ink,#17150F); color:var(--sp-paper,#F4F0E6);
+  font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:11.5px; font-weight:600; letter-spacing:.1em; text-transform:uppercase;
+  padding:11px 18px; transition:background .15s; }
+.sp-w-go:hover{ background:var(--sp-clay,#C75B39); }
+
+/* after the tour closes, pulse the real toolbar so the eye finds it */
+@keyframes sp-attn{ 0%,100%{ box-shadow:0 16px 44px rgba(23,21,15,.28); } 30%,65%{ box-shadow:0 16px 44px rgba(23,21,15,.28), 0 0 0 4px rgba(199,91,57,.5); } }
+#sp-panel.sp-attn{ animation:sp-attn 1.5s ease-in-out; }
+
+@media (max-width:560px){ .sp-w-foot{ flex-direction:column; align-items:stretch; } .sp-w-point{ text-align:center; } }
+
 @media (max-width:720px){
   #sp-panel{ right:8px; left:8px; bottom:8px; width:auto; max-height:72vh; }
   #sp-thread{ max-height:52vh; }
@@ -152,4 +207,6 @@ body.sp-dragging .sp-editable{ transition:none; }
 @media (prefers-reduced-motion:reduce){
   #sp-chip.sp-busy #sp-led{ animation:none; }
   .sp-flash{ animation:none; outline:2px solid #C75B39; }
+  #sp-welcome, .sp-w-card{ transition:none; }
+  #sp-panel.sp-attn{ animation:none; }
 }

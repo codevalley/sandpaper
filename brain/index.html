@@ -13,10 +13,10 @@
 <!-- BRAIN:DIGEST — machine context for a fresh `claude`: read THIS first (~1KB) to rehydrate. -->
 <script type="application/json" id="brain-state">
 { "v":1, "project":"Sandpaper", "phase":"Phase 1 · packaging", "updated":"2026-06-30",
-  "session":"S10",
-  "focus":{ "one":"Initiative G underway — built the npx sandpaper CLI (src/setup.js + bin/cli.js): install-skill (commands+hooks→a target repo) · init (assets+manifest+starter cover; idempotent — won't clobber a skin or the counters) · doctor (health-check, passes) · open. Tested end-to-end on a fresh repo (doctor ✓ healthy); npm pack ships 45.5kB (assets+skill+hooks, none of OUR brain content). Split (D-011): npx = deterministic plumbing, /sandpaper = the agent's intelligence. Next: publish + the rest of G (self-deriving counts t-0028, publish lint t-0019, brain-aware Sand t-0021)", "ref":"decisions.html#d-plumbing" },
-  "worklog":[ {"date":"2026-06-30","one":"Built the npx sandpaper CLI (install-skill/init/doctor/open) — tested e2e, doctor healthy","cid":"w-0169"},
-              {"date":"2026-06-30","one":"Made /sandpaper:init smarter — wide artifact discovery + an interactive wizard","cid":"w-0168"} ],
+  "session":"S11",
+  "focus":{ "one":"Onboarding + theming pass, driven by the real tinysync install. (1) install-skill now AUTO-WIRES the two hooks into .claude/settings.json (preserves existing settings, dedupes by command; --no-hooks opts out) — a user-invoked CLI installing is not the agent self-configuring (D-012, refines D-010). (2) /sandpaper:init gained an INTRODUCE intro (what Sandpaper is + that it is long/token-heavy) and a WELCOME closing summary (open · the 3 tools · re-skin). (3) A one-time on-page first-run TOUR ships in toolbar.js/.css (gated on local+sessionStorage). (4) The floating toolbar now ADOPTS the host theme.css at runtime (getComputedStyle → --sp-*), so a re-skin reaches it too; the tour wears it as well. Verified live via Playwright (indigo skin): toolbar + tour both adopt, tour renders/dismisses. Next: npm publish + rest of G (self-deriving counts t-0028, publish lint t-0019, brain-aware Sand t-0021)", "ref":"decisions.html#d-autowire" },
+  "worklog":[ {"date":"2026-06-30","one":"Onboarding+theming — install-skill auto-wires hooks, init intro/close, on-page tour, toolbar adopts the theme","cid":"w-0170"},
+              {"date":"2026-06-30","one":"Built the npx sandpaper CLI (install-skill/init/doctor/open) — tested e2e, doctor healthy","cid":"w-0169"} ],
   "open":["decisions.html#q-anchoring","decisions.html#q-undo","decisions.html#q-billing"],
   "docs":["../sandpaper.html","../engg-spec.html"] }
 </script>
@@ -31,7 +31,7 @@
       <div class="shell-state">
         <a href="./log.html">Edition 0.5</a>
         <a class="shell-health" href="../engg-spec.html#s-build" data-cid="health" data-status="green"><span class="dot"></span>Build · Green</a>
-        <a href="./log.html">stamped 06-29</a>
+        <a href="./log.html">stamped 06-30</a>
       </div>
     </div>
     <nav class="shell-rail" aria-label="Lenses">
@@ -48,10 +48,11 @@
   <header class="plate" data-cid="cover">
     <div class="pl-meta"><span class="now-tag">Now</span> the build stands at <a href="./project/index.html#i-skeleton">Initiative A — the skeleton</a></div>
     <!-- BRAIN:NOW -->
-    <p class="now-line" data-cid="now" data-kind="now" data-ref="project/index.html">
-      Built the <strong><code>npx sandpaper</code> CLI</strong> — install-skill / init / doctor / open —
-      tested end-to-end on a fresh repo (doctor: healthy). The plumbing that makes the skill portable.
-      <a class="ref" href="decisions.html#d-plumbing">how →</a>
+    <p class="now-line" data-cid="now" data-kind="now" data-ref="decisions.html#d-autowire">
+      Polishing onboarding from the real <strong>tinysync</strong> install — <code>install-skill</code> auto-wires
+      the hooks, <code>/sandpaper:init</code> gained an intro + closing tour, and the floating toolbar now
+      <strong>adopts the host theme</strong> so a re-skin reaches it too.
+      <a class="ref" href="decisions.html#d-autowire">why →</a>
     </p>
     <!-- /BRAIN:NOW -->
   </header>
@@ -93,7 +94,7 @@
       </a>
       <a class="vital" href="./decisions.html#open"><b data-count="question:open">3</b> open</a>
       <a class="vital" href="./map.html"><b data-count="component:built">3</b>/5 built</a>
-      <a class="vital" href="./decisions.html"><b data-count="decision">11</b> decisions</a>
+      <a class="vital" href="./decisions.html"><b data-count="decision">12</b> decisions</a>
     </div>
   </section>
   <!-- /BRAIN:COUNTS -->
@@ -115,6 +116,7 @@
   <section class="zone" data-cid="s-log">
     <div class="eyebrow">Latest <span id="brain-unseen" class="badge open" hidden></span></div>
     <ol class="timeline" data-cid="logfeed">
+      <li data-kind="worklog" data-cid="w-0170"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Onboarding + theming — <code>install-skill</code> auto-wires hooks, init intro/close, on-page tour, toolbar adopts the theme.</span><span class="tl-link"><a class="ref" href="./learnings.html#l-toolbar-skin">gotcha →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0169"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Built the <code>npx sandpaper</code> CLI (install-skill/init/doctor/open) — tested e2e, doctor healthy.</span><span class="tl-link"><a class="ref" href="./decisions.html#d-plumbing">how →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0168"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Made <code>/sandpaper:init</code> smarter — wide artifact discovery + an interactive wizard.</span><span class="tl-link"><a class="ref" href="./project/index.html#i-skill">the plan →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0167"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Validated <code>/init</code> on a cold repo — found real bugs, built an accurate brain.</span><span class="tl-link"><a class="ref" href="./learnings.html#l-init-validated">verdict →</a></span></div></li>
@@ -149,7 +151,7 @@
       <div class="foot-h">Canonical</div>
       <a class="ext" href="../sandpaper.html">spec ↗</a>
       <a class="ext" href="../engg-spec.html">engg ↗</a>
-      <div class="foot-meta">Sandpaper · static · zero runtime · stamped 2026-06-29 · link, never copy</div>
+      <div class="foot-meta">Sandpaper · static · zero runtime · stamped 2026-06-30 · link, never copy</div>
     </div>
   </footer>
 </div>

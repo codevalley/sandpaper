@@ -42,6 +42,16 @@
   </section>
 
   <section class="band" style="border-top:0;padding-top:0">
+    <article class="entry entry--decision" data-lens="engineering" data-kind="decision" id="d-autowire" data-cid="d-autowire" data-status="accepted" data-date="2026-06-30" data-rel="refines:d-autobrain" data-ref="../src/setup.js" data-tags="hooks install-skill auto-wire onboarding cli self-config">
+      <div class="entry-head"><span class="entry-id">D-012</span><h3><code>install-skill</code> auto-wires the hooks</h3><span class="badge accepted">Accepted</span></div>
+      <dl class="entry-fields">
+        <div><dt>Decision</dt><dd><code>npx sandpaper install-skill</code> merges the two hooks into <code>.claude/settings.json</code> automatically — preserving existing settings, deduping by command; <code>--no-hooks</code> prints the snippet to add by hand instead. Paired with the <code>/sandpaper:init</code> intro + closing summary and the on-page first-run tour, install→generate→refine is now a guided loop.</dd></div>
+        <div><dt>Because</dt><dd>A user running the install CLI <em>is</em> installing — that is not the agent silently editing its own config (which <a class="ref" href="#d-autobrain">D-010</a> rightly keeps opt-in). Asking people to hand-merge JSON means most never enable it, so the auto-update system never runs.</dd></div>
+        <div><dt>Instead of</dt><dd>Printing a manual-merge snippet for every install (the old default) — correct for the agent, needless friction for a deliberate user-invoked setup.</dd></div>
+      </dl>
+      <div class="entry-foot"><a class="ref" href="../src/setup.js">setup.js →</a> &nbsp; <a class="ref" href="./project/index.html#i-package">the plan →</a></div>
+    </article>
+
     <article class="entry entry--decision" data-lens="engineering" data-kind="decision" id="d-plumbing" data-cid="d-plumbing" data-status="accepted" data-date="2026-06-30" data-ref="../README.md" data-tags="packaging cli npx skill split">
       <div class="entry-head"><span class="entry-id">D-011</span><h3>npx is the plumbing; <code>/sandpaper</code> is the intelligence</h3><span class="badge accepted">Accepted</span></div>
       <dl class="entry-fields">
