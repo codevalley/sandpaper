@@ -14,9 +14,9 @@
 <script type="application/json" id="brain-state">
 { "v":1, "project":"Sandpaper", "phase":"Phase 1 · packaging", "updated":"2026-06-30",
   "session":"S10",
-  "focus":{ "one":"VALIDATED /init on a cold throwaway repo (linkrot) via a fresh subagent — it harvested the source vs README, found REAL defects (EISDIR dir-walk, missing test), and generated an accurate brain (assets verbatim, derived 54%, 53 links 0 broken). The friction it hit (no canonical spec to anchor into, data-count has no engine → hand-typed, no id-manifest, full-lens chrome dangles when partial) is precisely the packaging spec. Next: Initiative G — npm packaging that ships templates + a partial-scaffold + a manifest", "ref":"project/index.html#i-package" },
-  "worklog":[ {"date":"2026-06-30","one":"Made /sandpaper:init smarter — wide artifact discovery + an interactive wizard","cid":"w-0168"},
-              {"date":"2026-06-30","one":"Validated /init on a cold repo — found real bugs, built an accurate brain; gaps = the packaging spec","cid":"w-0167"} ],
+  "focus":{ "one":"Initiative G underway — built the npx sandpaper CLI (src/setup.js + bin/cli.js): install-skill (commands+hooks→a target repo) · init (assets+manifest+starter cover; idempotent — won't clobber a skin or the counters) · doctor (health-check, passes) · open. Tested end-to-end on a fresh repo (doctor ✓ healthy); npm pack ships 45.5kB (assets+skill+hooks, none of OUR brain content). Split (D-011): npx = deterministic plumbing, /sandpaper = the agent's intelligence. Next: publish + the rest of G (self-deriving counts t-0028, publish lint t-0019, brain-aware Sand t-0021)", "ref":"decisions.html#d-plumbing" },
+  "worklog":[ {"date":"2026-06-30","one":"Built the npx sandpaper CLI (install-skill/init/doctor/open) — tested e2e, doctor healthy","cid":"w-0169"},
+              {"date":"2026-06-30","one":"Made /sandpaper:init smarter — wide artifact discovery + an interactive wizard","cid":"w-0168"} ],
   "open":["decisions.html#q-anchoring","decisions.html#q-undo","decisions.html#q-billing"],
   "docs":["../sandpaper.html","../engg-spec.html"] }
 </script>
@@ -49,9 +49,9 @@
     <div class="pl-meta"><span class="now-tag">Now</span> the build stands at <a href="./project/index.html#i-skeleton">Initiative A — the skeleton</a></div>
     <!-- BRAIN:NOW -->
     <p class="now-line" data-cid="now" data-kind="now" data-ref="project/index.html">
-      Made <strong><code>/sandpaper:init</code> smarter</strong> — it now discovers all artifacts (specs ·
-      logs · docs, not just code) and runs an interactive wizard (point at what's missed + shape the brain).
-      Next: Initiative G. <a class="ref" href="project/index.html#i-package">the plan →</a>
+      Built the <strong><code>npx sandpaper</code> CLI</strong> — install-skill / init / doctor / open —
+      tested end-to-end on a fresh repo (doctor: healthy). The plumbing that makes the skill portable.
+      <a class="ref" href="decisions.html#d-plumbing">how →</a>
     </p>
     <!-- /BRAIN:NOW -->
   </header>
@@ -93,7 +93,7 @@
       </a>
       <a class="vital" href="./decisions.html#open"><b data-count="question:open">3</b> open</a>
       <a class="vital" href="./map.html"><b data-count="component:built">3</b>/5 built</a>
-      <a class="vital" href="./decisions.html"><b data-count="decision">10</b> decisions</a>
+      <a class="vital" href="./decisions.html"><b data-count="decision">11</b> decisions</a>
     </div>
   </section>
   <!-- /BRAIN:COUNTS -->
@@ -115,6 +115,7 @@
   <section class="zone" data-cid="s-log">
     <div class="eyebrow">Latest <span id="brain-unseen" class="badge open" hidden></span></div>
     <ol class="timeline" data-cid="logfeed">
+      <li data-kind="worklog" data-cid="w-0169"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Built the <code>npx sandpaper</code> CLI (install-skill/init/doctor/open) — tested e2e, doctor healthy.</span><span class="tl-link"><a class="ref" href="./decisions.html#d-plumbing">how →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0168"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Made <code>/sandpaper:init</code> smarter — wide artifact discovery + an interactive wizard.</span><span class="tl-link"><a class="ref" href="./project/index.html#i-skill">the plan →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0167"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Validated <code>/init</code> on a cold repo — found real bugs, built an accurate brain.</span><span class="tl-link"><a class="ref" href="./learnings.html#l-init-validated">verdict →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0166"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Added <code>/help</code> + <code>/open</code> commands — the skill surface is 11 now.</span><span class="tl-link"><a class="ref" href="../skill/sandpaper/SKILL.md">the skill →</a></span></div></li>

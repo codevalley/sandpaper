@@ -42,6 +42,16 @@
   </section>
 
   <section class="band" style="border-top:0;padding-top:0">
+    <article class="entry entry--decision" data-lens="engineering" data-kind="decision" id="d-plumbing" data-cid="d-plumbing" data-status="accepted" data-date="2026-06-30" data-ref="../README.md" data-tags="packaging cli npx skill split">
+      <div class="entry-head"><span class="entry-id">D-011</span><h3>npx is the plumbing; <code>/sandpaper</code> is the intelligence</h3><span class="badge accepted">Accepted</span></div>
+      <dl class="entry-fields">
+        <div><dt>Decision</dt><dd>The <code>npx sandpaper</code> CLI does the deterministic plumbing — <code>install-skill</code> / <code>init</code> / <code>doctor</code> / <code>open</code> (copy templates, write the manifest, health-check) with NO AI. The <code>/sandpaper:*</code> slash commands do the intelligence (the agent's discover→wizard→generate, stamp, sync). Fresh repo: <code>npx sandpaper install-skill</code> → <code>/sandpaper:init</code> → <code>npx sandpaper open</code>.</dd></div>
+        <div><dt>Because</dt><dd>Keeping AI out of the CLI makes install + doctor deterministic, testable, and runnable anywhere — not just inside Claude; the agent handles the reasoning where it belongs.</dd></div>
+        <div><dt>Instead of</dt><dd>A monolithic AI-driven CLI, or pure slash commands that can't set up the environment / ship the templates.</dd></div>
+      </dl>
+      <div class="entry-foot"><a class="ref" href="../README.md">the README →</a> &nbsp; <a class="ref" href="./project/index.html#i-package">the plan →</a></div>
+    </article>
+
     <article class="entry entry--decision" data-lens="engineering" data-kind="decision" id="d-autobrain" data-cid="d-autobrain" data-status="accepted" data-date="2026-06-30" data-ref="../skill/sandpaper/SKILL.md" data-tags="hooks auto-update immune-system skill stamp">
       <div class="entry-head"><span class="entry-id">D-010</span><h3>The brain auto-updates via hooks — no prodding</h3><span class="badge accepted">Accepted</span></div>
       <dl class="entry-fields">
