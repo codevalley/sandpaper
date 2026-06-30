@@ -69,10 +69,11 @@ Enable by merging into `.claude/settings.json` (project) or `~/.claude/settings.
 Remove either entry to disable. This is the difference between the brain being a discipline
 you might forget and a system that cannot silently drift.
 
-## Commands (the surface — being built)
-`/init` (harvest repo → interview → generate the first brain) · `/stamp` (run the 6-step
-stamp) · `/plan` · `/decide` · `/learn` · `/log` · `/sync` (reconcile brain ↔ code) ·
-`/serve` (run the on-page toolbar) · `/theme` (re-skin from a brand hex).
+## Commands
+`/help` (this list) · `/init` (harvest → interview → generate a brain) · `/stamp` (the 6-step
+stamp) · `/plan` · `/decide` · `/learn` · `/log` · `/sync` (reconcile + heal drift) ·
+`/open` (serve + open the brain in a browser) · `/serve` (on-page refine toolbar) · `/theme`
+(re-skin from a brand hex). Run `/sandpaper:help` for the full grouped list.
 
 ## Serve / refine in place
 `npx sandpaper <dir>` serves the brain with an on-page toolbar — **Sand** (scoped AI edit),
