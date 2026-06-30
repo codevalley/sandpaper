@@ -14,9 +14,9 @@
 <script type="application/json" id="brain-state">
 { "v":1, "project":"Sandpaper", "phase":"P0 → pivoted", "updated":"2026-06-30",
   "session":"S10",
-  "focus":{ "one":"Detail visual pass (tokenized) — semantic badge variants (blocked/soon) + glyph prefixes, fixed timeline dot-on-line alignment, section 'kicker' rules, and a dark 'console' toolbar head (visible off the page) + ❯ sling glyph; next: fire a live claude -p loop, then Phase 1 (package)", "ref":"decisions.html#d-phases" },
-  "worklog":[ {"date":"2026-06-30","one":"Detail pass — semantic badges + glyphs, timeline fix, section kickers, dark console toolbar","cid":"w-0161"},
-              {"date":"2026-06-30","one":"Phase 0 polish — fixed Hands drag, cover rhythm + dividers, toolbar minimize","cid":"w-0160"} ],
+  "focus":{ "one":"Coherence pass — restored distinct badge glyphs rendered through ONE system (uniform box/size/baseline), enriched the toolbar to the site's craft (drafting-grid head + warm crafted input/buttons + SAND primary + input on its own row), and closed a 3-agent design-consistency audit's icon nits (scope tag glyph, footer kickers→clay rule, disclosure caret, roadbar arrow); next: fire a live claude -p loop, then Phase 1", "ref":"decisions.html#d-phases" },
+  "worklog":[ {"date":"2026-06-30","one":"Coherence pass — badge glyphs as one family, toolbar craft, audit icon fixes","cid":"w-0162"},
+              {"date":"2026-06-30","one":"Detail pass — semantic badges + glyphs, timeline fix, section kickers, dark console toolbar","cid":"w-0161"} ],
   "open":["decisions.html#q-anchoring","decisions.html#q-undo","decisions.html#q-billing"],
   "docs":["../sandpaper.html","../engg-spec.html"] }
 </script>
@@ -49,8 +49,8 @@
     <div class="pl-meta"><span class="now-tag">Now</span> the build stands at <a href="./project/index.html#i-skeleton">Initiative A — the skeleton</a></div>
     <!-- BRAIN:NOW -->
     <p class="now-line" data-cid="now" data-kind="now" data-ref="project/index.html">
-      A <strong>detail pass</strong> — semantic badges + glyphs, a fixed timeline, section kickers, and a dark
-      “console” toolbar that stands off the page. Next: fire a live loop, then <em>Phase 1</em>.
+      A <strong>coherence pass</strong> — badge glyphs back as one family, the toolbar now carries the brain's
+      drafting-grid + craft, and the audit's icon nits are closed. Next: fire a live loop.
       <a class="ref" href="decisions.html#d-phases">the phases →</a>
     </p>
     <!-- /BRAIN:NOW -->
@@ -89,7 +89,7 @@
     <div class="eyebrow">Where it stands</div>
     <div class="vitals">
       <a class="roadbar" href="./project/index.html" aria-label="The plan: Spine, Brain and Hands done; Living next">
-        <span class="seg">✓ Spine</span><span class="seg">✓ Brain</span><span class="seg">✓ Hands</span><span class="seg on">Living →</span><span class="seg">Reach</span>
+        <span class="seg">✓ Spine</span><span class="seg">✓ Brain</span><span class="seg">✓ Hands</span><span class="seg on">Living</span><span class="seg">Reach</span>
       </a>
       <a class="vital" href="./decisions.html#open"><b data-count="question:open">3</b> open</a>
       <a class="vital" href="./map.html"><b data-count="component:built">3</b>/5 built</a>
@@ -103,8 +103,8 @@
   <section class="zone" data-cid="s-open">
     <div class="eyebrow">Needs you</div>
     <ul class="needs" data-cid="open">
-      <li><span class="sdot blocked"></span><a class="q" href="./decisions.html#q-anchoring">Anchoring: how do annotations survive a full HTML regeneration?</a> <span class="badge blocked">blocking</span></li>
-      <li><span class="sdot open"></span><a class="q" href="./decisions.html#q-undo">Make “undo?” real — wire the pre-turn snapshot to the change card.</a> <span class="badge soon">soon</span></li>
+      <li><span class="sdot blocked"></span><a class="q" href="./decisions.html#q-anchoring">Anchoring: how do annotations survive a full HTML regeneration?</a> <span class="badge blocked">blocking</span><span class="go" aria-hidden="true">→</span></li>
+      <li><span class="sdot open"></span><a class="q" href="./decisions.html#q-undo">Make “undo?” real — wire the pre-turn snapshot to the change card.</a> <span class="badge soon">soon</span><span class="go" aria-hidden="true">→</span></li>
     </ul>
     <div style="margin-top:6px"><a class="ref" href="./decisions.html#open">all open questions (3) →</a></div>
   </section>
@@ -115,9 +115,9 @@
   <section class="zone" data-cid="s-log">
     <div class="eyebrow">Latest <span id="brain-unseen" class="badge open" hidden></span></div>
     <ol class="timeline" data-cid="logfeed">
+      <li data-kind="worklog" data-cid="w-0162"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Coherence pass — badge glyphs as one family, toolbar craft, audit icon fixes.</span><span class="tl-link"><a class="ref" href="./decisions.html#d-phases">phases →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0161"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Detail pass — semantic badges + glyphs, timeline fix, section kickers, dark console toolbar.</span><span class="tl-link"><a class="ref" href="./decisions.html#d-phases">phases →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0160"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Phase 0 polish — fixed Hands drag, cover newspaper rhythm, toolbar minimize.</span><span class="tl-link"><a class="ref" href="./decisions.html#d-phases">phases →</a></span></div></li>
-      <li data-kind="worklog" data-cid="w-0159"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Shipped Hands drag + delete + undo — direct file ops, no AI, review-hardened.</span><span class="tl-link"><a class="ref" href="./learnings.html#l-direct-atomic">gotcha →</a></span></div></li>
     </ol>
     <div style="margin-top:8px"><a class="ref" href="./log.html">full log →</a> &nbsp; <button id="brain-markseen" class="facet" type="button">Mark all seen</button></div>
   </section>

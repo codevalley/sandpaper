@@ -23,7 +23,7 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
       '<span id="sp-cost"></span>' +
       '<button type="button" id="sp-undo" hidden title="Undo the last direct edit">⟲ undo</button>' +
       '<button type="button" id="sp-min" title="Minimize">–</button>' +
-      '<button type="button" id="sp-toggle" aria-label="Expand or collapse">▴</button>' +
+      '<button type="button" id="sp-toggle" aria-label="Expand or collapse">▸</button>' +
     '</div>' +
     '<div id="sp-thread" hidden></div>' +
     '<div id="sp-target" hidden></div>' +
@@ -55,7 +55,7 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
   // ---------- small helpers ----------
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
   function expand() { panel.classList.remove('sp-collapsed'); thread.hidden = false; toggleBtn.textContent = '▾'; }
-  function collapse() { panel.classList.add('sp-collapsed'); thread.hidden = true; toggleBtn.textContent = '▴'; }
+  function collapse() { panel.classList.add('sp-collapsed'); thread.hidden = true; toggleBtn.textContent = '▸'; }
   function expandIfContent() { if (panel.classList.contains('sp-collapsed')) expand(); }
   function atBottom() { return thread.scrollHeight - thread.scrollTop - thread.clientHeight < 40; }
   function stick() { if (stickBottom) thread.scrollTop = thread.scrollHeight; }
@@ -268,7 +268,7 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
     var anc = t.closest('[data-cid]'), cid = anc ? anc.getAttribute('data-cid') : null;
     var snip = (t.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 80);
     sel = { cid: cid, selector: cid ? null : cssPath(t), snippet: snip };
-    targetTag.hidden = false; targetTag.textContent = '✎ ' + (cid ? '#' + cid : sel.selector) + (snip ? ' — ' + snip : '');
+    targetTag.hidden = false; targetTag.textContent = '⌖ ' + (cid ? '#' + cid : sel.selector) + (snip ? ' — ' + snip : '');
     stopPick(); input.focus();
   }
   function startPick() { picking = true; pickBtn.classList.add('sp-on'); document.body.classList.add('sp-picking'); }

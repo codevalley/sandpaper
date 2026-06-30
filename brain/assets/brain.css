@@ -83,9 +83,15 @@ h2.h .pn{font-family:var(--mono);font-size:13px;color:var(--clay);margin-right:1
 .badge.soon{background:var(--tint-ochre-badge);color:var(--badge-open-ink)}
 .badge.blocked{background:var(--tint-rust-badge);color:var(--rust)}
 .badge.stub,.badge.superseded{background:var(--tint-ink-stub);color:var(--mute)}
-/* ONE coherent leading dot, coloured by the badge's own status colour (currentColor) —
-   the colour + text carry the meaning; the dot is just a consistent, aligned anchor */
-.badge.done::before,.badge.accepted::before,.badge.verified::before,.badge.wip::before,.badge.fixed::before,.badge.open::before,.badge.soon::before,.badge.blocked::before,.badge.stub::before,.badge.superseded::before{content:"●";font-size:.6em;margin-right:6px;vertical-align:middle;position:relative;top:-1px}
+/* distinct status glyphs, rendered through ONE system — identical box, size + baseline —
+   so they read as a family (shape = status, colour from the badge's own currentColor) */
+.badge.done::before,.badge.accepted::before,.badge.verified::before,.badge.wip::before,.badge.fixed::before,.badge.open::before,.badge.soon::before,.badge.blocked::before,.badge.stub::before,.badge.superseded::before{display:inline-block;width:1.05em;margin-right:4px;text-align:center;font-size:.92em;line-height:1;vertical-align:middle;position:relative;top:-.5px}
+.badge.done::before,.badge.accepted::before,.badge.verified::before{content:"✓"}
+.badge.wip::before,.badge.fixed::before{content:"●"}
+.badge.open::before{content:"○"}
+.badge.soon::before{content:"◷"}
+.badge.blocked::before{content:"▲"}
+.badge.stub::before,.badge.superseded::before{content:"–"}
 
 /* ---- progress bar (agent stamps data-done/data-total; brain.js derives the rest) ---- */
 .prog{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:11.5px;color:var(--mute)}
@@ -99,8 +105,9 @@ h2.h .pn{font-family:var(--mono);font-size:13px;color:var(--clay);margin-right:1
 .needs li{display:flex;align-items:center;gap:9px;padding:9px 0;border-bottom:1px solid var(--rule-2);font-size:14.5px}
 .needs li:last-child{border-bottom:0}
 .needs a.q{flex:1;color:var(--ink);text-decoration:none}
-.needs a.q:hover{color:var(--clay);text-decoration:underline;text-underline-offset:3px}
-.needs a.go{font-family:var(--mono);color:var(--clay);text-decoration:none}
+.needs a.q:hover{color:var(--clay)}
+.needs .go{font-family:var(--mono);color:var(--clay);flex:none;transition:transform .15s}
+.needs li:hover .go{transform:translateX(2px)}
 
 /* ---- log timeline ---- */
 .timeline{list-style:none;margin:10px 0 0;padding:0 0 0 28px;position:relative}
@@ -315,12 +322,9 @@ footer{padding:30px 0 56px;font-family:var(--mono);font-size:11px;color:var(--mu
 .portal-foot{display:grid;grid-template-columns:1fr 1fr 1.1fr;gap:20px 26px;
   border-top:2px solid var(--ink);margin-top:26px;padding:24px 0 56px;
   font-family:var(--font-mono);font-size:11px;letter-spacing:.04em;color:var(--mute)}
-.portal-foot .foot-h{font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+.portal-foot .foot-h{display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:.14em;text-transform:uppercase;
   color:var(--ink);font-weight:600;margin-bottom:10px}
-.portal-foot .foot-h::before{color:var(--clay);margin-right:7px;font-weight:400}
-.portal-foot .foot-col:nth-child(1) .foot-h::before{content:"◉"}
-.portal-foot .foot-col:nth-child(2) .foot-h::before{content:"▤"}
-.portal-foot .foot-col:nth-child(3) .foot-h::before{content:"◆"}
+.portal-foot .foot-h::before{content:"";width:14px;height:2px;background:var(--clay);border-radius:2px;flex:none} /* same clay "kicker" rule as section labels */
 .portal-foot a{display:block;color:var(--text);text-decoration:none;padding:2.5px 0}
 .portal-foot a:hover{color:var(--clay)}
 .portal-foot a.ext{color:var(--clay)}

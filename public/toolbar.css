@@ -21,9 +21,12 @@
 }
 #sp-panel.sp-collapsed{ max-height:none; }
 
-/* dark "console" head — makes the floating bar read distinctly against the warm page */
-#sp-head{ display:flex; align-items:center; gap:8px; padding:11px 14px;
-  font-family:'IBM Plex Mono',ui-monospace,Menlo,monospace; background:var(--sp-ink); color:var(--sp-paper); }
+/* dark "console" head — carries the brain's drafting-plate grid so it reads as the same manual */
+#sp-head{ display:flex; align-items:center; gap:8px; padding:12px 15px;
+  font-family:'IBM Plex Mono',ui-monospace,Menlo,monospace; background:var(--sp-ink); color:var(--sp-paper);
+  background-image:linear-gradient(rgba(244,240,230,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(244,240,230,.05) 1px,transparent 1px);
+  background-size:18px 18px; }
+#sp-label{ letter-spacing:.02em; }
 #sp-chip{ display:inline-flex; align-items:center; gap:9px; font-size:13px; font-weight:500; color:var(--sp-paper-2); min-width:0; }
 #sp-label{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 #sp-led{ width:10px; height:10px; border-radius:50%; background:var(--sp-mute); flex:none; transition:background .2s; box-shadow:0 0 0 3px rgba(244,240,230,.08); }
@@ -92,17 +95,19 @@
 #sp-form{ display:flex; flex-direction:column; gap:9px; padding:12px; border-top:1px solid rgba(23,21,15,.1); }
 #sp-actions{ display:flex; gap:7px; align-items:center; }
 .sp-spring{ flex:1; }
-#sp-pick{ flex:none; width:34px; height:34px; border:1px solid rgba(23,21,15,.18); border-radius:8px; background:var(--sp-paper-2); color:var(--sp-clay); font-size:15px; cursor:pointer; line-height:1; }
+#sp-pick{ flex:none; width:36px; height:36px; border:1px solid rgba(23,21,15,.18); border-radius:9px; background:var(--sp-paper-2); color:var(--sp-clay); font-size:15px; cursor:pointer; line-height:1; transition:background .15s,border-color .15s; }
+#sp-pick:hover{ border-color:var(--sp-clay); }
 #sp-pick.sp-on{ background:var(--sp-clay); color:var(--sp-paper); border-color:var(--sp-clay); }
-#sp-sling{ flex:none; height:34px; padding:0 11px; border:1px solid rgba(23,21,15,.18); border-radius:8px; background:var(--sp-paper-2); color:var(--sp-pine); font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:13px; font-weight:600; letter-spacing:-1px; cursor:pointer; line-height:1; }
+#sp-sling{ flex:none; height:36px; padding:0 12px; border:1px solid rgba(23,21,15,.18); border-radius:9px; background:var(--sp-paper-2); color:var(--sp-pine); font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:13px; font-weight:600; letter-spacing:-1px; cursor:pointer; line-height:1; transition:background .15s,border-color .15s; }
 #sp-sling:hover{ border-color:var(--sp-pine); color:var(--sp-ink); }
 #sp-edit{ flex:none; width:34px; height:34px; border:1px solid rgba(23,21,15,.18); border-radius:8px; background:var(--sp-paper-2); color:var(--sp-pine); font-size:15px; cursor:pointer; line-height:1; }
 #sp-edit:hover{ border-color:var(--sp-pine); color:var(--sp-ink); }
 #sp-edit.sp-on{ background:var(--sp-pine); color:var(--sp-paper); border-color:var(--sp-pine); }
-#sp-input{ width:100%; height:40px; border:1px solid rgba(23,21,15,.2); border-radius:9px; background:#fff; color:var(--sp-ink); padding:0 13px; font:inherit; font-size:13.5px; }
-#sp-input:focus{ outline:2px solid rgba(199,91,57,.35); border-color:var(--sp-clay); }
+#sp-input{ width:100%; height:42px; border:1px solid rgba(23,21,15,.22); border-radius:10px; background:#fff; color:var(--sp-ink); padding:0 14px; font:inherit; font-size:13.5px; box-shadow:inset 0 1px 2px rgba(23,21,15,.05); transition:border-color .15s, box-shadow .15s; }
+#sp-input::placeholder{ color:var(--sp-mute); }
+#sp-input:focus{ outline:none; border-color:var(--sp-clay); box-shadow:0 0 0 3px rgba(199,91,57,.15); }
 #sp-input:disabled{ background:var(--sp-paper-2); color:var(--sp-mute); }
-#sp-send{ flex:none; height:34px; padding:0 14px; border:0; border-radius:8px; cursor:pointer; background:var(--sp-ink); color:var(--sp-paper); font:inherit; font-size:12px; font-weight:600; letter-spacing:.03em; font-family:'IBM Plex Mono',monospace; }
+#sp-send{ flex:none; height:36px; padding:0 18px; border:0; border-radius:9px; cursor:pointer; background:var(--sp-ink); color:var(--sp-paper); font:inherit; font-size:11.5px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; font-family:'IBM Plex Mono',monospace; transition:background .15s; }
 #sp-send:hover{ background:var(--sp-clay); }
 #sp-send:disabled{ opacity:.55; cursor:default; background:var(--sp-mute); }
 
