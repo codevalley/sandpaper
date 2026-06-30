@@ -16,7 +16,12 @@ framing (3–4 lines) so the owner knows what they've started:
   a few minutes and a fair chunk of tokens** — a one-time cost.
 - **You're in control** — they can stop you at any point, and nothing is published anywhere.
 
-Then begin the harvest.
+Then **stop and get an explicit go-ahead before the heavy harvest** — don't free-fall into it. Do a
+quick, cheap size read first (count source files + rough LOC, list the top-level dirs — do NOT read
+everything yet), turn it into a rough estimate, and ask. Something like: *"This looks like a ~medium
+repo (≈N source files across M dirs) — a full harvest will take roughly X–Y minutes and a fair chunk
+of tokens. Want me to go ahead, or scope it down first (just the code, or one subtree)?"* Begin
+DISCOVER only once they say go; if they'd rather scope it down, harvest just that slice.
 
 ## 1. DISCOVER — cast a wide net; classify by content, not filename
 Projects are organised every which way, so don't assume fixed paths. Glob broadly
