@@ -14,9 +14,9 @@
 <script type="application/json" id="brain-state">
 { "v":1, "project":"Sandpaper", "phase":"Phase 1 · packaging", "updated":"2026-06-30",
   "session":"S10",
-  "focus":{ "one":"Phase 1 started — built the auto-updating brain (bin/brain-inject.js SessionStart rehydrate + bin/brain-stamp-check.js Stop stamp-enforcer, tested, self-limiting) and the Sandpaper skill (skill/sandpaper/SKILL.md); hooks are opt-in (merge into .claude/settings.json — auto-install was correctly blocked as a self-config change). Next: enable the hooks + build the /commands (/init, /stamp, /sync)", "ref":"decisions.html#d-autobrain" },
-  "worklog":[ {"date":"2026-06-30","one":"Built the auto-updating brain (hooks) + the Sandpaper skill scaffold","cid":"w-0164"},
-              {"date":"2026-06-30","one":"Brain now shows our Phase 0 / Phase 1 split (derived); into Phase 1","cid":"w-0163"} ],
+  "focus":{ "one":"The Sandpaper skill is real + we run on it: hooks ENABLED (.claude/settings.json), 9 /sandpaper commands built + installed (stamp/init/plan/decide/learn/log/sync/serve/theme), Skill initiative DONE. Phase 1 ~33%. Next: validate /init on a fresh repo + the npm packaging (Initiative G)", "ref":"project/index.html#i-skill" },
+  "worklog":[ {"date":"2026-06-30","one":"Built + installed 9 /sandpaper commands; enabled the hooks — we run on our own skill","cid":"w-0165"},
+              {"date":"2026-06-30","one":"Built the auto-updating brain (hooks) + the Sandpaper skill scaffold","cid":"w-0164"} ],
   "open":["decisions.html#q-anchoring","decisions.html#q-undo","decisions.html#q-billing"],
   "docs":["../sandpaper.html","../engg-spec.html"] }
 </script>
@@ -49,9 +49,9 @@
     <div class="pl-meta"><span class="now-tag">Now</span> the build stands at <a href="./project/index.html#i-skeleton">Initiative A — the skeleton</a></div>
     <!-- BRAIN:NOW -->
     <p class="now-line" data-cid="now" data-kind="now" data-ref="project/index.html">
-      Built the <strong>auto-updating brain</strong> — a SessionStart hook rehydrates, a Stop hook enforces
-      the stamp (no prodding) — and the Sandpaper <em>skill</em>. Next: turn it on + the /commands.
-      <a class="ref" href="decisions.html#d-autobrain">how →</a>
+      <strong>We now run on our own skill</strong> — 9 <code>/sandpaper</code> commands installed, the
+      auto-update hooks on. The Skill initiative is done. Next: <code>/init</code>-tested + npm packaging.
+      <a class="ref" href="../skill/sandpaper/SKILL.md">the skill →</a>
     </p>
     <!-- /BRAIN:NOW -->
   </header>
@@ -115,9 +115,9 @@
   <section class="zone" data-cid="s-log">
     <div class="eyebrow">Latest <span id="brain-unseen" class="badge open" hidden></span></div>
     <ol class="timeline" data-cid="logfeed">
+      <li data-kind="worklog" data-cid="w-0165"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Built + installed 9 /sandpaper commands; hooks on — we run on our own skill.</span><span class="tl-link"><a class="ref" href="../skill/sandpaper/SKILL.md">the skill →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0164"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Built the auto-updating brain (hooks) + the Sandpaper skill — no more prodding.</span><span class="tl-link"><a class="ref" href="./decisions.html#d-autobrain">how →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0163"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Brain now shows our own Phase 0 / Phase 1 split (derived bars). Into Phase 1.</span><span class="tl-link"><a class="ref" href="./project/index.html">the plan →</a></span></div></li>
-      <li data-kind="worklog" data-cid="w-0162"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Coherence pass — badge glyphs as one family, toolbar craft, audit icon fixes.</span><span class="tl-link"><a class="ref" href="./decisions.html#d-phases">phases →</a></span></div></li>
     </ol>
     <div style="margin-top:8px"><a class="ref" href="./log.html">full log →</a> &nbsp; <button id="brain-markseen" class="facet" type="button">Mark all seen</button></div>
   </section>

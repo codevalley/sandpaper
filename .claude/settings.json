@@ -1,0 +1,21 @@
+{
+  "$comment": "Sandpaper auto-updating brain (opt-in, enabled by the project owner). SessionStart surfaces the brain digest so a fresh session rehydrates; Stop blocks once if a turn changed code but never stamped the brain. Both scripts are zero-dep and self-limiting. Delete either entry to disable.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          { "type": "command", "command": "node bin/brain-inject.js", "timeout": 10 }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          { "type": "command", "command": "node bin/brain-stamp-check.js", "timeout": 20 }
+        ]
+      }
+    ]
+  }
+}
