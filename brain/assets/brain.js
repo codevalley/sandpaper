@@ -88,5 +88,13 @@
     var op = allTotal ? Math.round(allDone / allTotal * 100) : 0;
     var ov = document.getElementById('plan-overall'); if (ov) ov.textContent = allDone + '/' + allTotal + ' · ' + op + '%';
     var ob = document.getElementById('plan-overall-bar'); if (ob) ob.style.width = op + '%';
+    // per-PHASE rollup — sum tasks across each phase's initiatives (by data-phase, not position)
+    ['0', '1'].forEach(function (ph) {
+      var pt = Array.prototype.slice.call(document.querySelectorAll('.entry--initiative[data-phase="' + ph + '"] .task[data-status]'));
+      var pd = pt.filter(function (t) { return t.getAttribute('data-status') === 'done'; }).length;
+      var pp = pt.length ? Math.round(pd / pt.length * 100) : 0;
+      var pbar = document.querySelector('[data-phase-progress="' + ph + '"] i'); if (pbar) pbar.style.width = pp + '%';
+      var plab = document.querySelector('[data-phase-label="' + ph + '"]'); if (plab) plab.textContent = pd + '/' + pt.length + ' · ' + pp + '%';
+    });
   }
 })();

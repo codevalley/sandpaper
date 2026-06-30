@@ -250,6 +250,15 @@ ol.tasks .task{display:flex;align-items:baseline;gap:9px;padding:5px 0;font-size
 .task .t-sess{font-family:var(--mono);font-size:10px;color:var(--mute);white-space:nowrap}
 @media(prefers-reduced-motion:reduce){.plan-overall .track i,.ini-bar .track i{transition:none}}
 
+/* phase grouping headers — the build organises under Phase 0 (make it work) / Phase 1 (package) */
+.phase-head{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:30px 0 16px;padding-bottom:11px;border-bottom:2px solid var(--ink)}
+.phase-title{display:flex;align-items:center;gap:11px;font-size:20px;letter-spacing:-.01em;margin:0}
+.phase-n{font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--paper);background:var(--clay);padding:4px 10px;border-radius:var(--radius-pill)}
+.phase-bar{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:11px;color:var(--mute)}
+.phase-bar .track{width:140px;height:7px;background:var(--paper-3);border-radius:99px;overflow:hidden}
+.phase-bar .track i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--moss),var(--pine));transition:width .5s ease}
+@media(prefers-reduced-motion:reduce){.phase-bar .track i{transition:none}}
+
 footer{padding:30px 0 56px;font-family:var(--mono);font-size:11px;color:var(--mute);letter-spacing:.04em;border-top:2px solid var(--ink);margin-top:26px}
 @media(prefers-reduced-motion:reduce){.prog .fill{transition:none}}
 
