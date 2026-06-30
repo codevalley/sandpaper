@@ -13,13 +13,21 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
   var BUSY = ['init', 'thinking', 'editing', 'tool_using', 'waiting'];
   var SKEY = 'sp-thread:' + location.pathname; // transcript persists per-document
 
+  // crisp stroke icons (centre perfectly via viewBox; inherit the button's currentColor) —
+  // the ⌖/✎ glyphs sat off-centre and read muddy at 36px.
+  var ICON_PICK = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">' +
+    '<circle cx="12" cy="12" r="4.25"/><line x1="12" y1="2.5" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="21.5"/>' +
+    '<line x1="2.5" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="21.5" y2="12"/></svg>';
+  var ICON_EDIT = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+
   // ---------- build the panel (static template — no untrusted data) ----------
   var panel = document.createElement('div');
   panel.id = 'sp-panel';
   panel.className = 'sp-collapsed';
   panel.innerHTML =
     '<div id="sp-head">' +
-      '<span id="sp-chip"><span id="sp-led"></span><span id="sp-who">Claude</span><span id="sp-label">idle</span></span>' +
+      '<span id="sp-chip"><span id="sp-led"></span><span id="sp-who">Claude&nbsp;Code</span><span id="sp-label">idle</span></span>' +
       '<span id="sp-cost"></span>' +
       '<button type="button" id="sp-undo" hidden title="Undo the last direct edit">⟲ undo</button>' +
       '<button type="button" id="sp-min" title="Minimize">–</button>' +
@@ -30,8 +38,8 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
     '<form id="sp-form">' +
       '<input id="sp-input" placeholder="Ask, discuss, or describe a change…" autocomplete="off" />' +
       '<div id="sp-actions">' +
-        '<button type="button" id="sp-pick" title="Scope — point at an element to target your message">⌖</button>' +
-        '<button type="button" id="sp-edit" title="Edit text in place — your words, no AI">✎</button>' +
+        '<button type="button" id="sp-pick" title="Scope — point at an element to target your message">' + ICON_PICK + '</button>' +
+        '<button type="button" id="sp-edit" title="Edit text in place — your words, no AI">' + ICON_EDIT + '</button>' +
         '<span class="sp-spring"></span>' +
         '<button type="button" id="sp-sling" title="Send to terminal — copy a ready instruction to paste into your Claude session">&gt;_</button>' +
         '<button type="submit" id="sp-send">Sand</button>' +

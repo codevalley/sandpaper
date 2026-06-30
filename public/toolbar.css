@@ -108,6 +108,7 @@
   display:inline-flex; align-items:center; justify-content:center; transition:background .15s,border-color .15s,color .15s; }
 #sp-pick:hover, #sp-edit:hover{ border-color:var(--sp-ink); }
 #sp-pick.sp-on, #sp-edit.sp-on{ background:var(--sp-ink); color:var(--sp-paper); border-color:var(--sp-ink); }
+#sp-pick svg, #sp-edit svg{ display:block; } /* kill the inline baseline gap so the glyph is dead-centre */
 #sp-sling{ flex:none; height:36px; padding:0 12px; border:1px solid rgba(23,21,15,.2); border-radius:9px;
   background:var(--sp-paper-2); color:var(--sp-ink); font-family:'IBM Plex Mono',ui-monospace,monospace;
   font-size:13px; font-weight:600; letter-spacing:-1px; cursor:pointer; line-height:1; transition:background .15s,border-color .15s; }
