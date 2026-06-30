@@ -126,6 +126,78 @@ export function doctor(target) {
   function finish(p) { console.log(`\n  ${p ? '✗ ' + p + ' problem(s).' : '✓ healthy.'}\n`); process.exitCode = p ? 1 : 0; }
 }
 
+// ---- upgrade: bring an EXISTING brain up to the current package (assets · hooks · commands · the canvas) ----
+export function upgrade(target, pkg) {
+  console.log(`\n  🪵  Upgrading Sandpaper in ${target}\n`);
+  const brain = join(target, 'brain');
+  if (!existsSync(brain)) { bad('no brain/ here — this upgrades an existing brain. Run `npx sandpaper init` first.'); process.exitCode = 1; return; }
+
+  // 1. commands + hooks → latest (idempotent; this is how board-first reaches an old install)
+  const nCmds = copyDirFiles(join(pkg, 'skill', 'sandpaper', 'commands'), join(target, '.claude', 'commands', 'sandpaper'));
+  ok(`${nCmds} commands refreshed → .claude/commands/sandpaper/`);
+  const hookDir = join(target, '.sandpaper', 'hooks');
+  ensureDir(hookDir);
+  for (const h of ['brain-inject.js', 'brain-stamp-check.js']) copyFileSync(join(pkg, 'bin', h), join(hookDir, h));
+  ok('2 hooks refreshed → .sandpaper/hooks/');
+  const wr = wireHooks(target);
+  if (wr.ok) ok(wr.added ? 'auto-update hooks wired into .claude/settings.json' : 'auto-update hooks already wired');
+  else warn(wr.reason);
+
+  // 2. engine assets → latest brain.css + brain.js (these carry the canvas styles); PRESERVE theme.css (the skin)
+  const aSrc = join(pkg, 'brain', 'assets'), aDst = join(brain, 'assets');
+  ensureDir(aDst);
+  for (const a of ['brain.css', 'brain.js']) {
+    if (existsSync(join(aSrc, a))) { copyFileSync(join(aSrc, a), join(aDst, a)); ok(`assets/${a} → latest`); }
+  }
+  if (existsSync(join(aDst, 'theme.css'))) warn('assets/theme.css kept — it is your skin (delete it + re-run to take the shipped one)');
+  else if (existsSync(join(aSrc, 'theme.css'))) { copyFileSync(join(aSrc, 'theme.css'), join(aDst, 'theme.css')); ok('assets/theme.css added'); }
+
+  // 3. inject the canvas region into the cover if it predates the canvas
+  const r = ensureCanvas(join(brain, 'index.html'));
+  if (r.had) ok('cover already hosts the canvas');
+  else if (r.injected) ok(`canvas added to the cover (${r.anchor})`);
+  else { warn('couldn\'t find a safe spot to add the canvas — paste this into brain/index.html just below the NOW plate:'); console.log('\n' + canvasSection() + '\n'); }
+
+  console.log('\n  Upgraded. `npx sandpaper open` to view; start a FRESH Claude Code session for the board-first canvas.\n');
+}
+
+// The canvas section (empty state) — shared by the scaffold's starter cover and `upgrade`.
+function canvasSection() {
+  return `  <section class="canvas" id="s-canvas" data-cid="s-canvas" aria-label="Canvas">
+    <div class="canvas-rail"><div class="eyebrow">Canvas <span class="canvas-sub">— the current summary, elevated</span></div></div>
+    <!-- BRAIN:CANVAS — the current board lives in .whiteboard; older ones fold into .canvas-earlier below -->
+    <div class="whiteboard" data-cid="whiteboard">
+      <p class="canvas-empty" data-cid="canvas-empty">The canvas is clear. When Claude works through something
+        substantial — an architecture, a comparison, a walkthrough, the summary of a turn — the elevated
+        version lands here, live.</p>
+    </div>
+    <!-- /BRAIN:CANVAS -->
+  </section>`;
+}
+
+// Add the canvas section to an existing cover that lacks it. Best-effort: try a few stable anchors.
+function ensureCanvas(coverPath) {
+  let html;
+  try { html = readFileSync(coverPath, 'utf8'); } catch { return { injected: false }; }
+  if (html.includes('BRAIN:CANVAS') || html.includes('class="whiteboard"')) return { had: true };
+  const section = canvasSection();
+  // ordered anchors: just after the NOW plate, else above the doors / first section
+  const anchors = [
+    { find: '<!-- /BRAIN:EDITION -->', after: true, name: 'below the NOW plate' },
+    { find: '<nav class="doors"', after: false, name: 'above the lens doors' },
+    { find: '<section class="zone"', after: false, name: 'above the first section' },
+    { find: '</header>', after: true, name: 'below the header' },
+  ];
+  for (const a of anchors) {
+    const i = html.indexOf(a.find);
+    if (i < 0) continue;
+    const pos = a.after ? i + a.find.length : i;
+    const out = html.slice(0, pos) + (a.after ? '\n' + section : section + '\n  ') + html.slice(pos);
+    try { writeFileSync(coverPath, out); return { injected: true, anchor: a.name }; } catch { return { injected: false }; }
+  }
+  return { injected: false };
+}
+
 // walk brain/*.html, return count of broken internal href/src (file missing or #anchor absent)
 function checkLinks(brain) {
   const pages = [];
@@ -168,16 +240,7 @@ function starterCover(project, date) {
       repository and fill the brain — it will discover your code, specs, and docs, ask a few questions, then
       generate the cover, the plan board, and the books.</p>
   </header>
-  <section class="canvas" id="s-canvas" data-cid="s-canvas" aria-label="Canvas">
-    <div class="canvas-rail"><div class="eyebrow">Canvas <span class="canvas-sub">— the current summary, elevated</span></div></div>
-    <!-- BRAIN:CANVAS — the current board lives in .whiteboard; older ones fold into .canvas-earlier below -->
-    <div class="whiteboard" data-cid="whiteboard">
-      <p class="canvas-empty" data-cid="canvas-empty">The canvas is clear. When Claude works through something
-        substantial — an architecture, a comparison, a walkthrough, the summary of a turn — the elevated
-        version lands here, live.</p>
-    </div>
-    <!-- /BRAIN:CANVAS -->
-  </section>
+${canvasSection()}
   <section class="zone"><div class="eyebrow">Next</div>
     <p class="muted">Once filled, <code>npx sandpaper open</code> serves this with the on-page refine toolbar.</p>
   </section>

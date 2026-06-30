@@ -6,7 +6,7 @@ import { existsSync, statSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { execFile } from 'node:child_process';
 import { startServer } from '../src/server.js';
-import { installSkill, scaffold, doctor } from '../src/setup.js';
+import { installSkill, scaffold, doctor, upgrade } from '../src/setup.js';
 
 const PKG = join(dirname(fileURLToPath(import.meta.url)), '..');
 const [cmd, ...rest] = process.argv.slice(2);
@@ -25,6 +25,7 @@ const usage = () => console.log(`
 
   sandpaper install-skill      install the /sandpaper commands + hooks into this repo
   sandpaper init               scaffold brain/ (assets + manifest + a starter cover)
+  sandpaper upgrade            bring an existing brain up to date (assets · hooks · commands · canvas)
   sandpaper doctor             health-check a Sandpaper setup
   sandpaper open               serve this repo's brain + open it in a browser
   sandpaper <doc.html | dir>   serve with the on-page refine toolbar
@@ -49,6 +50,7 @@ const serve = async (target, openBrowser) => {
     if (!cmd || cmd === 'help' || cmd === '-h' || cmd === '--help') return usage();
     if (cmd === 'install-skill') return installSkill(process.cwd(), PKG, { noHooks: rest.includes('--no-hooks') });
     if (cmd === 'init') return scaffold(process.cwd(), PKG);
+    if (cmd === 'upgrade' || cmd === 'update') return upgrade(process.cwd(), PKG);
     if (cmd === 'doctor') return doctor(process.cwd());
     if (cmd === 'open') return serve(process.cwd(), true);
     const target = resolve(process.cwd(), cmd);

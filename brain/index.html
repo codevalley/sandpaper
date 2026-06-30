@@ -13,11 +13,11 @@
 <!-- BRAIN:DIGEST — machine context for a fresh `claude`: read THIS first (~1KB) to rehydrate. -->
 <script type="application/json" id="brain-state">
 { "v":1, "project":"Sandpaper", "phase":"Phase 1 · packaging", "updated":"2026-06-30",
-  "session":"S18",
-  "focus":{ "one":"Made BOARD-FIRST the default for the canvas, and dropped the Stop-hook idea. The realization: boarding a substantial reply is a JUDGMENT — a hook can only see length, never judge board-worthiness, and it doesn't board anything itself (it just pokes me). So instead of a dumb detector, the fix puts the judgment in the natural flow: when my reply would be a substantial summary/explanation, the BOARD IS THE REPLY (it lands on the whiteboard), and the terminal gets ONE line — '📋 <gist> → on the canvas'. Not written twice. Short answers + back-and-forth stay in the terminal. Honest: this is a default, not a hard lock (a judgment can't be enforced like 'changed code → stamp'); the pointer is the tripwire — no pointer means nothing was boarded. Rewrote the discipline in all three places it's taught: SKILL.md, CLAUDE.md (step 7), and the SessionStart injection (bin/brain-inject.js). Boarded the decision board-first as board 005 (with a Terminal-steer / Canvas-show split). Next: npm publish + rest of G", "ref":"decisions.html#d-canvas" },
-  "worklog":[ {"date":"2026-06-30","one":"Made board-first the default — substantial replies go on the canvas (the board IS the reply), terminal gets a pointer; dropped the Stop-hook nag; rewrote the discipline; boarded the decision as 005","cid":"w-0179"},
-              {"date":"2026-06-30","one":"Canvas is a true scrollable whiteboard (content scrolls inside the white box; page scrolls the rest), and boarding the turn summary is now an enforced STAMP step","cid":"w-0178"},
-              {"date":"2026-06-30","one":"Reworked the canvas into a whiteboard — current board full + live, older ones fold into a collapsed Earlier stack (<details>, capped at 5); boarded the stamping explainer as 003","cid":"w-0177"} ],
+  "session":"S19",
+  "focus":{ "one":"Built `sandpaper upgrade` (and `update` alias) — the missing path to get the canvas + board-first into an EXISTING brain (e.g. tinysync, made before the canvas). It refreshes the /sandpaper commands + the hooks (board-first injection) + the engine assets brain.css/brain.js, but PRESERVES the owner's theme.css (their skin), and injects the <!-- BRAIN:CANVAS --> region into a cover that predates it (best-effort anchor: below the NOW plate, else above the doors/first section). Idempotent — re-run says 'already hosts the canvas'. Tested on a simulated old brain: brain.css gained .whiteboard, theme.css preserved, canvas injected, commands+hooks refreshed. Also: README CLI table + the slash /sandpaper:init GENERATE step now includes the canvas, and setup.js shares one canvasSection() between scaffold + upgrade. (Board-first judgment: this turn is tooling/procedural, so it stays in the terminal — no board.) Next: npm publish + rest of G", "ref":"../README.md" },
+  "worklog":[ {"date":"2026-06-30","one":"Added `sandpaper upgrade` — refresh an existing brain's commands/hooks/engine-assets (keep theme.css) + inject the canvas into an old cover; idempotent, tested","cid":"w-0180"},
+              {"date":"2026-06-30","one":"Made board-first the default — substantial replies go on the canvas (the board IS the reply), terminal gets a pointer; dropped the Stop-hook nag; rewrote the discipline; boarded the decision as 005","cid":"w-0179"},
+              {"date":"2026-06-30","one":"Canvas is a true scrollable whiteboard (content scrolls inside the white box; page scrolls the rest), and boarding the turn summary is now an enforced STAMP step","cid":"w-0178"} ],
   "open":["decisions.html#q-anchoring","decisions.html#q-undo","decisions.html#q-billing"],
   "docs":["../sandpaper.html","../engg-spec.html"] }
 </script>
@@ -49,10 +49,10 @@
   <header class="plate" data-cid="cover">
     <div class="pl-meta"><span class="now-tag">Now</span> the build stands at <a href="./project/index.html#i-package">Phase 1 — packaging</a></div>
     <!-- BRAIN:NOW -->
-    <p class="now-line" data-cid="now" data-kind="now" data-ref="decisions.html#d-canvas">
-      <strong>Board-first</strong> is the default now — when a reply would be a substantial summary or
-      explanation, the board <em>is</em> the reply (it lands here); the terminal gets a one-line pointer.
-      <a class="ref" href="decisions.html#d-canvas">the canvas →</a>
+    <p class="now-line" data-cid="now" data-kind="now" data-ref="../README.md">
+      Shipped <code>sandpaper&nbsp;upgrade</code> — it brings an <strong>existing</strong> brain up to date
+      (assets · hooks · commands · the canvas), keeping your skin, so other repos can get board-first too.
+      <a class="ref" href="../README.md">the README →</a>
     </p>
     <!-- /BRAIN:NOW -->
   </header>
@@ -256,6 +256,7 @@
   <section class="zone" data-cid="s-log">
     <div class="eyebrow">Latest <span id="brain-unseen" class="badge open" hidden></span></div>
     <ol class="timeline" data-cid="logfeed">
+      <li data-kind="worklog" data-cid="w-0180"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Shipped <code>sandpaper upgrade</code> — refresh an existing brain (assets · hooks · commands · canvas), keeping your skin. Existing repos can get board-first now.</span><span class="tl-link"><a class="ref" href="../README.md">the README →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0179"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Made <strong>board-first</strong> the default — substantial replies go on the canvas (the board <em>is</em> the reply); dropped the Stop-hook nag. Boarded the decision as 005.</span><span class="tl-link"><a class="ref" href="./decisions.html#d-canvas">the canvas →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0178"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Canvas is a true <strong>scrollable whiteboard</strong> (content scrolls inside the white box); boarding the turn summary is now an <strong>enforced STAMP step</strong>. Dogfood board 004.</span><span class="tl-link"><a class="ref" href="./decisions.html#d-canvas">the canvas →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0177"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Canvas is a <strong>whiteboard</strong> now — current board full + live, older ones fold into a collapsed <em>Earlier</em> stack (capped at 5). Boarded the stamping explainer as 003.</span><span class="tl-link"><a class="ref" href="./decisions.html#d-canvas">the canvas →</a></span></div></li>

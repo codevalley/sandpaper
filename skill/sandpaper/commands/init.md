@@ -68,7 +68,9 @@ discovered (a spec's heading anchor if it has one, else the source file / README
 ONLY the lenses + books the owner chose; dim any deferred chrome so nothing dangles. Seed the plan
 board from the discovered state (shipped = `done`; gaps between the code and the README/spec = the
 honest backlog), the log from the git history, and the decisions/learnings books from anything
-already written down. Stamp the first log row, verify the `#brain-state` JSON parses and links resolve.
+already written down. **Include the canvas** on the cover — the `<!-- BRAIN:CANVAS -->` region with an
+empty `.whiteboard` (it's where your board-first explanations will land). Stamp the first log row,
+verify the `#brain-state` JSON parses and links resolve.
 
 ## 4. WELCOME — close the loop; don't just stop
 After it's generated, give the owner a short, warm close so the payoff is obvious and they know what

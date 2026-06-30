@@ -21,6 +21,7 @@ npx sandpaper open              # serve it + open in your browser
 |---|---|
 | `sandpaper install-skill` | copy the `/sandpaper:*` commands → `.claude/commands/`, the hooks → `.sandpaper/hooks/`, and print the opt-in `settings.json` snippet |
 | `sandpaper init` | scaffold `brain/` (the design-system assets + a `.sandpaper/manifest.json` + a starter cover). Idempotent — never clobbers a customised skin or the id counters |
+| `sandpaper upgrade` | bring an existing brain up to the current package — refresh the commands, hooks, and engine assets (`brain.css`/`brain.js`), **preserving your `theme.css`**, and inject the canvas region into a cover that predates it. Idempotent |
 | `sandpaper doctor` | health-check a setup (assets present, `theme.css` imported, digest parses, links resolve, manifest valid, hooks installed) |
 | `sandpaper open` | serve the repo + open `brain/index.html` in the browser |
 | `sandpaper <doc.html \| dir>` | serve with the on-page refine toolbar |
