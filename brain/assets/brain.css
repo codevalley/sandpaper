@@ -331,6 +331,38 @@ footer{padding:30px 0 56px;font-family:var(--mono);font-size:11px;color:var(--mu
   font-family:var(--font-mono);font-size:11px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;margin-top:1px}
 .ho-step>div b{display:block;font-size:13px;color:var(--ink)}
 .ho-step>div span{display:block;font-family:var(--font-mono);font-size:11px;color:var(--mute);line-height:1.45}
+/* a two-layer diagram (canvas working / brain settled) */
+.layers{display:flex;flex-direction:column;gap:6px;margin:13px 0}
+.layer{border:var(--hairline);border-radius:var(--radius);padding:10px 13px;display:flex;flex-direction:column;gap:2px}
+.layer-k{font-family:var(--font-mono);font-size:12px;font-weight:600;color:var(--ink)}
+.layer-d{font-family:var(--font-mono);font-size:11px;color:var(--mute);line-height:1.45}
+.layer--canvas{background:var(--card-feature);border-color:var(--clay)}
+.layer--brain{background:var(--panel)}
+.layer-link{align-self:center;font-family:var(--font-mono);font-size:10.5px;color:var(--mute);letter-spacing:.04em}
+
+/* ----- the "earlier" stack: current board stays full; older ones fold into quiet rows that reopen ----- */
+.canvas-earlier{display:flex;flex-direction:column;margin-top:8px}
+.earlier-label{display:flex;align-items:center;gap:9px;font-family:var(--font-mono);font-size:10px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--mute);margin:2px 2px 2px}
+.earlier-label::before{content:"";width:14px;height:2px;background:var(--rule);border-radius:2px}
+.earlier-label .n{color:var(--text-muted)}
+/* collapsed = a thin index row; open = it becomes a sheet like the current board */
+.board--past{background:transparent;border:0;border-top:1px solid var(--rule-2);border-radius:0;box-shadow:none;padding:0}
+.board--past:first-of-type{border-top:0}
+.board-row{display:flex;align-items:center;gap:11px;padding:10px 4px;cursor:pointer;list-style:none}
+.board-row::-webkit-details-marker{display:none}
+.board-row-dot{width:6px;height:6px;border-radius:50%;background:var(--mute);flex:none}
+.board-row-when{font-family:var(--font-mono);font-size:10.5px;color:var(--mute);flex:none}
+.board-row-title{font-family:var(--font-display);font-size:15px;color:var(--ink);flex:1;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.board-row:hover .board-row-title{color:var(--clay)}
+.board-row-chev{font-family:var(--font-mono);font-size:14px;color:var(--mute);transition:transform .18s ease;flex:none}
+.board--past[open]{background:var(--white);border:var(--hairline);border-radius:var(--radius-md);
+  padding:2px 18px 14px;margin:7px 0;box-shadow:var(--shadow-panel)}
+.board--past[open]>.board-row{padding-left:0;padding-right:0}
+.board--past[open] .board-row-chev{transform:rotate(90deg);color:var(--clay)}
+.board--past[open] .board-row-title{color:var(--ink)}
+.board--past .board-body{padding-top:2px}
 /* nothing on the canvas yet */
 .canvas-empty{border:1px dashed var(--rule);border-radius:var(--radius-md);padding:22px 24px;background:var(--paper-3);
   color:var(--text-muted);font-size:14px;line-height:1.55;max-width:46em}

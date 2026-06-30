@@ -11,12 +11,19 @@ A board is freeform, self-contained, **theme-skinned** rich HTML: lead with the 
 the `.entry` grammar (boards are working output; lavish is fine), but it must use the project's
 theme classes so it matches the rest of the surface.
 
+The canvas is a **whiteboard, not a notebook**: the newest board is the CURRENT one (full + live);
+older boards fold into a collapsed *Earlier* stack, capped at five.
+
 Steps:
-1. Prepend `<article class="board board--live" data-cid="board-NNNN" data-kind="board"
-   data-date="YYYY-MM-DD" data-ref="<source>">` to the top of the `BRAIN:CANVAS` feed (`.canvas-feed`),
-   with a `.board-head` (dot · title · `MM-DD · board NNN`), a rich `.board-body`, and a `.board-foot`.
-2. Drop `board--live` from the previously-newest board; remove any `.canvas-empty` placeholder.
-3. Update the `data-cid="canvas-count"` label (e.g. `3 boards`).
+1. The new board becomes the CURRENT one — an `<article class="board board--live" data-cid="board-NNNN"
+   data-kind="board" data-date="YYYY-MM-DD" data-ref="<source>">` at the top of the `BRAIN:CANVAS`
+   feed (`.canvas-feed`), with a `.board-head` (dot · title · `MM-DD · board NNN`), a rich
+   `.board-body`, and a `.board-foot`.
+2. Move the previously-current board into the `.canvas-earlier` list as a collapsed
+   `<details class="board board--past"><summary class="board-row">…dot · `MM-DD · NNN` · title · ›…</summary>…body + foot…</details>`.
+   Remove any `.canvas-empty` placeholder.
+3. Cap the stack at **5 boards total** — drop the oldest `<details>`. Update the `canvas-count` and
+   the `Earlier · N` label.
 4. In the terminal, leave one line: `📋 <gist> → on the canvas`.
 
 Keep boards for things worth a second screen (architecture, comparisons, walkthroughs, analyses);

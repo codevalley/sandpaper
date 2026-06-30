@@ -13,11 +13,11 @@
 <!-- BRAIN:DIGEST — machine context for a fresh `claude`: read THIS first (~1KB) to rehydrate. -->
 <script type="application/json" id="brain-state">
 { "v":1, "project":"Sandpaper", "phase":"Phase 1 · packaging", "updated":"2026-06-30",
-  "session":"S15",
-  "focus":{ "one":"Rebalanced the cover + wired the canvas handoff. LAYOUT: slimmed the dark NOW plate to a thin dateline so the CANVAS is the hero on the first fold; the feed fills the fold and scrolls on its OWN (boards pile up without moving the page; the portal — doors/vitals/log — scrolls separately below). HANDOFF: the SessionStart hook (bin/brain-inject.js) now injects canvas-awareness every session, so Claude Code knows on turn one to elevate substantial explanations into boards (the bridge; SKILL.md holds the how-to, /sandpaper:canvas forces one; honest gap vs STAMP — no hard Stop-block since 'explained but didn't board' isn't detectable from outside). Dogfooded board 002 ('How Claude Code reaches for the canvas') with the 4-step handoff diagram. Verified live (independent scroll + portal intact). Held off on calming the portal's visual variety pending specifics. Next: npm publish + rest of G", "ref":"../bin/brain-inject.js" },
-  "worklog":[ {"date":"2026-06-30","one":"Rebalanced the cover (canvas is the hero on the first fold, independent scroll) + wired the SessionStart handoff so Claude Code uses the canvas","cid":"w-0176"},
-              {"date":"2026-06-30","one":"Built the canvas — the cover hosts a feed of rich 'boards' (elevated explanations), + the skill discipline + /canvas + dogfood board 001","cid":"w-0175"},
-              {"date":"2026-06-30","one":"/sandpaper:init now gates on an explicit go-ahead (size read + estimate) before the heavy harvest","cid":"w-0174"} ],
+  "session":"S16",
+  "focus":{ "one":"Reworked the canvas from a notebook into a WHITEBOARD (the owner's instinct: show one current thing, not a growing pile). The newest board sits full + live up top; older boards fold into a collapsed 'Earlier' stack — a zero-JS <details> accordion where each row reopens into a full sheet — capped at 5 (oldest falls away). Applied the frontend-design lens: the current board is the one hero, the history is a quiet meaningful index. Also boarded the model + 'what stamping is' explanation as board 003 (with a Canvas→promote→Brain two-layer diagram), closing an adherence gap — I'd answered that in chat when it was board-worthy. Updated the CANVAS discipline (SKILL.md + /canvas) to the whiteboard model. Verified live: current prominent, rows collapse/expand, capped. Next: npm publish + rest of G", "ref":"decisions.html#d-canvas" },
+  "worklog":[ {"date":"2026-06-30","one":"Reworked the canvas into a whiteboard — current board full + live, older ones fold into a collapsed Earlier stack (<details>, capped at 5); boarded the stamping explainer as 003","cid":"w-0177"},
+              {"date":"2026-06-30","one":"Rebalanced the cover (canvas is the hero on the first fold, independent scroll) + wired the SessionStart handoff so Claude Code uses the canvas","cid":"w-0176"},
+              {"date":"2026-06-30","one":"Built the canvas — the cover hosts a feed of rich 'boards' (elevated explanations), + the skill discipline + /canvas + dogfood board 001","cid":"w-0175"} ],
   "open":["decisions.html#q-anchoring","decisions.html#q-undo","decisions.html#q-billing"],
   "docs":["../sandpaper.html","../engg-spec.html"] }
 </script>
@@ -49,10 +49,10 @@
   <header class="plate" data-cid="cover">
     <div class="pl-meta"><span class="now-tag">Now</span> the build stands at <a href="./project/index.html#i-package">Phase 1 — packaging</a></div>
     <!-- BRAIN:NOW -->
-    <p class="now-line" data-cid="now" data-kind="now" data-ref="../bin/brain-inject.js">
-      The <strong>canvas</strong> is the hero on the first fold (its own scroll), and the SessionStart
-      hook now hands <strong>Claude Code</strong> the canvas — so it elevates explanations here, not the scrollback.
-      <a class="ref" href="../bin/brain-inject.js">the handoff →</a>
+    <p class="now-line" data-cid="now" data-kind="now" data-ref="decisions.html#d-canvas">
+      The canvas is a <strong>whiteboard</strong> now — the current board sits full and live; older ones
+      fold into a collapsed <strong>Earlier</strong> stack (capped at five).
+      <a class="ref" href="decisions.html#d-canvas">the canvas →</a>
     </p>
     <!-- /BRAIN:NOW -->
   </header>
@@ -62,17 +62,46 @@
   <section class="canvas" id="s-canvas" data-cid="s-canvas" aria-label="Canvas">
     <div class="canvas-rail">
       <div class="eyebrow">Canvas <span class="canvas-sub">— what Claude is thinking through, elevated</span></div>
-      <span class="canvas-count" data-cid="canvas-count">2 boards</span>
+      <span class="canvas-count" data-cid="canvas-count">3 boards</span>
     </div>
     <!-- BRAIN:CANVAS — boards prepend here, newest first; .canvas-empty shows when there are none -->
     <div class="canvas-feed" data-cid="canvasfeed">
 
-      <article class="board board--live" data-cid="board-0002" data-kind="board" data-date="2026-06-30" data-ref="../bin/brain-inject.js">
+      <!-- CURRENT board — full + live -->
+      <article class="board board--live" data-cid="board-0003" data-kind="board" data-date="2026-06-30" data-ref="decisions.html#d-canvas">
         <header class="board-head">
           <span class="board-dot" aria-hidden="true"></span>
-          <h3 class="board-title">How Claude Code reaches for the canvas</h3>
-          <span class="board-when">06-30 · board 002</span>
+          <h3 class="board-title">Whiteboard, not notebook — and what “stamping” is</h3>
+          <span class="board-when">06-30 · board 003</span>
         </header>
+        <div class="board-body">
+          <p>You expected the canvas to show <em>one current thing</em>, not a growing pile — the better
+            instinct. So it's a <strong>whiteboard</strong> now: the newest board sits full and live up top;
+            earlier ones fold into the <em>Earlier</em> strip below (click any to reopen). The stack caps at
+            <strong>five</strong> — older boards fall away.</p>
+          <div class="layers">
+            <div class="layer layer--canvas"><span class="layer-k">Canvas · working</span><span class="layer-d">live, rich, freeform boards — explanations as they happen. This surface.</span></div>
+            <span class="layer-link" aria-hidden="true">promote ↓</span>
+            <div class="layer layer--brain"><span class="layer-k">Brain · settled</span><span class="layer-d">curated log · decisions · learnings · plan — updated by <b>stamping</b>.</span></div>
+          </div>
+          <p><strong>Stamping</strong> keeps that settled layer current: after a substantial turn I prepend a
+            one-line <em>log</em> row, rewrite the <em>NOW</em> focus, refresh the machine-readable
+            <em>digest</em>, record any <em>decision/gotcha</em>, and flip the <em>plan</em> status. A Stop
+            hook enforces it — change code without stamping and it blocks. The canvas is where thinking is
+            <em>formed</em>; stamping is how the durable parts get <em>kept</em>.</p>
+        </div>
+        <footer class="board-foot">
+          <span class="board-tag">dogfood · board 003</span>
+          <a class="ref" href="./decisions.html#d-canvas">the canvas decision →</a>
+        </footer>
+      </article>
+
+      <!-- EARLIER — collapsed rows that reopen; the stack caps at 5, oldest falls away -->
+      <div class="canvas-earlier" data-cid="canvas-earlier">
+        <div class="earlier-label">Earlier <span class="n">· 2</span></div>
+
+      <details class="board board--past" data-cid="board-0002" data-kind="board" data-date="2026-06-30" data-ref="../bin/brain-inject.js">
+        <summary class="board-row"><span class="board-row-dot" aria-hidden="true"></span><span class="board-row-when">06-30 · 002</span><span class="board-row-title">How Claude Code reaches for the canvas</span><span class="board-row-chev" aria-hidden="true">›</span></summary>
         <div class="board-body">
           <p>The handoff isn't magic — it's a <strong>SessionStart hook</strong>. On every fresh session it
             injects the brain digest <em>and</em> a standing instruction about the canvas into Claude Code's
@@ -91,14 +120,10 @@
           <span class="board-tag">dogfood · board 002</span>
           <a class="ref" href="../bin/brain-inject.js">the hook →</a>
         </footer>
-      </article>
+      </details>
 
-      <article class="board" data-cid="board-0001" data-kind="board" data-date="2026-06-30" data-ref="decisions.html#d-canvas">
-        <header class="board-head">
-          <span class="board-dot" aria-hidden="true"></span>
-          <h3 class="board-title">The cover becomes the canvas</h3>
-          <span class="board-when">06-30 · board 001</span>
-        </header>
+      <details class="board board--past" data-cid="board-0001" data-kind="board" data-date="2026-06-30" data-ref="decisions.html#d-canvas">
+        <summary class="board-row"><span class="board-row-dot" aria-hidden="true"></span><span class="board-row-when">06-30 · 001</span><span class="board-row-title">The cover becomes the canvas</span><span class="board-row-chev" aria-hidden="true">›</span></summary>
         <div class="board-body">
           <p>The founding idea, made real: when Claude explains something substantial, the rich version
             shouldn't scroll past in the terminal — it should land <em>here</em>, on the surface, where it
@@ -124,7 +149,9 @@
           <span class="board-tag">dogfood · board 001</span>
           <a class="ref" href="./decisions.html#d-canvas">why the cover hosts it →</a>
         </footer>
-      </article>
+      </details>
+
+      </div><!-- /.canvas-earlier -->
 
     </div>
     <!-- /BRAIN:CANVAS -->
@@ -188,6 +215,7 @@
   <section class="zone" data-cid="s-log">
     <div class="eyebrow">Latest <span id="brain-unseen" class="badge open" hidden></span></div>
     <ol class="timeline" data-cid="logfeed">
+      <li data-kind="worklog" data-cid="w-0177"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Canvas is a <strong>whiteboard</strong> now — current board full + live, older ones fold into a collapsed <em>Earlier</em> stack (capped at 5). Boarded the stamping explainer as 003.</span><span class="tl-link"><a class="ref" href="./decisions.html#d-canvas">the canvas →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0176"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Rebalanced the cover — the <strong>canvas is the hero</strong> on the first fold (own scroll) — and wired the SessionStart <strong>handoff</strong> so Claude Code uses it. Dogfood board 002.</span><span class="tl-link"><a class="ref" href="../bin/brain-inject.js">the hook →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0175"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Built the <strong>canvas</strong> — the cover hosts a feed of rich <strong>boards</strong> (elevated explanations); + skill discipline, <code>/canvas</code>, dogfood board 001.</span><span class="tl-link"><a class="ref" href="./decisions.html#d-canvas">why →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0174"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what"><code>/sandpaper:init</code> now gates on an explicit go-ahead (size read + estimate) before the heavy harvest.</span><span class="tl-link"><a class="ref" href="../skill/sandpaper/commands/init.md">the command →</a></span></div></li>
