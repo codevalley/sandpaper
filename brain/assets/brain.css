@@ -83,14 +83,9 @@ h2.h .pn{font-family:var(--mono);font-size:13px;color:var(--clay);margin-right:1
 .badge.soon{background:var(--tint-ochre-badge);color:var(--badge-open-ink)}
 .badge.blocked{background:var(--tint-rust-badge);color:var(--rust)}
 .badge.stub,.badge.superseded{background:var(--tint-ink-stub);color:var(--mute)}
-/* glyph prefixes — each status reads at a glance, not by colour alone */
-.badge.done::before,.badge.accepted::before,.badge.verified::before,.badge.wip::before,.badge.fixed::before,.badge.open::before,.badge.soon::before,.badge.blocked::before,.badge.stub::before,.badge.superseded::before{margin-right:5px}
-.badge.done::before,.badge.accepted::before,.badge.verified::before{content:"✓"}
-.badge.wip::before,.badge.fixed::before{content:"●"}
-.badge.open::before{content:"○"}
-.badge.soon::before{content:"◷"}
-.badge.blocked::before{content:"▲"}
-.badge.stub::before,.badge.superseded::before{content:"–"}
+/* ONE coherent leading dot, coloured by the badge's own status colour (currentColor) —
+   the colour + text carry the meaning; the dot is just a consistent, aligned anchor */
+.badge.done::before,.badge.accepted::before,.badge.verified::before,.badge.wip::before,.badge.fixed::before,.badge.open::before,.badge.soon::before,.badge.blocked::before,.badge.stub::before,.badge.superseded::before{content:"●";font-size:.6em;margin-right:6px;vertical-align:middle;position:relative;top:-1px}
 
 /* ---- progress bar (agent stamps data-done/data-total; brain.js derives the rest) ---- */
 .prog{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:11.5px;color:var(--mute)}
@@ -103,15 +98,19 @@ h2.h .pn{font-family:var(--mono);font-size:13px;color:var(--clay);margin-right:1
 .needs{list-style:none;margin:8px 0 0;padding:0}
 .needs li{display:flex;align-items:center;gap:9px;padding:9px 0;border-bottom:1px solid var(--rule-2);font-size:14.5px}
 .needs li:last-child{border-bottom:0}
+.needs a.q{flex:1;color:var(--ink);text-decoration:none}
+.needs a.q:hover{color:var(--clay);text-decoration:underline;text-underline-offset:3px}
 .needs a.go{font-family:var(--mono);color:var(--clay);text-decoration:none}
 
 /* ---- log timeline ---- */
-.timeline{list-style:none;margin:10px 0 0;padding:0 0 0 22px;position:relative}
-.timeline::before{content:"";position:absolute;left:5px;top:6px;bottom:6px;width:2px;background:var(--rule)}
-.timeline li{position:relative;padding:9px 0 9px 4px;border-bottom:1px solid var(--rule-2)}
+.timeline{list-style:none;margin:10px 0 0;padding:0 0 0 28px;position:relative}
+.timeline::before{content:"";position:absolute;left:7px;top:8px;bottom:8px;width:2px;background:var(--rule)}
+.timeline li{position:relative;padding:11px 0 11px 4px;border-bottom:1px solid var(--rule-2)}
 .timeline li:last-child{border-bottom:0}
-.timeline li::before{content:"";position:absolute;left:-21px;top:14px;width:10px;height:10px;border-radius:50%;background:var(--paper);border:2px solid var(--mute)}
-.timeline li.unseen::before{border-color:var(--ochre);background:var(--ochre)}
+/* the node sits exactly on the spine — shared centre at x=8; hollow ring = already seen */
+.timeline li::before{content:"";position:absolute;left:-26px;top:15px;width:12px;height:12px;box-sizing:border-box;border-radius:50%;background:var(--paper);border:2px solid var(--mute)}
+/* filled ochre + ring = new since your last visit (reads with the "N NEW" badge above) */
+.timeline li.unseen::before{border-color:var(--ochre);background:var(--ochre);box-shadow:0 0 0 3px var(--tint-ochre-badge)}
 .tl-row{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
 .tl-when{font-family:var(--mono);font-size:11px;color:var(--mute);min-width:42px}
 .tl-what{font-size:14.5px;color:var(--ink);flex:1;min-width:160px}

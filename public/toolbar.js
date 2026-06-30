@@ -28,11 +28,14 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
     '<div id="sp-thread" hidden></div>' +
     '<div id="sp-target" hidden></div>' +
     '<form id="sp-form">' +
-      '<button type="button" id="sp-pick" title="Select an element to scope your message">⌖</button>' +
-      '<button type="button" id="sp-edit" title="Edit text in place — your words, no AI">✎</button>' +
       '<input id="sp-input" placeholder="Ask, discuss, or describe a change…" autocomplete="off" />' +
-      '<button type="button" id="sp-sling" title="Sling — copy a terminal-ready instruction to paste into your Claude session">❯</button>' +
-      '<button type="submit" id="sp-send">Sand</button>' +
+      '<div id="sp-actions">' +
+        '<button type="button" id="sp-pick" title="Scope — point at an element to target your message">⌖</button>' +
+        '<button type="button" id="sp-edit" title="Edit text in place — your words, no AI">✎</button>' +
+        '<span class="sp-spring"></span>' +
+        '<button type="button" id="sp-sling" title="Send to terminal — copy a ready instruction to paste into your Claude session">&gt;_</button>' +
+        '<button type="submit" id="sp-send">Sand</button>' +
+      '</div>' +
     '</form>';
   document.body.appendChild(panel);
 
