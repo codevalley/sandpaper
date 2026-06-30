@@ -14,9 +14,9 @@
 <script type="application/json" id="brain-state">
 { "v":1, "project":"Sandpaper", "phase":"Phase 1 · packaging", "updated":"2026-06-30",
   "session":"S10",
-  "focus":{ "one":"The Sandpaper skill is real + we run on it: hooks ENABLED (.claude/settings.json), 9 /sandpaper commands built + installed (stamp/init/plan/decide/learn/log/sync/serve/theme), Skill initiative DONE. Phase 1 ~33%. Next: validate /init on a fresh repo + the npm packaging (Initiative G)", "ref":"project/index.html#i-skill" },
-  "worklog":[ {"date":"2026-06-30","one":"Added /help (command index) + /open (launch dashboard) — 11 commands now","cid":"w-0166"},
-              {"date":"2026-06-30","one":"Built + installed 9 /sandpaper commands; enabled the hooks — we run on our own skill","cid":"w-0165"} ],
+  "focus":{ "one":"VALIDATED /init on a cold throwaway repo (linkrot) via a fresh subagent — it harvested the source vs README, found REAL defects (EISDIR dir-walk, missing test), and generated an accurate brain (assets verbatim, derived 54%, 53 links 0 broken). The friction it hit (no canonical spec to anchor into, data-count has no engine → hand-typed, no id-manifest, full-lens chrome dangles when partial) is precisely the packaging spec. Next: Initiative G — npm packaging that ships templates + a partial-scaffold + a manifest", "ref":"project/index.html#i-package" },
+  "worklog":[ {"date":"2026-06-30","one":"Validated /init on a cold repo — found real bugs, built an accurate brain; gaps = the packaging spec","cid":"w-0167"},
+              {"date":"2026-06-30","one":"Added /help + /open commands — 11 commands now","cid":"w-0166"} ],
   "open":["decisions.html#q-anchoring","decisions.html#q-undo","decisions.html#q-billing"],
   "docs":["../sandpaper.html","../engg-spec.html"] }
 </script>
@@ -49,9 +49,9 @@
     <div class="pl-meta"><span class="now-tag">Now</span> the build stands at <a href="./project/index.html#i-skeleton">Initiative A — the skeleton</a></div>
     <!-- BRAIN:NOW -->
     <p class="now-line" data-cid="now" data-kind="now" data-ref="project/index.html">
-      The skill's full surface — <strong>11 <code>/sandpaper</code> commands</strong> (now with
-      <code>/help</code> + <code>/open</code>), hooks on. Next: validate <code>/init</code> + npm packaging.
-      <a class="ref" href="../skill/sandpaper/SKILL.md">the skill →</a>
+      <strong>Validated <code>/init</code></strong> on a cold repo — it found real bugs and built an accurate
+      brain. The gaps it hit (no spec / no count-engine / no manifest) are the packaging spec. Next: Initiative G.
+      <a class="ref" href="decisions.html#d-phases">the plan →</a>
     </p>
     <!-- /BRAIN:NOW -->
   </header>
@@ -115,6 +115,7 @@
   <section class="zone" data-cid="s-log">
     <div class="eyebrow">Latest <span id="brain-unseen" class="badge open" hidden></span></div>
     <ol class="timeline" data-cid="logfeed">
+      <li data-kind="worklog" data-cid="w-0167"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Validated <code>/init</code> on a cold repo — found real bugs, built an accurate brain.</span><span class="tl-link"><a class="ref" href="./learnings.html#l-init-validated">verdict →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0166"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Added <code>/help</code> + <code>/open</code> commands — the skill surface is 11 now.</span><span class="tl-link"><a class="ref" href="../skill/sandpaper/SKILL.md">the skill →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0165"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Built + installed 9 /sandpaper commands; hooks on — we run on our own skill.</span><span class="tl-link"><a class="ref" href="../skill/sandpaper/SKILL.md">the skill →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0164"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Built the auto-updating brain (hooks) + the Sandpaper skill — no more prodding.</span><span class="tl-link"><a class="ref" href="./decisions.html#d-autobrain">how →</a></span></div></li>
