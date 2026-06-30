@@ -31,7 +31,7 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
       '<button type="button" id="sp-pick" title="Select an element to scope your message">⌖</button>' +
       '<button type="button" id="sp-edit" title="Edit text in place — your words, no AI">✎</button>' +
       '<input id="sp-input" placeholder="Ask, discuss, or describe a change…" autocomplete="off" />' +
-      '<button type="button" id="sp-sling" title="Copy a terminal-ready instruction — paste it into your Claude session">⇥</button>' +
+      '<button type="button" id="sp-sling" title="Sling — copy a terminal-ready instruction to paste into your Claude session">❯</button>' +
       '<button type="submit" id="sp-send">Sand</button>' +
     '</form>';
   document.body.appendChild(panel);

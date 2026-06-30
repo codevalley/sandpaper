@@ -59,6 +59,7 @@
   --tint-clay-focus:rgba(199,91,57,.3); /* input focus ring */
   --tint-ochre-badge:rgba(201,138,30,.18);/* open badge wash */
   --tint-moss-badge:rgba(78,124,89,.16);/* done badge wash */
+  --tint-rust-badge:rgba(178,58,46,.13); /* blocking badge wash */
   --tint-moss-glow:rgba(78,124,89,.25); /* health-dot glow ring */
   --tint-paper-grid:rgba(244,240,230,.05);/* plate grid lines */
   --tint-paper-border:rgba(244,240,230,.3);/* health pill border on plate */

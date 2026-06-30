@@ -14,9 +14,9 @@
 <script type="application/json" id="brain-state">
 { "v":1, "project":"Sandpaper", "phase":"P0 → pivoted", "updated":"2026-06-30",
   "session":"S10",
-  "focus":{ "one":"Phase 0 polish — fixed the Hands drag (dragstart killed its own source), gave the cover newspaper section rhythm + dividers, added a toolbar minimize-to-pill; next: fire a live claude -p loop, then Phase 1 (package)", "ref":"decisions.html#d-phases" },
-  "worklog":[ {"date":"2026-06-30","one":"Phase 0 polish — fixed Hands drag, cover rhythm + dividers, toolbar minimize","cid":"w-0160"},
-              {"date":"2026-06-30","one":"Shipped Hands drag + delete + undo — direct file ops, review-hardened","cid":"w-0159"} ],
+  "focus":{ "one":"Detail visual pass (tokenized) — semantic badge variants (blocked/soon) + glyph prefixes, fixed timeline dot-on-line alignment, section 'kicker' rules, and a dark 'console' toolbar head (visible off the page) + ❯ sling glyph; next: fire a live claude -p loop, then Phase 1 (package)", "ref":"decisions.html#d-phases" },
+  "worklog":[ {"date":"2026-06-30","one":"Detail pass — semantic badges + glyphs, timeline fix, section kickers, dark console toolbar","cid":"w-0161"},
+              {"date":"2026-06-30","one":"Phase 0 polish — fixed Hands drag, cover rhythm + dividers, toolbar minimize","cid":"w-0160"} ],
   "open":["decisions.html#q-anchoring","decisions.html#q-undo","decisions.html#q-billing"],
   "docs":["../sandpaper.html","../engg-spec.html"] }
 </script>
@@ -49,8 +49,8 @@
     <div class="pl-meta"><span class="now-tag">Now</span> the build stands at <a href="./project/index.html#i-skeleton">Initiative A — the skeleton</a></div>
     <!-- BRAIN:NOW -->
     <p class="now-line" data-cid="now" data-kind="now" data-ref="project/index.html">
-      Polishing <strong>Phase 0</strong> — fixed the Hands drag, gave the cover newspaper rhythm + dividers,
-      added a toolbar minimize. Next: fire a live loop, then <em>Phase 1</em> (package).
+      A <strong>detail pass</strong> — semantic badges + glyphs, a fixed timeline, section kickers, and a dark
+      “console” toolbar that stands off the page. Next: fire a live loop, then <em>Phase 1</em>.
       <a class="ref" href="decisions.html#d-phases">the phases →</a>
     </p>
     <!-- /BRAIN:NOW -->
@@ -103,8 +103,8 @@
   <section class="zone" data-cid="s-open">
     <div class="eyebrow">Needs you</div>
     <ul class="needs" data-cid="open">
-      <li><span class="sdot blocked"></span><a class="go" href="./decisions.html#q-anchoring">→</a> Anchoring: how do annotations survive a full HTML regeneration? <span class="badge open">blocking</span></li>
-      <li><span class="sdot open"></span><a class="go" href="./decisions.html#q-undo">→</a> Make “undo?” real — wire the pre-turn snapshot to the change card. <span class="badge open">soon</span></li>
+      <li><span class="sdot blocked"></span><a class="go" href="./decisions.html#q-anchoring">→</a> Anchoring: how do annotations survive a full HTML regeneration? <span class="badge blocked">blocking</span></li>
+      <li><span class="sdot open"></span><a class="go" href="./decisions.html#q-undo">→</a> Make “undo?” real — wire the pre-turn snapshot to the change card. <span class="badge soon">soon</span></li>
     </ul>
     <div style="margin-top:6px"><a class="ref" href="./decisions.html#open">all open questions (3) →</a></div>
   </section>
@@ -115,9 +115,9 @@
   <section class="zone" data-cid="s-log">
     <div class="eyebrow">Latest <span id="brain-unseen" class="badge open" hidden></span></div>
     <ol class="timeline" data-cid="logfeed">
+      <li data-kind="worklog" data-cid="w-0161"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Detail pass — semantic badges + glyphs, timeline fix, section kickers, dark console toolbar.</span><span class="tl-link"><a class="ref" href="./decisions.html#d-phases">phases →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0160"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Phase 0 polish — fixed Hands drag, cover newspaper rhythm, toolbar minimize.</span><span class="tl-link"><a class="ref" href="./decisions.html#d-phases">phases →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0159"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Shipped Hands drag + delete + undo — direct file ops, no AI, review-hardened.</span><span class="tl-link"><a class="ref" href="./learnings.html#l-direct-atomic">gotcha →</a></span></div></li>
-      <li data-kind="worklog" data-cid="w-0158"><div class="tl-row"><span class="tl-when">06-29</span><span class="tl-what">Shell on every book page — cross-lens nav is universal. Initiative A done.</span><span class="tl-link"><a class="ref" href="./project/index.html">the plan →</a></span></div></li>
     </ol>
     <div style="margin-top:8px"><a class="ref" href="./log.html">full log →</a> &nbsp; <button id="brain-markseen" class="facet" type="button">Mark all seen</button></div>
   </section>

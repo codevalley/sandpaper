@@ -16,29 +16,29 @@
   display:flex; flex-direction:column;
   font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
   background:var(--sp-paper); color:var(--sp-ink);
-  border:1px solid rgba(23,21,15,.18); border-radius:14px;
-  box-shadow:0 10px 34px rgba(23,21,15,.20); overflow:hidden;
+  border:1px solid rgba(23,21,15,.32); border-radius:14px;
+  box-shadow:0 16px 44px rgba(23,21,15,.28); overflow:hidden;
 }
 #sp-panel.sp-collapsed{ max-height:none; }
 
-#sp-head{ display:flex; align-items:center; gap:8px; padding:10px 12px;
-  font-family:'IBM Plex Mono',ui-monospace,Menlo,monospace; border-bottom:1px solid rgba(23,21,15,.10); }
-#sp-panel.sp-collapsed #sp-head{ border-bottom:0; }
-#sp-chip{ display:inline-flex; align-items:center; gap:9px; font-size:13px; font-weight:500; color:var(--sp-mute); min-width:0; }
+/* dark "console" head — makes the floating bar read distinctly against the warm page */
+#sp-head{ display:flex; align-items:center; gap:8px; padding:11px 14px;
+  font-family:'IBM Plex Mono',ui-monospace,Menlo,monospace; background:var(--sp-ink); color:var(--sp-paper); }
+#sp-chip{ display:inline-flex; align-items:center; gap:9px; font-size:13px; font-weight:500; color:var(--sp-paper-2); min-width:0; }
 #sp-label{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-#sp-led{ width:10px; height:10px; border-radius:50%; background:var(--sp-mute); flex:none; transition:background .2s; }
+#sp-led{ width:10px; height:10px; border-radius:50%; background:var(--sp-mute); flex:none; transition:background .2s; box-shadow:0 0 0 3px rgba(244,240,230,.08); }
 #sp-chip.sp-busy #sp-led{ animation:sp-pulse 1.2s ease-in-out infinite; }
 @keyframes sp-pulse{ 0%,100%{ box-shadow:0 0 0 0 currentColor; opacity:1; } 50%{ box-shadow:0 0 0 5px transparent; opacity:.5; } }
 #sp-cost{ margin-left:auto; font-size:11px; color:var(--sp-mute); }
-#sp-toggle{ border:0; background:transparent; color:var(--sp-mute); cursor:pointer; font-size:13px; padding:2px 4px; line-height:1; }
-#sp-min{ border:0; background:transparent; color:var(--sp-mute); cursor:pointer; font-size:17px; padding:0 6px 3px; line-height:1; }
-#sp-min:hover{ color:var(--sp-clay); }
+#sp-toggle{ border:0; background:transparent; color:var(--sp-paper-2); cursor:pointer; font-size:13px; padding:2px 4px; line-height:1; }
+#sp-min{ border:0; background:transparent; color:var(--sp-paper-2); cursor:pointer; font-size:17px; padding:0 6px 3px; line-height:1; }
+#sp-min:hover, #sp-toggle:hover{ color:var(--sp-clay); }
 /* minimized → a small status pill; click it to restore */
 #sp-panel.sp-min{ width:auto; max-width:300px; cursor:pointer; }
 #sp-panel.sp-min #sp-thread, #sp-panel.sp-min #sp-target, #sp-panel.sp-min #sp-form,
 #sp-panel.sp-min #sp-cost, #sp-panel.sp-min #sp-undo, #sp-panel.sp-min #sp-min, #sp-panel.sp-min #sp-toggle{ display:none; }
 #sp-panel.sp-min #sp-head{ border-bottom:0; padding:9px 15px; }
-#sp-panel.sp-min #sp-chip::after{ content:"▸"; color:var(--sp-mute); margin-left:9px; font-size:11px; }
+#sp-panel.sp-min #sp-chip::after{ content:"▸"; color:var(--sp-paper-2); margin-left:9px; font-size:11px; opacity:.7; }
 
 #sp-thread{ overflow-y:auto; padding:12px; display:flex; flex-direction:column; gap:14px; min-height:0; max-height:58vh; }
 .sp-turn{ display:flex; flex-direction:column; gap:6px; }
@@ -94,7 +94,7 @@
 #sp-pick.sp-on{ background:var(--sp-clay); color:var(--sp-paper); border-color:var(--sp-clay); }
 #sp-sling{ flex:none; width:34px; height:34px; border:1px solid rgba(23,21,15,.18); border-radius:8px; background:var(--sp-paper-2); color:var(--sp-pine); font-size:15px; cursor:pointer; line-height:1; }
 #sp-sling:hover{ border-color:var(--sp-pine); color:var(--sp-ink); }
-#sp-edit{ flex:none; width:34px; height:34px; border:1px solid rgba(23,21,15,.18); border-radius:8px; background:var(--sp-paper-2); color:var(--sp-pine); font-size:15px; cursor:pointer; line-height:1; }
+#sp-edit{ flex:none; width:34px; height:34px; border:1px solid rgba(23,21,15,.18); border-radius:8px; background:var(--sp-paper-2); color:var(--sp-pine); font-size:15px; cursor:pointer; line-height:1; margin-right:7px; }
 #sp-edit:hover{ border-color:var(--sp-pine); color:var(--sp-ink); }
 #sp-edit.sp-on{ background:var(--sp-pine); color:var(--sp-paper); border-color:var(--sp-pine); }
 #sp-input{ flex:1; min-width:0; height:34px; border:1px solid rgba(23,21,15,.18); border-radius:8px; background:#fff; color:var(--sp-ink); padding:0 10px; font:inherit; font-size:13px; }

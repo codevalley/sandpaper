@@ -13,6 +13,9 @@ code{font-family:var(--mono);font-size:.84em;background:var(--tint-ink-code);pad
 .wrap{max-width:980px;margin:0 auto;padding:0 26px}
 .col{max-width:760px}
 .eyebrow{font-family:var(--mono);text-transform:uppercase;letter-spacing:.2em;font-size:10.5px;color:var(--mute);font-weight:600}
+/* section labels read as newspaper "kickers": a short clay rule marks a new section (subtle, no boxes) */
+.zone > .eyebrow{display:flex;align-items:center;gap:9px}
+.zone > .eyebrow::before{content:"";width:16px;height:2px;background:var(--clay);border-radius:2px;flex:none}
 h1,h2,h3{font-family:var(--serif);font-weight:600;letter-spacing:-.015em;margin:0}
 .muted{color:var(--mute)}
 .mono{font-family:var(--mono)}
@@ -77,7 +80,17 @@ h2.h .pn{font-family:var(--mono);font-size:13px;color:var(--clay);margin-right:1
 .badge.done,.badge.accepted,.badge.verified{background:var(--tint-moss-badge);color:var(--badge-done-ink)}
 .badge.wip,.badge.fixed{background:var(--tint-clay-badge);color:var(--clay)}
 .badge.open{background:var(--tint-ochre-badge);color:var(--badge-open-ink)}
+.badge.soon{background:var(--tint-ochre-badge);color:var(--badge-open-ink)}
+.badge.blocked{background:var(--tint-rust-badge);color:var(--rust)}
 .badge.stub,.badge.superseded{background:var(--tint-ink-stub);color:var(--mute)}
+/* glyph prefixes — each status reads at a glance, not by colour alone */
+.badge.done::before,.badge.accepted::before,.badge.verified::before,.badge.wip::before,.badge.fixed::before,.badge.open::before,.badge.soon::before,.badge.blocked::before,.badge.stub::before,.badge.superseded::before{margin-right:5px}
+.badge.done::before,.badge.accepted::before,.badge.verified::before{content:"✓"}
+.badge.wip::before,.badge.fixed::before{content:"●"}
+.badge.open::before{content:"○"}
+.badge.soon::before{content:"◷"}
+.badge.blocked::before{content:"▲"}
+.badge.stub::before,.badge.superseded::before{content:"–"}
 
 /* ---- progress bar (agent stamps data-done/data-total; brain.js derives the rest) ---- */
 .prog{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:11.5px;color:var(--mute)}
@@ -97,7 +110,7 @@ h2.h .pn{font-family:var(--mono);font-size:13px;color:var(--clay);margin-right:1
 .timeline::before{content:"";position:absolute;left:5px;top:6px;bottom:6px;width:2px;background:var(--rule)}
 .timeline li{position:relative;padding:9px 0 9px 4px;border-bottom:1px solid var(--rule-2)}
 .timeline li:last-child{border-bottom:0}
-.timeline li::before{content:"";position:absolute;left:-21px;top:15px;width:9px;height:9px;border-radius:50%;background:var(--paper);border:2px solid var(--mute)}
+.timeline li::before{content:"";position:absolute;left:-21px;top:14px;width:10px;height:10px;border-radius:50%;background:var(--paper);border:2px solid var(--mute)}
 .timeline li.unseen::before{border-color:var(--ochre);background:var(--ochre)}
 .tl-row{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
 .tl-when{font-family:var(--mono);font-size:11px;color:var(--mute);min-width:42px}
