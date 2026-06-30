@@ -66,20 +66,20 @@ export function mapEvents(ev, docName) {
   if (!ev || !ev.type) return [];
 
   if (ev.type === 'system' && ev.subtype === 'init') {
-    return [{ type: 'status', state: 'init', label: 'Starting…' }];
+    return [{ type: 'status', state: 'init', label: 'starting…' }];
   }
 
   if (ev.type === 'stream_event' && ev.event) {
     const e = ev.event;
     if (e.type === 'message_start') {
-      return [{ type: 'status', state: 'thinking', label: 'Composing the change…' }];
+      return [{ type: 'status', state: 'thinking', label: 'thinking…' }];
     }
     if (e.type === 'content_block_start' && e.content_block && e.content_block.type === 'tool_use') {
       const tool = e.content_block.name || 'tool';
       const editing = tool === 'Edit' || tool === 'Write' || tool === 'MultiEdit';
       return [editing
-        ? { type: 'status', state: 'editing', label: `Editing ${docName}` }
-        : { type: 'status', state: 'tool_using', label: `${tool}…` }];
+        ? { type: 'status', state: 'editing', label: `editing ${docName}` }
+        : { type: 'status', state: 'tool_using', label: `${tool.toLowerCase()}…` }];
     }
     if (e.type === 'content_block_delta' && e.delta) {
       if (e.delta.type === 'text_delta' && e.delta.text) {
@@ -106,12 +106,12 @@ export function mapEvents(ev, docName) {
 
   if (ev.type === 'result') {
     if (ev.is_error || (ev.subtype && ev.subtype !== 'success')) {
-      return [{ type: 'status', state: 'error', label: 'Turn failed', detail: String(ev.result || '').slice(0, 200) }];
+      return [{ type: 'status', state: 'error', label: 'turn failed', detail: String(ev.result || '').slice(0, 200) }];
     }
     // The toolbar derives "Replied" vs "Saved" from whether any edit frame arrived this turn,
     // so the chip stays neutral here — no more hardcoded "Saved" on pure-discussion turns.
     const cost = typeof ev.total_cost_usd === 'number' ? ev.total_cost_usd : null;
-    return [{ type: 'status', state: 'done', label: 'Done', cost, done: true }];
+    return [{ type: 'status', state: 'done', label: 'done', cost, done: true }];
   }
 
   return [];
@@ -180,7 +180,7 @@ export function runTurn(docPath, prompt, onStatus) {
     return null;
   }
 
-  onStatus({ type: 'status', state: 'init', label: 'Starting…' });
+  onStatus({ type: 'status', state: 'init', label: 'starting…' });
 
   let buf = '';
   let errored = false;
@@ -218,7 +218,7 @@ export function runTurn(docPath, prompt, onStatus) {
     if (code && code !== 0) {
       onStatus({ type: 'status', state: 'error', label: `claude exited (${code})`, detail: stderr.slice(0, 300) });
     } else {
-      onStatus({ type: 'status', state: 'idle', label: 'Ready' });
+      onStatus({ type: 'status', state: 'idle', label: 'idle' });
     }
   });
 

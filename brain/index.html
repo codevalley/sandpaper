@@ -13,10 +13,10 @@
 <!-- BRAIN:DIGEST — machine context for a fresh `claude`: read THIS first (~1KB) to rehydrate. -->
 <script type="application/json" id="brain-state">
 { "v":1, "project":"Sandpaper", "phase":"Phase 1 · packaging", "updated":"2026-06-30",
-  "session":"S12",
-  "focus":{ "one":"Polish + UX pass from the tinysync test. TOOLBAR: head now leads with the Sandpaper identity, status demoted to a muted secondary (no more cryptic 'Idle — ready when you are'); the orphan separator above the composer is gone (shows only with a live conversation); skin-adoption is now CONTRAST-GUARDED (luminance/polarity check — adopt surfaces only when light-paper/dark-ink holds, take the accent always) so an odd host theme can't wash the chrome out (the tinysync first-run tour bug). SERVE UX: localhost:<port>/ now 302-redirects to /brain/index.html, the port AUTO-BUMPS past conflicts, and the manifest carries a 'port' to pin one per repo. COVER: refreshed the three lens-cards to current/parallel content (Phase 1 · packaging) and dropped the redundant divider under them. All verified live via Playwright on an indigo skin AND a dark blueprint theme. Next: npm publish + rest of G (self-deriving counts t-0028, publish lint t-0019, brain-aware Sand t-0021)", "ref":"learnings.html#l-skin-contrast" },
-  "worklog":[ {"date":"2026-06-30","one":"Polish — toolbar identity+status, dropped orphan separator, contrast-guarded skin, / redirect + port auto-bump, refreshed cover cards","cid":"w-0171"},
-              {"date":"2026-06-30","one":"Onboarding+theming — install-skill auto-wires hooks, init intro/close, on-page tour, toolbar adopts the theme","cid":"w-0170"} ],
+  "session":"S13",
+  "focus":{ "one":"Toolbar round 2 (more tinysync feedback). The head now reads '● Claude · idle' — dropped the redundant Sandpaper wordmark, switched to readable light text on the dark head, and lowercased the live states (claude.js/server.js: idle · thinking… · editing <doc> · done). The ⌖ ✎ >_ action icons are now ONE monochrome ink family (active toggle fills ink, like SAND), so they read clearly. And the doubled rule under a .lens-hero card is gone on EVERY lens page via one CSS adjacency (.lens-hero + .zone → border-top:0) — the cover was already flush. Verified live (Playwright) on the cover + product page. Note: a server started before a code change keeps the OLD in-memory label, so a stale screenshot can show the old text — restart the serve. Next: npm publish + rest of G (self-deriving counts t-0028, publish lint t-0019, brain-aware Sand t-0021)", "ref":"../public/toolbar.css" },
+  "worklog":[ {"date":"2026-06-30","one":"Toolbar round 2 — head reads '● Claude · idle' (no branding, readable), monochrome icons, under-hero rule removed on lens pages","cid":"w-0172"},
+              {"date":"2026-06-30","one":"Polish — toolbar identity+status, dropped orphan separator, contrast-guarded skin, / redirect + port auto-bump, refreshed cover cards","cid":"w-0171"} ],
   "open":["decisions.html#q-anchoring","decisions.html#q-undo","decisions.html#q-billing"],
   "docs":["../sandpaper.html","../engg-spec.html"] }
 </script>
@@ -48,11 +48,11 @@
   <header class="plate" data-cid="cover">
     <div class="pl-meta"><span class="now-tag">Now</span> the build stands at <a href="./project/index.html#i-package">Phase 1 — packaging</a></div>
     <!-- BRAIN:NOW -->
-    <p class="now-line" data-cid="now" data-kind="now" data-ref="learnings.html#l-skin-contrast">
-      A polish pass from the <strong>tinysync</strong> test — the toolbar leads with its identity, the skin-adoption is
-      <strong>contrast-guarded</strong> so odd themes can't wash it out, <code>localhost</code> opens straight to the brain,
-      and ports auto-bump past conflicts.
-      <a class="ref" href="learnings.html#l-skin-contrast">the gotcha →</a>
+    <p class="now-line" data-cid="now" data-kind="now" data-ref="../public/toolbar.css">
+      Tuning the on-page toolbar from <strong>tinysync</strong> feedback — the head now reads
+      <code>● Claude · idle</code> in readable light text (no redundant branding), the action icons are one
+      <strong>monochrome</strong> family, and the doubled rule under each lens hero is gone.
+      <a class="ref" href="../public/toolbar.css">the chrome →</a>
     </p>
     <!-- /BRAIN:NOW -->
   </header>
@@ -116,6 +116,7 @@
   <section class="zone" data-cid="s-log">
     <div class="eyebrow">Latest <span id="brain-unseen" class="badge open" hidden></span></div>
     <ol class="timeline" data-cid="logfeed">
+      <li data-kind="worklog" data-cid="w-0172"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Toolbar round 2 — head reads <code>● Claude · idle</code> (readable, unbranded), monochrome icons, under-hero rule removed.</span><span class="tl-link"><a class="ref" href="../public/toolbar.js">toolbar →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0171"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Polish — toolbar leads with its identity, contrast-guarded skin, <code>/</code> opens the brain, ports auto-bump, refreshed cover cards.</span><span class="tl-link"><a class="ref" href="./learnings.html#l-skin-contrast">gotcha →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0170"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Onboarding + theming — <code>install-skill</code> auto-wires hooks, init intro/close, on-page tour, toolbar adopts the theme.</span><span class="tl-link"><a class="ref" href="./learnings.html#l-toolbar-skin">gotcha →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0169"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Built the <code>npx sandpaper</code> CLI (install-skill/init/doctor/open) — tested e2e, doctor healthy.</span><span class="tl-link"><a class="ref" href="./decisions.html#d-plumbing">how →</a></span></div></li>

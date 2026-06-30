@@ -67,6 +67,7 @@ h1,h2,h3{font-family:var(--serif);font-weight:600;letter-spacing:-.015em;margin:
 /* ---- generic bands / sections (newspaper rhythm: a hairline rule + generous air) ---- */
 .zone{padding:34px 0;border-top:1px solid var(--rule)}
 .zone.flush{border-top:0;padding-top:22px}
+.lens-hero + .zone{border-top:0;padding-top:22px} /* don't double a rule right under a hero card */
 .band{border-top:1px solid var(--rule);padding:34px 0}
 h2.h{font-size:22px;margin:0 0 4px}
 h2.h .pn{font-family:var(--mono);font-size:13px;color:var(--clay);margin-right:10px;font-weight:600}

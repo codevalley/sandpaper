@@ -19,8 +19,7 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
   panel.className = 'sp-collapsed';
   panel.innerHTML =
     '<div id="sp-head">' +
-      '<span id="sp-brand">Sand<span>paper</span></span>' +
-      '<span id="sp-chip"><span id="sp-led"></span><span id="sp-label">Ready</span></span>' +
+      '<span id="sp-chip"><span id="sp-led"></span><span id="sp-who">Claude</span><span id="sp-label">idle</span></span>' +
       '<span id="sp-cost"></span>' +
       '<button type="button" id="sp-undo" hidden title="Undo the last direct edit">⟲ undo</button>' +
       '<button type="button" id="sp-min" title="Minimize">–</button>' +

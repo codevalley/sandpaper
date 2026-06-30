@@ -111,7 +111,7 @@ export function startServer(target, port, opts = {}) {
     // --- SSE status/reload channel ---
     if (path === '/__sandpaper/events') {
       res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
-      res.write(`data: ${JSON.stringify({ type: 'status', state: 'idle', label: 'Ready' })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'status', state: 'idle', label: 'idle' })}\n\n`);
       clients.add(res);
       req.on('close', () => clients.delete(res));
       return;
