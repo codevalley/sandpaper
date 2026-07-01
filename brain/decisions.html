@@ -185,9 +185,9 @@
       <p>The June-15 Agent-SDK credit-pool split is paused; <code>claude -p</code> still bills the plan. Keep the brain swappable in case it un-pauses. <a class="ref" href="../sandpaper.html#s-how">→</a></p>
     </article>
 
-    <article class="entry entry--question" data-kind="question" data-lens="engineering" id="q-deploy" data-cid="q-deploy" data-status="open" data-date="2026-07-01" data-ref="./project/index.html#t-0019" data-tags="deploy publish static portable out-links link-never-copy vercel t-0019">
-      <div class="entry-head"><span class="badge open">open · later</span><h3>Make the brain deployable while detached from its repo</h3></div>
-      <p>Out of the repo (a subfolder-only static deploy), the brain's canonical <code>data-ref</code>s into the spec + source (<code>../…</code>) 404 — <em>by design</em>, per <a class="ref" href="./decisions.html#d-ssot">link-never-copy</a>. Fix isn't to drop the links (that reintroduces drift) but a <strong>portable publish</strong> that rewrites out-refs → absolute URLs. Tracked as <a class="ref" href="./project/index.html#t-0019">t-0019</a>; do it when a shareable detached brain is actually wanted. <a class="ref" href="./project/index.html#t-0019">t-0019 →</a></p>
+    <article class="entry entry--question" data-kind="question" data-lens="engineering" id="q-deploy" data-cid="q-deploy" data-status="open" data-date="2026-07-01" data-ref="./project/index.html#t-0019" data-tags="deploy publish static out-links link-never-copy always-publishable resolver runtime vercel t-0019">
+      <div class="entry-head"><span class="badge open">open · shaped</span><h3>Make <code>brain/</code> always publishable — resolver designed, awaiting the go</h3></div>
+      <p>Detached (subfolder-only) deploys 404 the canonical out-refs; the owner's invariant is <em>always publishable, no build step</em>. An adversarial panel (07-02) killed write-time absolute links (breaks local-first) and the publish build step (is the step the invariant bans); the survivor is a <strong>runtime resolver</strong> — relative links + a per-head source meta (<code>blob/HEAD/</code> + expected package name) + a name-checked probe and click-time rewrite in <code>brain.js</code>, dim-with-tooltip when no base. Reshapes <a class="ref" href="./project/index.html#t-0019">t-0019</a> to resolver + stamp-time lint (exporter → optional); design on board 007. <a class="ref" href="./index.html#s-canvas">board 007 →</a></p>
     </article>
   </section>
   <footer class="portal-foot">

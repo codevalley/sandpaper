@@ -14,10 +14,10 @@
 <script type="application/json" id="brain-state">
 { "v":1, "project":"Sandpaper", "phase":"Phase 1 · packaging", "updated":"2026-06-30",
   "session":"S28",
-  "focus":{ "one":"Dogfood-release flow, now at the GitHub-push step. Settled a design question the owner raised: the brain's out-links (data-refs into the spec + source, which live OUTSIDE brain/) are INTENTIONAL — they're the 'link, never copy' spine (d-ssot); removing them would force copying content in and reintroduce the drift the brain exists to kill. The ONLY breakage is a detached, subfolder-only deploy (../ lands above the root); in-repo every ref resolves. The real fix is a portable publish/export that rewrites out-refs → absolute URLs (GitHub blob · hosted spec) — already on the plan as t-0019, not needed for in-repo use. Boarded that as board 006. Two owner calls still open: (1) LICENSE — MIT vs Apache-2.0 (leaning keep MIT; Apache's only real add is an explicit patent grant + retaliation clause, matters mainly for enterprise/patent-sensitive adoption; trivially switchable later while it's all our code); (2) the GitHub push — repo name settled as `sandpaper`, public confirmed (required for npx-from-github dogfooding), pre-flight clean (name free, tree committed, no secrets), waiting on the owner's 'go' to run `gh repo create --public --push`. npm deferred by the owner. Next: license pick → push → dogfood.", "ref":"../package.json" },
-  "worklog":[ {"date":"2026-07-01","one":"Answered the owner: the brain's out-links are the 'link, never copy' spine, not a flaw — real fix is portable-publish (t-0019), not fewer links. Boarded as 006","cid":"w-0190"},
-              {"date":"2026-07-01","one":"Release prep — MIT LICENSE, richer package.json (repo/homepage/bugs/author), .gitignore; npm pack verified (30 files, 60kB, clean). Name blocked: `sandpaper` is taken on npm","cid":"w-0189"},
-              {"date":"2026-07-01","one":"Swapped the banner to the owner's preferred font — a compact 3-row half-block SANDPAPER (leading ░ keeps every row flush, all 38 wide)","cid":"w-0188"} ],
+  "focus":{ "one":"The owner pushed back on board 006's 'portable publish': brain/ should be ALWAYS publishable — no build step. Ran an adversarial design panel (1 inventory agent + 3 critics, one per candidate). Measured: 158 out-of-brain links on 13 pages — 116 (73%) anchored refs into the two spec HTML docs (GitHub blob view can't render those; #anchors die), 29 source, 13 meta. Verdicts: write-time absolute links DEAD (kills local-first/offline; bakes a mutable URL into append-only records); publish/export step DEAD as the answer (it IS the banned build step; spec snapshots re-open drift); RUNTIME RESOLVER VIABLE (0 fatal) — links stay relative on disk; every page head gets one meta with the source base (blob/HEAD/, survives branch renames) + expected package name; brain.js probes ../package.json per load (GET, NO cache — same-origin mode flips poison a cache — and json.name must match, defeating SPA soft-200s); detached → out-links rewrite at CLICK time via one delegated listener; no base → dim + tooltip; ~60-90 lines vanilla JS, zero deps, zero build. Free path today: deploy the whole public repo (Pages / Vercel root=repo) — probe says attached, specs render, anchors work; that deploy later doubles as the rendered base for the 73%. t-0019 reshapes: resolver + stamp-time link lint now, snapshot exporter → optional. Boarded as 007; q-deploy regenerated to the shaped design, still open for the owner's go. Also pending: MIT confirm + the 'go' for gh repo create --public --push (npm deferred).", "ref":"./decisions.html#q-deploy" },
+  "worklog":[ {"date":"2026-07-02","one":"Panel-tested always-publishable: runtime resolver wins (0 fatal); write-time absolute + publish-step judged dead. 158 out-links measured, 73% anchored spec refs. t-0019 reshaped. Board 007","cid":"w-0191"},
+              {"date":"2026-07-01","one":"Answered the owner: the brain's out-links are the 'link, never copy' spine, not a flaw — real fix is portable-publish (t-0019), not fewer links. Boarded as 006","cid":"w-0190"},
+              {"date":"2026-07-01","one":"Release prep — MIT LICENSE, richer package.json (repo/homepage/bugs/author), .gitignore; npm pack verified (30 files, 60kB, clean). Name blocked: `sandpaper` is taken on npm","cid":"w-0189"} ],
   "open":["decisions.html#q-anchoring","decisions.html#q-undo","decisions.html#q-billing","decisions.html#q-deploy"],
   "docs":["../sandpaper.html","../engg-spec.html"] }
 </script>
@@ -49,10 +49,10 @@
   <header class="plate" data-cid="cover">
     <div class="pl-meta"><span class="now-tag">Now</span> the build stands at <a href="./project/index.html#i-package">Phase 1 — packaging</a></div>
     <!-- BRAIN:NOW -->
-    <p class="now-line" data-cid="now" data-kind="now" data-ref="./project/index.html#i-package">
-      At the <strong>GitHub-push</strong> step of the dogfood release — out-links settled (link-never-copy;
-      deploy fix = <code>t-0019</code>); awaiting the license call + the push go.
-      <a class="ref" href="./project/index.html#i-package">the plan →</a>
+    <p class="now-line" data-cid="now" data-kind="now" data-ref="./decisions.html#q-deploy">
+      Shaped <strong>always-publishable</strong> via an adversarial panel — runtime resolver wins
+      (board 007, <code>t-0019</code> reshaped); awaiting the license confirm + the GitHub-push go.
+      <a class="ref" href="./decisions.html#q-deploy">q-deploy →</a>
     </p>
     <!-- /BRAIN:NOW -->
   </header>
@@ -67,36 +67,45 @@
     <!-- BRAIN:CANVAS — boards prepend here, newest first; .canvas-empty shows when there are none -->
     <!-- the whiteboard: a white container whose CONTENT scrolls inside it; the page scrolls everything else -->
     <div class="whiteboard" data-cid="whiteboard">
-      <article class="board board--live" data-cid="board-0006" data-kind="board" data-date="2026-07-01" data-ref="./decisions.html#d-ssot">
+      <article class="board board--live" data-cid="board-0007" data-kind="board" data-date="2026-07-02" data-ref="./decisions.html#q-deploy">
         <header class="board-head">
           <span class="board-dot" aria-hidden="true"></span>
-          <h3 class="board-title">The brain links outside itself — on purpose</h3>
-          <span class="board-when">07-01 · board 006</span>
+          <h3 class="board-title">Always publishable — you were right; resolve links at runtime, not build time</h3>
+          <span class="board-when">07-02 · board 007</span>
         </header>
         <div class="board-body">
-          <p>Good instinct to question it — but the out-links aren't sloppiness, they're the
-            <strong>spine</strong>. Sandpaper's one rule is <em>link, never copy</em>: the brain is a thin
-            index <em>over</em> canonical truth (the spec, the source), never a second copy of it. Copy the
-            content in and it drifts the moment the code changes — the exact rot the brain exists to kill.
-            So a <code>data-ref</code> into <code>../src/server.js</code> is the design working, not leaking.</p>
-          <div class="split">
-            <div class="split-col"><span class="split-k">Intra-brain links</span><span class="split-d">cover ↔ lenses ↔ books — relative, self-contained, travel anywhere</span></div>
-            <div class="split-col"><span class="split-k">Canonical refs</span><span class="split-d">→ the spec &amp; the real source — <em>meant</em> to point outside <code>brain/</code></span></div>
-          </div>
-          <p>They only break in <strong>one</strong> situation: serving <code>brain/</code>
-            <em>detached</em> from its repo (a subfolder-only deploy), so <code>../</code> lands above the
-            root. Inside the repo — where the brain is designed to live — every ref resolves.</p>
+          <p>Your instinct survived an adversarial review: <strong>“<code>brain/</code> is always
+            publishable” should be an invariant</strong> — point any static host at the folder, any moment,
+            <em>no build step</em>. The “portable publish” from board 006 fails that by construction: it
+            <em>is</em> a build step, and its spec snapshots quietly re-open the drift
+            <em>link-never-copy</em> exists to kill. You caught a real flaw.</p>
+          <p>The measured surface: <strong>158 out-of-<code>brain/</code> links</strong> across 13 pages —
+            <strong>116 (73%)</strong> are anchored refs into the two spec docs, 29 point at source, 13 at
+            meta. That 73% is the load-bearing fact: GitHub's blob view doesn't <em>render</em> HTML
+            (source view, dead <code>#anchors</code>), so any “rewrite to GitHub” scheme fails most of the
+            surface. Panel verdicts (one adversarial critic per candidate):</p>
           <div class="layers">
-            <div class="layer layer--brain"><span class="layer-k">✗ Wrong fix</span><span class="layer-d">stop linking out → forces copying content in → drift returns. Guts the whole point.</span></div>
-            <span class="layer-link" aria-hidden="true">instead ↓</span>
-            <div class="layer layer--canvas"><span class="layer-k">✓ Right fix</span><span class="layer-d"><b>portable publish</b> — an export that rewrites out-refs → absolute URLs (GitHub blob · hosted spec). Still zero copy; now deploys anywhere.</span></div>
+            <div class="layer layer--brain"><span class="layer-k">✗ absolute links at write time</span><span class="layer-d">dead — kills local-first + offline; bakes a mutable URL into append-only records</span></div>
+            <div class="layer layer--brain"><span class="layer-k">✗ publish / export build step</span><span class="layer-d">dead for this — it <em>is</em> the banned step; snapshot copies reintroduce drift</span></div>
+            <div class="layer layer--canvas"><span class="layer-k">✓ runtime resolver</span><span class="layer-d">viable — zero fatal flaws; five serious ones, each with a concrete fix, hardened below</span></div>
           </div>
-          <p>That export is already on the plan as <strong>t-0019</strong> (static-publish + a relative-path
-            lint). Nothing to undo today — just a feature to promote when we want a shareable, detached brain.</p>
+          <p><strong>The hardened design:</strong> links stay relative on disk (local-first, disk-true).
+            Every page head gets one meta naming the repo's source base (<code>blob/HEAD/</code> — survives
+            branch renames) plus the expected package name. <code>brain.js</code> probes
+            <code>../package.json</code> once per load — no caching (same-origin mode flips poisoned a cache),
+            and the name must match (defeats SPA soft-200s and stranger <code>package.json</code>s). Detached
+            → out-links resolve to the source base <em>at click time</em> (one delegated listener — no flash,
+            no race); no base configured → they dim with a “lives in the repo” tooltip. ~60–90 lines of
+            vanilla JS in the file every page already loads. Zero build. Zero deps.</p>
+          <p><strong>And the free path works today:</strong> deploy the <em>whole public repo</em> (GitHub
+            Pages, or Vercel with root = repo root) — the probe finds <code>package.json</code>, everything
+            stays relative, and the specs render with working anchors. That same deploy later doubles as the
+            <em>rendered</em> base for the 73% when <code>brain/</code> ships alone. <code>t-0019</code>
+            reshapes: resolver + a stamp-time link lint now; the snapshot exporter demotes to optional polish.</p>
         </div>
         <footer class="board-foot">
-          <span class="board-tag">dogfood · board 006 · link-never-copy</span>
-          <a class="ref" href="./project/index.html#t-0019">t-0019 · static publish →</a>
+          <span class="board-tag">dogfood · board 007 · always-publishable</span>
+          <a class="ref" href="./decisions.html#q-deploy">q-deploy →</a>
         </footer>
       </article>
     </div>
@@ -104,6 +113,23 @@
     <!-- Earlier: below the whiteboard, in normal page flow; the stack caps at 5, oldest falls away -->
     <div class="canvas-earlier" data-cid="canvas-earlier">
       <div class="earlier-label">Earlier <span class="n">· 4</span></div>
+
+      <details class="board board--past" data-cid="board-0006" data-kind="board" data-date="2026-07-01" data-ref="decisions.html#d-ssot">
+        <summary class="board-row"><span class="board-row-dot" aria-hidden="true"></span><span class="board-row-when">07-01 · 006</span><span class="board-row-title">The brain links outside itself — on purpose</span><span class="board-row-chev" aria-hidden="true">›</span></summary>
+        <div class="board-body">
+          <p>The out-links aren't sloppiness — they're the <strong>spine</strong>. Sandpaper's one rule is
+            <em>link, never copy</em>: the brain is a thin index <em>over</em> canonical truth (the spec, the
+            source), never a second copy of it. Copy the content in and it drifts the moment the code changes.</p>
+          <p>They only break when <code>brain/</code> is served <em>detached</em> from its repo (a
+            subfolder-only deploy). <em>Partly superseded by board 007:</em> the fix moved from a publish
+            <em>step</em> to a runtime resolver — the owner pushed back on “publishable only after a build,”
+            and the adversarial panel proved them right.</p>
+        </div>
+        <footer class="board-foot">
+          <span class="board-tag">dogfood · board 006 · link-never-copy</span>
+          <a class="ref" href="./decisions.html#d-ssot">d-ssot →</a>
+        </footer>
+      </details>
 
       <details class="board board--past" data-cid="board-0005" data-kind="board" data-date="2026-06-30" data-ref="decisions.html#d-canvas">
         <summary class="board-row"><span class="board-row-dot" aria-hidden="true"></span><span class="board-row-when">06-30 · 005</span><span class="board-row-title">Board-first — the canvas is where explanations live</span><span class="board-row-chev" aria-hidden="true">›</span></summary>
@@ -169,28 +195,6 @@
         </footer>
       </details>
 
-      <details class="board board--past" data-cid="board-0002" data-kind="board" data-date="2026-06-30" data-ref="../bin/brain-inject.js">
-        <summary class="board-row"><span class="board-row-dot" aria-hidden="true"></span><span class="board-row-when">06-30 · 002</span><span class="board-row-title">How Claude Code reaches for the canvas</span><span class="board-row-chev" aria-hidden="true">›</span></summary>
-        <div class="board-body">
-          <p>The handoff isn't magic — it's a <strong>SessionStart hook</strong>. On every fresh session it
-            injects the brain digest <em>and</em> a standing instruction about the canvas into Claude Code's
-            context, so by turn one it already knows this surface exists and when to use it.</p>
-          <div class="handoff">
-            <div class="ho-step"><span class="ho-n">1</span><div><b>install-skill</b><span>copies the commands + hooks; wires <code>.claude/settings.json</code></span></div></div>
-            <div class="ho-step"><span class="ho-n">2</span><div><b>SessionStart hook</b><span>injects the digest + the canvas rule every session — the bridge</span></div></div>
-            <div class="ho-step"><span class="ho-n">3</span><div><b>SKILL.md + /canvas</b><span>hold the exact how-to (prepend a board, drop board--live, bump the count)</span></div></div>
-            <div class="ho-step"><span class="ho-n">4</span><div><b>the model writes a board</b><span>elevated HTML here; one short pointer in the terminal</span></div></div>
-          </div>
-          <p>The honest gap vs. STAMP: STAMP has a Stop hook that <em>blocks</em> if you changed files without
-            stamping. "Explained something but didn't board it" isn't detectable from outside, so the canvas
-            leans on the injected awareness, not a hard block. This board <em>is</em> the proof it fired.</p>
-        </div>
-        <footer class="board-foot">
-          <span class="board-tag">dogfood · board 002</span>
-          <a class="ref" href="../bin/brain-inject.js">the hook →</a>
-        </footer>
-      </details>
-
     </div><!-- /.canvas-earlier -->
     <!-- /BRAIN:CANVAS -->
   </section>
@@ -253,6 +257,7 @@
   <section class="zone" data-cid="s-log">
     <div class="eyebrow">Latest <span id="brain-unseen" class="badge open" hidden></span></div>
     <ol class="timeline" data-cid="logfeed">
+      <li data-kind="worklog" data-cid="w-0191"><div class="tl-row"><span class="tl-when">07-02</span><span class="tl-what">Panel-tested <strong>always-publishable</strong> — runtime resolver wins (0 fatal); write-time absolute + publish-step judged <em>dead</em>. 158 out-links measured (73% anchored spec refs). <code>t-0019</code> reshaped; board 007.</span><span class="tl-link"><a class="ref" href="./decisions.html#q-deploy">q-deploy →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0190"><div class="tl-row"><span class="tl-when">07-01</span><span class="tl-what">Answered the owner: the brain's <strong>out-links are the <em>link-never-copy</em> spine</strong>, not a flaw — the real fix is portable-publish (<code>t-0019</code>), not fewer links. Boarded as 006.</span><span class="tl-link"><a class="ref" href="./project/index.html#t-0019">t-0019 →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0189"><div class="tl-row"><span class="tl-when">07-01</span><span class="tl-what">Release prep — MIT <code>LICENSE</code>, richer <code>package.json</code>, <code>.gitignore</code>; <code>npm pack</code> verified clean (30 files, 60 kB). Name blocked — <code>sandpaper</code> is taken on npm.</span><span class="tl-link"><a class="ref" href="../package.json">package.json →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0188"><div class="tl-row"><span class="tl-when">07-01</span><span class="tl-what">Swapped the <code>SANDPAPER</code> banner to a cleaner <strong>3-row half-block</strong> font (owner's pick) — flush, 38 wide, in the install output + <code>/init</code> welcome.</span><span class="tl-link"><a class="ref" href="../src/setup.js">setup.js →</a></span></div></li>
