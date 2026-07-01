@@ -95,9 +95,22 @@ export function scaffold(target, pkg) {
     }, null, 2) + '\n');
     ok('.sandpaper/manifest.json (id counters · cid prefixes · theme path)');
   }
-  const cover = join(brain, 'index.html');
-  if (existsSync(cover)) warn('brain/index.html exists — leaving it (delete to re-scaffold)');
-  else { writeFileSync(cover, starterCover(project, date)); ok('brain/index.html (a starter cover)'); }
+  // Write the multi-page SKELETON (cover + lens pages + books), each with the shared shell nav wired
+  // to relative paths — so /sandpaper:init FILLS a real multi-page structure instead of inventing one
+  // (which, with no reference, collapses into a single page with #anchor nav). skipExisting per file.
+  const write = (rel, html) => {
+    const p = join(brain, rel);
+    if (existsSync(p)) { warn(`brain/${rel} exists — kept`); return; }
+    ensureDir(dirname(p)); writeFileSync(p, html);
+  };
+  write('index.html', pageShell({ project, prefix: '', title: 'cover', headExtra: coverDigest(project, date), main: coverMain(project, date) }));
+  for (const [slug, name, blurb] of [['product', 'Product', 'what it is & why it earns its place'],
+    ['engineering', 'Engineering', 'how it is built'], ['project', 'Project', 'the plan & progress']])
+    write(`${slug}/index.html`, pageShell({ project, prefix: '../', title: name, main: lensMain(name, blurb) }));
+  for (const [slug, name, blurb] of [['log', 'Log', 'the work log — newest first'],
+    ['decisions', 'Decisions', 'the ledger of calls made'], ['learnings', 'Learnings', 'gotchas & verdicts']])
+    write(`${slug}.html`, pageShell({ project, prefix: '', title: name, main: bookMain(name, blurb) }));
+  ok('brain/ skeleton — cover + 3 lens pages + 3 books (shell nav wired; /sandpaper:init fills them)');
   console.log('\n  Next: run /sandpaper:init in Claude Code to harvest this repo and fill the brain.\n');
 }
 
@@ -224,36 +237,85 @@ function checkLinks(brain) {
   return bad;
 }
 
-function starterCover(project, date) {
+// ---- the multi-page skeleton: one shared shell + per-page bodies (so the brain is never a single page) ----
+// prefix: '' for pages at brain/ root (cover, books), '../' for pages one dir deep (lenses).
+function pageShell({ project, prefix, title, headExtra = '', main }) {
+  const link = (href, label) => `<a href="${prefix}${href}">${label}</a>`;
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>${project} — brain</title>
-<link rel="stylesheet" href="./assets/brain.css" />
-<script type="application/json" id="brain-state">
-{ "v":1, "project":"${project}", "phase":"fresh", "updated":"${date}", "session":"S01",
-  "focus":{ "one":"Brain scaffolded — run /sandpaper:init in Claude to harvest this repo and fill it", "ref":"#" },
-  "worklog":[ {"date":"${date}","one":"Brain scaffolded by npx sandpaper init","cid":"w-0001"} ],
-  "open":[], "docs":[] }
-</script>
-</head>
+<title>${project} — ${title}</title>
+<link rel="stylesheet" href="${prefix}assets/brain.css" />
+${headExtra}</head>
 <body>
 <div class="wrap">
-  <header class="plate" data-cid="cover" style="margin-top:32px">
-    <div class="pl-meta">Fresh brain · stamped ${date}</div>
-    <p class="now-line" data-cid="now" data-kind="now">Run <code>/sandpaper:init</code> in Claude Code to harvest this
-      repository and fill the brain — it will discover your code, specs, and docs, ask a few questions, then
-      generate the cover, the plan board, and the books.</p>
-  </header>
-${canvasSection()}
-  <section class="zone"><div class="eyebrow">Next</div>
-    <p class="muted">Once filled, <code>npx sandpaper open</code> serves this with the on-page refine toolbar.</p>
-  </section>
+  <div class="shell">
+    <div class="shell-id">
+      <a class="shell-mark" href="${prefix}index.html">${project}</a>
+      <div class="shell-state"><a href="${prefix}log.html">fresh brain</a></div>
+    </div>
+    <nav class="shell-rail" aria-label="Lenses">
+      ${link('index.html', 'Cover')}
+      ${link('product/index.html', 'Product')}
+      ${link('engineering/index.html', 'Engineering')}
+      ${link('project/index.html', 'Project')}
+    </nav>
+  </div>
+${main}
+  <footer class="portal-foot" data-cid="footer">
+    <div class="foot-col"><div class="foot-h">Books</div>
+      ${link('log.html', 'Log')}
+      ${link('decisions.html', 'Decisions')}
+      ${link('learnings.html', 'Learnings')}
+    </div>
+  </footer>
 </div>
-<script src="./assets/brain.js" defer></script>
+<script src="${prefix}assets/brain.js" defer></script>
 </body>
 </html>
 `;
+}
+
+// the cover needs the #brain-state digest in <head> — the SessionStart hook reads it to rehydrate
+function coverDigest(project, date) {
+  return `<script type="application/json" id="brain-state">
+{ "v":1, "project":"${project}", "phase":"fresh", "updated":"${date}", "session":"S01",
+  "focus":{ "one":"Brain scaffolded — run /sandpaper:init in Claude to harvest this repo and fill it", "ref":"#" },
+  "worklog":[ {"date":"${date}","one":"Brain scaffolded by sandpaper","cid":"w-0001"} ],
+  "open":[], "docs":[] }
+</script>
+`;
+}
+function coverMain(project, date) {
+  return `  <header class="plate" data-cid="cover" style="margin-top:14px">
+    <div class="pl-meta">Fresh brain · stamped ${date}</div>
+    <p class="now-line" data-cid="now" data-kind="now">Run <code>/sandpaper:init</code> in Claude Code to harvest
+      this repo and fill the brain — it discovers your code, specs, and docs, asks a few questions, then fills
+      these pages.</p>
+  </header>
+${canvasSection()}
+  <section class="zone"><div class="eyebrow">Where it stands</div>
+    <p class="muted">The plan board, decisions, and log fill in when you run <code>/sandpaper:init</code>.</p>
+  </section>`;
+}
+function lensMain(name, blurb) {
+  const slug = name.toLowerCase();
+  return `  <header class="lens-hero lens--${slug}" data-cid="lens-${slug}" data-lens="${slug}">
+    <div class="eyebrow">${name}</div>
+    <h1>${blurb}</h1>
+    <p>Run <code>/sandpaper:init</code> to fill this lens with real, linked content.</p>
+  </header>
+  <!-- FILL: ${name} lens prose + records (.entry grammar). Keep this a SEPARATE page; do not merge lenses. -->
+  <section class="zone"><p class="muted">Not filled yet.</p></section>`;
+}
+function bookMain(name, blurb) {
+  return `  <section class="zone flush">
+    <div class="eyebrow">${name}</div>
+    <h1 style="font-size:30px;letter-spacing:-.02em;margin:6px 0 0">${name}</h1>
+    <p class="muted">${blurb}</p>
+  </section>
+  <!-- FILL: ${name} entries. Keep this a SEPARATE page. -->
+  <section class="zone flush"><p class="muted">Empty until /sandpaper:init.</p></section>`;
 }

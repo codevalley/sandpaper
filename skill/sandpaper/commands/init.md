@@ -9,12 +9,11 @@ Build a living project brain (`brain/`) for this repo. Five movements: **INTRODU
 Make the first impression feel crafted, not chatty. **Open with the banner, printed verbatim in a code block:**
 
 ```
-  ___                _
- / __| __ _ _ _  __| |_ __  __ _ _ __  ___ _ _
- \__ \/ _` | ' \/ _` | '_ \/ _` | '_ \/ -_) '_|
- |___/\__,_|_||_\__,_| .__/\__,_| .__/\___|_|
-                     |_|        |_|
-        refine on the page
+  ▄▄▄  ▗▄▖ ▗▖  ▗▖▗▄▄▄  ▗▄▄▖ ▗▄▖ ▗▄▄▖ ▗▄▄▄▖▗▄▄▖
+  ▐▌   ▐▌ ▐▌▐▛▚▖▐▌▐▌  █ ▐▌ ▐▌▐▌ ▐▌▐▌ ▐▌▐▌   ▐▌ ▐▌
+   ▀▀▚▖▐▛▀▜▌▐▌ ▝▜▌▐▌  █ ▐▛▀▘ ▐▛▀▜▌▐▛▀▘ ▐▛▀▀▘▐▛▀▚▖
+  ▗▄▄▞▘▐▌ ▐▌▐▌  ▐▌▐▙▄▄▀ ▐▌   ▐▌ ▐▌▐▌   ▐▙▄▄▖▐▌ ▐▌
+        r e f i n e   o n   t h e   p a g e
 ```
 
 Then a **short, warm, plain-language** intro — no jargon, no wall of text. In ~3 lines the owner
@@ -81,9 +80,14 @@ reference brain from any other directory or sibling project on disk** — that's
 not the Sandpaper package, and it won't exist on a distributed install. If `brain/assets/` is somehow
 missing, stop and run `npx sandpaper init` (or ask the owner for the package path) — never go hunting.
 
-Build the cover (including the `<!-- BRAIN:CANVAS -->` canvas region) and the chosen books with the
-`.entry` grammar (`data-cid`→`id`, `data-kind`, `data-status`, `data-date`, ≥1 `data-ref`,
-optional `data-lens`). **Link, never copy** — `data-ref` points at the real artifacts you
+**The multi-page skeleton is already on disk** — `install-skill` scaffolded the cover (`index.html`),
+three lens pages (`product/index.html`, `engineering/index.html`, `project/index.html`), and three
+books (`log.html`, `decisions.html`, `learnings.html`), each with the shared shell nav wired to
+relative paths. **FILL these existing pages** (replace the `<!-- FILL: … -->` stubs with real content).
+The brain is a **MULTI-PAGE site**: every lens and book is a SEPARATE `.html` file the shell nav links
+to by relative path — **never collapse it into one page, and never turn the nav into in-page
+`#anchors`.** Use the `.entry` grammar (`data-cid`→`id`, `data-kind`, `data-status`, `data-date`,
+≥1 `data-ref`, optional `data-lens`). **Link, never copy** — `data-ref` points at the real artifacts you
 discovered (a spec's heading anchor if it has one, else the source file / README section). Generate
 ONLY the lenses + books the owner chose; dim any deferred chrome so nothing dangles. Seed the plan
 board from the discovered state (shipped = `done`; gaps between the code and the README/spec = the
