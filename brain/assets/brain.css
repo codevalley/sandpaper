@@ -373,8 +373,11 @@ footer{padding:30px 0 56px;font-family:var(--mono);font-size:11px;color:var(--mu
 .board--past[open] .board-row-chev{transform:rotate(90deg);color:var(--clay)}
 .board--past[open] .board-row-title{color:var(--ink)}
 .board--past .board-body{padding-top:2px}
-/* nothing on the canvas yet — plain muted text inside the whiteboard */
-.canvas-empty{color:var(--text-muted);font-size:14px;line-height:1.6;max-width:46em;margin:0}
+/* nothing on the canvas yet — a warm, plain-language welcome inside the whiteboard */
+.canvas-empty{color:var(--text-muted);font-size:14.5px;line-height:1.6;max-width:48em}
+.canvas-empty p{margin:0 0 8px}
+.canvas-empty p:last-child{margin-bottom:0}
+.canvas-empty-lead{font-family:var(--font-display);font-size:20px;color:var(--ink);letter-spacing:-.01em}
 @media(max-width:620px){.pipeline{flex-direction:column}.pl-arrow{transform:rotate(90deg)}}
 
 /* ---- the 3 lens doors (navigation, below the canvas) ---- */

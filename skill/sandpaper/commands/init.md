@@ -5,24 +5,35 @@ description: Scaffold a living Sandpaper brain for this repo — discover widely
 Build a living project brain (`brain/`) for this repo. Five movements: **INTRODUCE**, **DISCOVER**
 (scan widely), **WIZARD** (interactive — fill the gaps + shape the brain), **GENERATE**, **WELCOME**.
 
-## 0. INTRODUCE — orient the owner before the (long) run
-This command reads a lot and runs for a while, so don't dive in cold. Open with a short, friendly
-framing (3–4 lines) so the owner knows what they've started:
-- **What Sandpaper is** — a living project *brain*: a small, navigable web "service manual" that
-  mirrors this project's state (what it is, the plan, decisions, the work log) and that you, the
-  agent, keep current after each working turn — so the project never drifts out of sync with its docs.
-- **What this command will do now** — scan the repo widely (code · specs · logs · docs), show you
-  what it found, ask a handful of questions, then generate the brain. It reads a lot, **so it takes
-  a few minutes and a fair chunk of tokens** — a one-time cost.
-- **You're in control** — they can stop you at any point, and nothing is published anywhere.
+## 0. INTRODUCE — a premium, human welcome (then a go-ahead gate)
+Make the first impression feel crafted, not chatty. **Open with the banner, printed verbatim in a code block:**
 
-Then **stop and get an explicit go-ahead before the heavy harvest** — don't free-fall into it. Do a
-quick, cheap size read first (count source files + rough LOC, list the top-level dirs — do NOT read
-everything yet), turn it into a rough estimate, and ask **with the AskUserQuestion tool, not plain
-prose** — a plain-text question breaks the flow and forces them to type. Frame it as a choice, e.g.
-header "Harvest?", question *"Found a ~medium repo (≈N source files / M dirs) — a full harvest takes
-~X–Y min and some tokens. Proceed?"*, options like **Go ahead** · **Scope it down (just the code)** ·
-**Just one subtree**. Begin DISCOVER only once they pick; honor a scoped choice.
+```
+  ___                _
+ / __| __ _ _ _  __| |_ __  __ _ _ __  ___ _ _
+ \__ \/ _` | ' \/ _` | '_ \/ _` | '_ \/ -_) '_|
+ |___/\__,_|_||_\__,_| .__/\__,_| .__/\___|_|
+                     |_|        |_|
+        refine on the page
+```
+
+Then a **short, warm, plain-language** intro — no jargon, no wall of text. In ~3 lines the owner
+actually cares about:
+- **What you'll get** — a living "brain" for this repo: a small local website that shows what the
+  project is, its plan, the decisions, and its history — and stays current as you work. Your project,
+  made legible at a glance.
+- **What happens now** — I skim the repo, ask you a few quick questions, then build it.
+- **You're in control** — stop me anytime; it's all local files, nothing leaves your machine.
+
+Keep it human and brief — a welcome, not a manual.
+
+Then **gate on a go-ahead with the AskUserQuestion tool** (never plain prose — it breaks the flow and
+forces typing). Do a quick, cheap size read first (count source files, list top dirs — don't read
+everything). **Be honest about time:** building a real brain is a lot of writing, so even a SMALL repo
+is roughly **15–30 minutes** and a fair chunk of tokens; bigger repos take longer — never lowball it.
+Ask: header "Build it?", question e.g. *"~N source files. Building the brain runs ~15–30 min and uses
+a fair few tokens — a one-time setup. Go?"*, options **Build it** · **Scope it down (just code)** ·
+**Not now**. Begin DISCOVER only once they pick; honor a scoped choice.
 
 ## 1. DISCOVER — cast a wide net; classify by content, not filename
 Projects are organised every which way, so don't assume fixed paths. Glob broadly
@@ -77,20 +88,23 @@ discovered (a spec's heading anchor if it has one, else the source file / README
 ONLY the lenses + books the owner chose; dim any deferred chrome so nothing dangles. Seed the plan
 board from the discovered state (shipped = `done`; gaps between the code and the README/spec = the
 honest backlog), the log from the git history, and the decisions/learnings books from anything
-already written down. **Include the canvas** on the cover — the `<!-- BRAIN:CANVAS -->` region with an
-empty `.whiteboard` (it's where your board-first explanations will land). Stamp the first log row,
-verify the `#brain-state` JSON parses and links resolve.
+already written down. **Keep the scaffolded canvas** on the cover as-is — the `<!-- BRAIN:CANVAS -->`
+region with its plain-language empty state; don't rewrite that copy into jargon (it fills with boards
+as you work). Stamp the first log row, verify the `#brain-state` JSON parses and links resolve.
 
-## 4. WELCOME — close the loop; don't just stop
-After it's generated, give the owner a short, warm close so the payoff is obvious and they know what
-to do next. Keep it to a handful of lines:
-- **See it** — `npx sandpaper open` (or `/sandpaper:open`) serves the brain and opens it in a
-  browser. The first visit greets them with a one-time tour of the page.
-- **Refine it right on the page** — the on-page toolbar has three tools: **Sand** (say a change in
-  plain words → the agent edits the file, scoped to what you clicked), **✎ Hands** (edit text, drag
-  to reorder, or delete — directly, no AI), and **❯ Sling** (copy a terminal-ready instruction for
-  bigger, cross-file work). Suggest a concrete first move: *re-skin it to your brand* with
-  `/sandpaper:theme #yourhex`, or tweak the NOW line in place with Hands.
-- **It stays current on its own** — the auto-update hooks stamp the brain as you work; or drive it
-  by hand with `/sandpaper:stamp`, `/sandpaper:plan`, `/sandpaper:decide`, `/sandpaper:sync`.
-- **Everything else** — `/sandpaper:help` lists every command.
+## 4. WELCOME — a tight close, then OPEN it (the money shot)
+Don't spread this into blabber. A short, confident close, then the payoff:
+- **One line of what got built** — e.g. *"Your brain is live: a cover, 3 lenses, and 4 books, all
+  seeded from the real repo."*
+- **One line on using it** — refine on the page with **Sand** (say a change) · **✎ Hands** (edit
+  directly) · **❯ Sling** (hand a job to the terminal); it also stays current on its own as you work.
+
+Then **OPEN it yourself — the payoff must not be left to chance.** Serve the brain + open the browser
+by running the `open` command **in the background** (so it keeps serving without blocking the turn):
+read the `pkg` in `.sandpaper/manifest.json` and run `node <pkg>/bin/cli.js open` in the background
+(or `sandpaper open` if it's on PATH). It opens their browser on the brain and greets them with the
+one-time tour. Actually do it — don't just suggest it; if it genuinely can't run, hand them the one
+exact command.
+
+Keep the whole close under ~8 lines. `/sandpaper:help` lists every command. If you didn't commit
+(e.g. a branch rule you discovered), offer that as the very last line.

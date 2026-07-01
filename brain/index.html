@@ -13,11 +13,11 @@
 <!-- BRAIN:DIGEST — machine context for a fresh `claude`: read THIS first (~1KB) to rehydrate. -->
 <script type="application/json" id="brain-state">
 { "v":1, "project":"Sandpaper", "phase":"Phase 1 · packaging", "updated":"2026-06-30",
-  "session":"S20",
-  "focus":{ "one":"Fixed two fresh-install /sandpaper:init bugs the owner caught while testing a clean repo. (1) TEMPLATE HUNTING: the slash command was told to 'write from the shipped templates' but not WHERE they live, and a fresh repo had only commands+hooks (no assets) — so it scanned the filesystem and used the sibling productcraft brain as its reference, which won't exist on a distributed install. Fix: install-skill now ALSO scaffolds the package's assets locally (brain/assets + starter cover + manifest), and init.md is rewritten to USE brain/assets/ and NEVER read templates/a reference brain from any other directory; if missing, run `npx sandpaper init`, don't hunt. (2) PLAIN-PROSE GATE: the go-ahead confirmation + the wizard asked in plain English (broke the flow, had to type) — init.md now says to use the AskUserQuestion tool (a choice dialog) for the gate + shaping questions. Tested: install-skill alone now leaves brain/assets (with the canvas CSS) + cover + manifest, doctor healthy. Learning l-init-templates. (Board-first: a debugging exchange, so it stays in the terminal — no board.) Next: npm publish + rest of G", "ref":"learnings.html#l-init-templates" },
-  "worklog":[ {"date":"2026-06-30","one":"Fixed fresh-install /sandpaper:init: install-skill scaffolds assets locally (no hunting a sibling repo for templates) + the gate/wizard use the AskUserQuestion dialog","cid":"w-0181"},
-              {"date":"2026-06-30","one":"Added `sandpaper upgrade` — refresh an existing brain's commands/hooks/engine-assets (keep theme.css) + inject the canvas into an old cover; idempotent, tested","cid":"w-0180"},
-              {"date":"2026-06-30","one":"Made board-first the default — substantial replies go on the canvas (the board IS the reply), terminal gets a pointer; dropped the Stop-hook nag; rewrote the discipline; boarded the decision as 005","cid":"w-0179"} ],
+  "session":"S21",
+  "focus":{ "one":"Made the fresh-install onboarding premium, from the owner's test of a clean repo. (1) CANVAS EMPTY STATE was jargon (‘the elevated version lands here…’) in a prime spot — rewrote it plain + warm: a Fraunces lead ‘Your canvas is empty — for now.’ + one plain sentence (no ‘board’/‘elevated’ soup), under a clearer ‘Canvas — where Claude's explanations show up’. (2) /sandpaper:init ONBOARDING was spread-out blabber — rewrote it: opens with an ASCII SANDPAPER banner, a tight 3-line user-centric intro, and a short confident close; and — the MONEY SHOT — it now actually RUNS `open` at the end (backgrounded, via the pkg recorded in .sandpaper/manifest.json) so the browser opens on its own instead of being left to the user to discover. (3) TIME ESTIMATE was a lie (‘2–3 min’ but really 15–30+) — init.md now says ~15–30 min even for a small repo, larger longer, never lowball. Also: setup.js scaffold records `pkg` in the manifest; empty-state copy kept out of init.md's regeneration. Verified the new empty state live + the banner. (UX/copy, so terminal — no board.) Next: npm publish + rest of G", "ref":"../skill/sandpaper/commands/init.md" },
+  "worklog":[ {"date":"2026-07-01","one":"Premium onboarding — jargon-free canvas empty state, ASCII-bannered /init intro, honest ~15–30 min estimate, and init auto-opens the brain (money shot)","cid":"w-0182"},
+              {"date":"2026-06-30","one":"Fixed fresh-install /sandpaper:init: install-skill scaffolds assets locally (no hunting a sibling repo for templates) + the gate/wizard use the AskUserQuestion dialog","cid":"w-0181"},
+              {"date":"2026-06-30","one":"Added `sandpaper upgrade` — refresh an existing brain's commands/hooks/engine-assets (keep theme.css) + inject the canvas into an old cover; idempotent, tested","cid":"w-0180"} ],
   "open":["decisions.html#q-anchoring","decisions.html#q-undo","decisions.html#q-billing"],
   "docs":["../sandpaper.html","../engg-spec.html"] }
 </script>
@@ -49,10 +49,10 @@
   <header class="plate" data-cid="cover">
     <div class="pl-meta"><span class="now-tag">Now</span> the build stands at <a href="./project/index.html#i-package">Phase 1 — packaging</a></div>
     <!-- BRAIN:NOW -->
-    <p class="now-line" data-cid="now" data-kind="now" data-ref="learnings.html#l-init-templates">
-      Fixed fresh-install <code>/sandpaper:init</code> — <code>install-skill</code> now scaffolds the package's
-      assets locally (no more hunting a sibling repo for templates), and the gate + wizard use the
-      AskUserQuestion dialog. <a class="ref" href="learnings.html#l-init-templates">the gotcha →</a>
+    <p class="now-line" data-cid="now" data-kind="now" data-ref="../skill/sandpaper/commands/init.md">
+      Made the fresh-install onboarding <strong>premium</strong> — a jargon-free canvas empty state, an
+      ASCII-bannered intro, an honest ~15–30 min estimate, and <code>/init</code> now <strong>auto-opens</strong>
+      the brain in the browser at the end. <a class="ref" href="../skill/sandpaper/commands/init.md">the command →</a>
     </p>
     <!-- /BRAIN:NOW -->
   </header>
@@ -61,7 +61,7 @@
   <!-- ZONE CANVAS — the live working surface: Claude's distilled/elevated boards (newest first). THE HERO. -->
   <section class="canvas" id="s-canvas" data-cid="s-canvas" aria-label="Canvas">
     <div class="canvas-rail">
-      <div class="eyebrow">Canvas <span class="canvas-sub">— the current summary, elevated</span></div>
+      <div class="eyebrow">Canvas <span class="canvas-sub">— where Claude's explanations show up</span></div>
       <span class="canvas-count" data-cid="canvas-count">5 boards</span>
     </div>
     <!-- BRAIN:CANVAS — boards prepend here, newest first; .canvas-empty shows when there are none -->
@@ -256,6 +256,7 @@
   <section class="zone" data-cid="s-log">
     <div class="eyebrow">Latest <span id="brain-unseen" class="badge open" hidden></span></div>
     <ol class="timeline" data-cid="logfeed">
+      <li data-kind="worklog" data-cid="w-0182"><div class="tl-row"><span class="tl-when">07-01</span><span class="tl-what">Premium onboarding — plain-language canvas empty state, an ASCII-bannered <code>/init</code> intro, honest ~15–30 min estimate, and it auto-opens the brain at the end.</span><span class="tl-link"><a class="ref" href="../skill/sandpaper/commands/init.md">the command →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0181"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Fixed fresh-install <code>/sandpaper:init</code> — <code>install-skill</code> scaffolds assets locally (no hunting a sibling repo) + the gate/wizard use the AskUserQuestion dialog.</span><span class="tl-link"><a class="ref" href="./learnings.html#l-init-templates">the gotcha →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0180"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Shipped <code>sandpaper upgrade</code> — refresh an existing brain (assets · hooks · commands · canvas), keeping your skin. Existing repos can get board-first now.</span><span class="tl-link"><a class="ref" href="../README.md">the README →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0179"><div class="tl-row"><span class="tl-when">06-30</span><span class="tl-what">Made <strong>board-first</strong> the default — substantial replies go on the canvas (the board <em>is</em> the reply); dropped the Stop-hook nag. Boarded the decision as 005.</span><span class="tl-link"><a class="ref" href="./decisions.html#d-canvas">the canvas →</a></span></div></li>

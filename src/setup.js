@@ -87,6 +87,7 @@ export function scaffold(target, pkg) {
   else {
     writeFileSync(manPath, JSON.stringify({
       version: 1, project, created: date, theme: 'brain/assets/theme.css',
+      pkg, // the Sandpaper package this was installed from — so /sandpaper:init can run `open` for the finale
       port: 4848, // `npx sandpaper open` starts here (auto-bumps if taken); pin a distinct one per repo
       lenses: ['product', 'engineering', 'project'], books: ['log', 'decisions', 'learnings'],
       cidPrefixes: { worklog: 'w', task: 't', decision: 'd', learning: 'l', initiative: 'i' },
@@ -167,12 +168,15 @@ export function upgrade(target, pkg) {
 // The canvas section (empty state) — shared by the scaffold's starter cover and `upgrade`.
 function canvasSection() {
   return `  <section class="canvas" id="s-canvas" data-cid="s-canvas" aria-label="Canvas">
-    <div class="canvas-rail"><div class="eyebrow">Canvas <span class="canvas-sub">— the current summary, elevated</span></div></div>
+    <div class="canvas-rail"><div class="eyebrow">Canvas <span class="canvas-sub">— where Claude's explanations show up</span></div></div>
     <!-- BRAIN:CANVAS — the current board lives in .whiteboard; older ones fold into .canvas-earlier below -->
     <div class="whiteboard" data-cid="whiteboard">
-      <p class="canvas-empty" data-cid="canvas-empty">The canvas is clear. When Claude works through something
-        substantial — an architecture, a comparison, a walkthrough, the summary of a turn — the elevated
-        version lands here, live.</p>
+      <div class="canvas-empty" data-cid="canvas-empty">
+        <p class="canvas-empty-lead">Your canvas is empty — for now.</p>
+        <p>As you work with Claude here, the things worth keeping — how a part works, why a choice was
+          made — land on this whiteboard as little cards you can read and come back to, instead of
+          scrolling past in the terminal.</p>
+      </div>
     </div>
     <!-- /BRAIN:CANVAS -->
   </section>`;
