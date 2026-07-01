@@ -1,7 +1,7 @@
 // setup.js — the `npx sandpaper` packaging commands: install-skill · init (scaffold) · doctor.
 // The plumbing half of Sandpaper (no AI): copy the skill + hooks + design-system templates from
 // THIS package into a target repo, write the manifest, and health-check a setup. Zero deps.
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, copyFileSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, copyFileSync, statSync, renameSync } from 'node:fs';
 import { join, dirname, basename, normalize, extname } from 'node:path';
 
 const ok = (m) => console.log('  ✓ ' + m);
@@ -173,6 +173,29 @@ export function upgrade(target, pkg) {
   console.log('\n  Upgraded. `npx sandpaper open` to view.');
   if (nSkel) console.log('  Added missing structure — run /sandpaper:init in Claude Code to fill the new pages.\n  (For a clean rebuild of a single-pager, move brain/ aside and re-run install-skill + /sandpaper:init.)');
   console.log('');
+}
+
+// ---- rebuild: a full, safe reset — back up the old brain, then reinstall + a fresh skeleton ----
+export function rebuild(target, pkg) {
+  console.log(`\n  🪵  Rebuilding the Sandpaper brain in ${target}`);
+  const brain = join(target, 'brain');
+  if (existsSync(brain)) {
+    const bak = backupName(target);
+    try { renameSync(brain, bak); ok(`old brain kept safe → ${basename(bak)}/  (delete it once you're happy)`); }
+    catch (e) { bad(`couldn't move the old brain aside (${e.message}) — aborting`); process.exitCode = 1; return; }
+  } else {
+    warn('no existing brain — building a fresh one');
+  }
+  // reinstall (refresh commands + hooks) + scaffold a fresh multi-page skeleton
+  installSkill(target, pkg);
+  console.log('  ↳ fresh skeleton is ready — run /sandpaper:init in Claude Code to fill it.\n');
+}
+// a non-clobbering backup path: brain.bak-YYYY-MM-DD, then -2, -3, … if that already exists
+function backupName(target) {
+  const base = join(target, `brain.bak-${today()}`);
+  if (!existsSync(base)) return base;
+  let i = 2; while (existsSync(`${base}-${i}`)) i++;
+  return `${base}-${i}`;
 }
 
 // The canvas section (empty state) — shared by the scaffold's starter cover and `upgrade`.
