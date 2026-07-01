@@ -13,11 +13,11 @@
 <!-- BRAIN:DIGEST — machine context for a fresh `claude`: read THIS first (~1KB) to rehydrate. -->
 <script type="application/json" id="brain-state">
 { "v":1, "project":"Sandpaper", "phase":"Phase 1 · packaging", "updated":"2026-06-30",
-  "session":"S26",
-  "focus":{ "one":"Fixed the ASCII banner alignment the owner caught — the top row read shifted-left in BOTH the install output and the /sandpaper:init welcome. Root cause: the dense figlet font (Pagga-style) rendered the 'S' top bar with flush-left full-blocks while the rows below started with inset half/quadrant blocks, so the top line looked left of the body; row 3 also had an extra leading space. Rather than fight per-glyph half-cell offsets, rebuilt it as a clean full-block SANDPAPER banner where every row is exactly 46 chars, flush at col 2 — verified all-rows-equal-width before shipping. Applied in both places (setup.js banner() + init.md) and mirrored; no old-banner remnants remain; the on-page welcome tour uses a text wordmark, not ASCII, so nothing else to touch. (Tooling/polish — terminal, no board.) Next: npm publish + rest of G", "ref":"../src/setup.js" },
-  "worklog":[ {"date":"2026-07-01","one":"Fixed the ASCII banner alignment — rebuilt SANDPAPER as a clean full-block banner (every row 46 wide, flush) in both the install output and the /init welcome","cid":"w-0187"},
-              {"date":"2026-07-01","one":"Made the install-skill / init / rebuild output marketing-friendly — ASCII banner, SKILL/BRAIN sections with aligned rows, a prominent NEXT call-out, subtle colour","cid":"w-0186"},
-              {"date":"2026-07-01","one":"Added `sandpaper rebuild` — one-command full reset: backs up the old brain to brain.bak-<date>/, reinstalls + lays down a fresh skeleton; run /sandpaper:init to fill it","cid":"w-0185"} ],
+  "session":"S27",
+  "focus":{ "one":"Swapped the SANDPAPER banner to the owner's preferred font — a compact 3-row half-block face (░█▀▄ style) where a leading ░ border on every row keeps it flush (all rows 38 wide, verified). Nicer + lighter than the 5-row full-block one from last turn, and it fixed the alignment the same way. Applied in both the install output (setup.js banner()) and the /sandpaper:init welcome (init.md), mirrored to .claude/commands. Verified the render + doctor healthy + tests pass. (Tooling/polish — terminal, no board.) Next: npm publish + rest of G", "ref":"../src/setup.js" },
+  "worklog":[ {"date":"2026-07-01","one":"Swapped the banner to the owner's preferred font — a compact 3-row half-block SANDPAPER (leading ░ keeps every row flush, all 38 wide)","cid":"w-0188"},
+              {"date":"2026-07-01","one":"Fixed the ASCII banner alignment — rebuilt SANDPAPER as a clean full-block banner (every row 46 wide, flush) in both the install output and the /init welcome","cid":"w-0187"},
+              {"date":"2026-07-01","one":"Made the install-skill / init / rebuild output marketing-friendly — ASCII banner, SKILL/BRAIN sections with aligned rows, a prominent NEXT call-out, subtle colour","cid":"w-0186"} ],
   "open":["decisions.html#q-anchoring","decisions.html#q-undo","decisions.html#q-billing"],
   "docs":["../sandpaper.html","../engg-spec.html"] }
 </script>
@@ -50,9 +50,9 @@
     <div class="pl-meta"><span class="now-tag">Now</span> the build stands at <a href="./project/index.html#i-package">Phase 1 — packaging</a></div>
     <!-- BRAIN:NOW -->
     <p class="now-line" data-cid="now" data-kind="now" data-ref="../src/setup.js">
-      Fixed the <strong>ASCII banner alignment</strong> — rebuilt <code>SANDPAPER</code> as a clean full-block
-      banner (every row flush, 46 wide) in both the install output and the <code>/sandpaper:init</code>
-      welcome. <a class="ref" href="../src/setup.js">setup.js →</a>
+      Swapped the <code>SANDPAPER</code> banner to a cleaner <strong>3-row half-block</strong> font (the owner's
+      pick) — every row flush at 38 wide, in the install output and the <code>/sandpaper:init</code> welcome.
+      <a class="ref" href="../src/setup.js">setup.js →</a>
     </p>
     <!-- /BRAIN:NOW -->
   </header>
@@ -256,6 +256,7 @@
   <section class="zone" data-cid="s-log">
     <div class="eyebrow">Latest <span id="brain-unseen" class="badge open" hidden></span></div>
     <ol class="timeline" data-cid="logfeed">
+      <li data-kind="worklog" data-cid="w-0188"><div class="tl-row"><span class="tl-when">07-01</span><span class="tl-what">Swapped the <code>SANDPAPER</code> banner to a cleaner <strong>3-row half-block</strong> font (owner's pick) — flush, 38 wide, in the install output + <code>/init</code> welcome.</span><span class="tl-link"><a class="ref" href="../src/setup.js">setup.js →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0187"><div class="tl-row"><span class="tl-when">07-01</span><span class="tl-what">Fixed the <strong>ASCII banner alignment</strong> — rebuilt <code>SANDPAPER</code> as a clean full-block banner (every row flush, 46 wide), in the install output + the <code>/init</code> welcome.</span><span class="tl-link"><a class="ref" href="../src/setup.js">setup.js →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0186"><div class="tl-row"><span class="tl-when">07-01</span><span class="tl-what">Made <code>install-skill</code>'s output marketing-friendly — ASCII banner, <em>SKILL</em>/<em>BRAIN</em> sections with aligned rows, and a prominent <strong>▸ NEXT</strong> call-out.</span><span class="tl-link"><a class="ref" href="../src/setup.js">setup.js →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0185"><div class="tl-row"><span class="tl-when">07-01</span><span class="tl-what">Added <code>sandpaper rebuild</code> — one-command full reset: backs up the old brain, reinstalls, lays down a fresh multi-page skeleton. Run <code>/init</code> to fill it.</span><span class="tl-link"><a class="ref" href="../README.md">the README →</a></span></div></li>
