@@ -3,6 +3,11 @@ node_modules/
 
 # Sandpaper runtime — sessions + pre-turn snapshots, regenerated locally
 .sandpaper/
+brain.bak-*/
+
+# npm pack output / browser-automation scratch
+*.tgz
+.playwright-mcp/
 
 # logs
 *.log

@@ -6,10 +6,14 @@
   "bin": { "sandpaper": "bin/cli.js" },
   "files": ["bin/", "src/", "public/", "skill/", "brain/assets/", "README.md"],
   "keywords": ["claude-code", "skill", "project-brain", "living-docs", "documentation", "agent"],
-  "scripts": {
-    "start": "node bin/cli.js sandpaper.html",
-    "test": "node test/parse-test.js && node test/markdown-test.js && node test/edit-test.js"
-  },
+  "author": "Narayan <codevalley@live.com>",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "git+https://github.com/codevalley/sandpaper.git" },
+  "homepage": "https://github.com/codevalley/sandpaper#readme",
+  "bugs": "https://github.com/codevalley/sandpaper/issues",
   "engines": { "node": ">=18" },
-  "license": "MIT"
+  "scripts": {
+    "start": "node bin/cli.js help",
+    "test": "node test/parse-test.js && node test/markdown-test.js && node test/edit-test.js"
+  }
 }
