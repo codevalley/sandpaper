@@ -14,11 +14,11 @@
 <script type="application/json" id="brain-state">
 { "v":1, "project":"Sandpaper", "phase":"Phase 1 · packaging", "updated":"2026-06-30",
   "session":"S28",
-  "focus":{ "one":"Prepping the first RELEASE (to dogfood with friends via npm + push to GitHub). Done: added an MIT LICENSE, enriched package.json (author · repository · homepage · bugs · engines; fixed the start script), extended .gitignore (brain.bak / *.tgz / .playwright-mcp). Verified npm pack ships a clean 30 files / 60 kB — only the tool (bin · src · public · skill · brain/assets), no brain content or .sandpaper. Two owner decisions pending (asked, they want to clarify first): (1) the npm NAME — `sandpaper` is TAKEN on npm (v1.4.6), so it needs a scope (@codevalley/sandpaper) or an alt (sandpaper-brain / sandpaperjs); (2) GitHub public vs private (gh is authed as codevalley; no remote yet). npm login is the owner's step (I can't enter creds); publish itself is irreversible so I'll prep + hand over the exact commands. Also noted: for quick dogfooding they can skip npm entirely with `npx github:codevalley/sandpaper`. Next: settle the name → finalize package.json + README + docs → publish + push", "ref":"../package.json" },
-  "worklog":[ {"date":"2026-07-01","one":"Release prep — MIT LICENSE, richer package.json (repo/homepage/bugs/author), .gitignore; npm pack verified (30 files, 60kB, clean). Name blocked: `sandpaper` is taken on npm","cid":"w-0189"},
-              {"date":"2026-07-01","one":"Swapped the banner to the owner's preferred font — a compact 3-row half-block SANDPAPER (leading ░ keeps every row flush, all 38 wide)","cid":"w-0188"},
-              {"date":"2026-07-01","one":"Fixed the ASCII banner alignment — rebuilt SANDPAPER as a clean full-block banner (every row 46 wide, flush) in both the install output and the /init welcome","cid":"w-0187"} ],
-  "open":["decisions.html#q-anchoring","decisions.html#q-undo","decisions.html#q-billing"],
+  "focus":{ "one":"Dogfood-release flow, now at the GitHub-push step. Settled a design question the owner raised: the brain's out-links (data-refs into the spec + source, which live OUTSIDE brain/) are INTENTIONAL — they're the 'link, never copy' spine (d-ssot); removing them would force copying content in and reintroduce the drift the brain exists to kill. The ONLY breakage is a detached, subfolder-only deploy (../ lands above the root); in-repo every ref resolves. The real fix is a portable publish/export that rewrites out-refs → absolute URLs (GitHub blob · hosted spec) — already on the plan as t-0019, not needed for in-repo use. Boarded that as board 006. Two owner calls still open: (1) LICENSE — MIT vs Apache-2.0 (leaning keep MIT; Apache's only real add is an explicit patent grant + retaliation clause, matters mainly for enterprise/patent-sensitive adoption; trivially switchable later while it's all our code); (2) the GitHub push — repo name settled as `sandpaper`, public confirmed (required for npx-from-github dogfooding), pre-flight clean (name free, tree committed, no secrets), waiting on the owner's 'go' to run `gh repo create --public --push`. npm deferred by the owner. Next: license pick → push → dogfood.", "ref":"../package.json" },
+  "worklog":[ {"date":"2026-07-01","one":"Answered the owner: the brain's out-links are the 'link, never copy' spine, not a flaw — real fix is portable-publish (t-0019), not fewer links. Boarded as 006","cid":"w-0190"},
+              {"date":"2026-07-01","one":"Release prep — MIT LICENSE, richer package.json (repo/homepage/bugs/author), .gitignore; npm pack verified (30 files, 60kB, clean). Name blocked: `sandpaper` is taken on npm","cid":"w-0189"},
+              {"date":"2026-07-01","one":"Swapped the banner to the owner's preferred font — a compact 3-row half-block SANDPAPER (leading ░ keeps every row flush, all 38 wide)","cid":"w-0188"} ],
+  "open":["decisions.html#q-anchoring","decisions.html#q-undo","decisions.html#q-billing","decisions.html#q-deploy"],
   "docs":["../sandpaper.html","../engg-spec.html"] }
 </script>
 </head>
@@ -49,10 +49,10 @@
   <header class="plate" data-cid="cover">
     <div class="pl-meta"><span class="now-tag">Now</span> the build stands at <a href="./project/index.html#i-package">Phase 1 — packaging</a></div>
     <!-- BRAIN:NOW -->
-    <p class="now-line" data-cid="now" data-kind="now" data-ref="../package.json">
-      Prepping the first <strong>release</strong> — LICENSE + package metadata done, <code>npm pack</code>
-      verified clean; deciding the npm name (<code>sandpaper</code> is taken) + GitHub public/private before
-      publishing. <a class="ref" href="../package.json">package.json →</a>
+    <p class="now-line" data-cid="now" data-kind="now" data-ref="./project/index.html#i-package">
+      At the <strong>GitHub-push</strong> step of the dogfood release — out-links settled (link-never-copy;
+      deploy fix = <code>t-0019</code>); awaiting the license call + the push go.
+      <a class="ref" href="./project/index.html#i-package">the plan →</a>
     </p>
     <!-- /BRAIN:NOW -->
   </header>
@@ -67,31 +67,36 @@
     <!-- BRAIN:CANVAS — boards prepend here, newest first; .canvas-empty shows when there are none -->
     <!-- the whiteboard: a white container whose CONTENT scrolls inside it; the page scrolls everything else -->
     <div class="whiteboard" data-cid="whiteboard">
-      <article class="board board--live" data-cid="board-0005" data-kind="board" data-date="2026-06-30" data-ref="decisions.html#d-canvas">
+      <article class="board board--live" data-cid="board-0006" data-kind="board" data-date="2026-07-01" data-ref="./decisions.html#d-ssot">
         <header class="board-head">
           <span class="board-dot" aria-hidden="true"></span>
-          <h3 class="board-title">Board-first — the canvas is where explanations live</h3>
-          <span class="board-when">06-30 · board 005</span>
+          <h3 class="board-title">The brain links outside itself — on purpose</h3>
+          <span class="board-when">07-01 · board 006</span>
         </header>
         <div class="board-body">
-          <p>The decision: when my reply would be a substantial summary or explanation, the
-            <strong>board <em>is</em> the reply</strong> — it lands here, and the terminal gets one line
-            (<code>📋 … → on the canvas</code>). Not written twice.</p>
-          <p>We dropped the Stop-hook “nag”. A hook can't tell what's board-worthy — it only sees length,
-            so it over- or under-fires, and it never boards anything itself; it just pokes me, and the call
-            is still mine. So the fix puts that judgment in the <em>natural flow</em> instead of bolting on
-            a dumb detector. This board is the first written that way — a reply, not an afterthought.</p>
+          <p>Good instinct to question it — but the out-links aren't sloppiness, they're the
+            <strong>spine</strong>. Sandpaper's one rule is <em>link, never copy</em>: the brain is a thin
+            index <em>over</em> canonical truth (the spec, the source), never a second copy of it. Copy the
+            content in and it drifts the moment the code changes — the exact rot the brain exists to kill.
+            So a <code>data-ref</code> into <code>../src/server.js</code> is the design working, not leaking.</p>
           <div class="split">
-            <div class="split-col"><span class="split-k">Terminal · steer</span><span class="split-d">short answers · confirmations · the back-and-forth · the one-line pointer</span></div>
-            <div class="split-col"><span class="split-k">Canvas · show</span><span class="split-d">summaries · architectures · comparisons · walkthroughs — the rich stuff</span></div>
+            <div class="split-col"><span class="split-k">Intra-brain links</span><span class="split-d">cover ↔ lenses ↔ books — relative, self-contained, travel anywhere</span></div>
+            <div class="split-col"><span class="split-k">Canonical refs</span><span class="split-d">→ the spec &amp; the real source — <em>meant</em> to point outside <code>brain/</code></span></div>
           </div>
-          <p>Honest caveat: this is a <em>default</em>, not a hard lock — boarding a judgment can't be
-            enforced like “you changed code, go stamp.” Your tripwire is the pointer: <strong>no pointer
-            means nothing was boarded</strong>, so poke me.</p>
+          <p>They only break in <strong>one</strong> situation: serving <code>brain/</code>
+            <em>detached</em> from its repo (a subfolder-only deploy), so <code>../</code> lands above the
+            root. Inside the repo — where the brain is designed to live — every ref resolves.</p>
+          <div class="layers">
+            <div class="layer layer--brain"><span class="layer-k">✗ Wrong fix</span><span class="layer-d">stop linking out → forces copying content in → drift returns. Guts the whole point.</span></div>
+            <span class="layer-link" aria-hidden="true">instead ↓</span>
+            <div class="layer layer--canvas"><span class="layer-k">✓ Right fix</span><span class="layer-d"><b>portable publish</b> — an export that rewrites out-refs → absolute URLs (GitHub blob · hosted spec). Still zero copy; now deploys anywhere.</span></div>
+          </div>
+          <p>That export is already on the plan as <strong>t-0019</strong> (static-publish + a relative-path
+            lint). Nothing to undo today — just a feature to promote when we want a shareable, detached brain.</p>
         </div>
         <footer class="board-foot">
-          <span class="board-tag">dogfood · board 005 · board-first</span>
-          <a class="ref" href="./decisions.html#d-canvas">the canvas →</a>
+          <span class="board-tag">dogfood · board 006 · link-never-copy</span>
+          <a class="ref" href="./project/index.html#t-0019">t-0019 · static publish →</a>
         </footer>
       </article>
     </div>
@@ -99,6 +104,27 @@
     <!-- Earlier: below the whiteboard, in normal page flow; the stack caps at 5, oldest falls away -->
     <div class="canvas-earlier" data-cid="canvas-earlier">
       <div class="earlier-label">Earlier <span class="n">· 4</span></div>
+
+      <details class="board board--past" data-cid="board-0005" data-kind="board" data-date="2026-06-30" data-ref="decisions.html#d-canvas">
+        <summary class="board-row"><span class="board-row-dot" aria-hidden="true"></span><span class="board-row-when">06-30 · 005</span><span class="board-row-title">Board-first — the canvas is where explanations live</span><span class="board-row-chev" aria-hidden="true">›</span></summary>
+        <div class="board-body">
+          <p>The decision: when my reply would be a substantial summary or explanation, the
+            <strong>board <em>is</em> the reply</strong> — it lands here, and the terminal gets one line
+            (<code>📋 … → on the canvas</code>). Not written twice.</p>
+          <p>We dropped the Stop-hook “nag”. A hook can't tell what's board-worthy — it only sees length,
+            so it over- or under-fires, and it never boards anything itself; it just pokes me, and the call
+            is still mine. So the fix puts that judgment in the <em>natural flow</em> instead of bolting on
+            a dumb detector.</p>
+          <div class="split">
+            <div class="split-col"><span class="split-k">Terminal · steer</span><span class="split-d">short answers · confirmations · the back-and-forth · the one-line pointer</span></div>
+            <div class="split-col"><span class="split-k">Canvas · show</span><span class="split-d">summaries · architectures · comparisons · walkthroughs — the rich stuff</span></div>
+          </div>
+        </div>
+        <footer class="board-foot">
+          <span class="board-tag">dogfood · board 005 · board-first</span>
+          <a class="ref" href="./decisions.html#d-canvas">the canvas →</a>
+        </footer>
+      </details>
 
       <details class="board board--past" data-cid="board-0004" data-kind="board" data-date="2026-06-30" data-ref="decisions.html#d-canvas">
         <summary class="board-row"><span class="board-row-dot" aria-hidden="true"></span><span class="board-row-when">06-30 · 004</span><span class="board-row-title">A scrollable whiteboard — and boarding that doesn't rely on memory</span><span class="board-row-chev" aria-hidden="true">›</span></summary>
@@ -165,35 +191,6 @@
         </footer>
       </details>
 
-      <details class="board board--past" data-cid="board-0001" data-kind="board" data-date="2026-06-30" data-ref="decisions.html#d-canvas">
-        <summary class="board-row"><span class="board-row-dot" aria-hidden="true"></span><span class="board-row-when">06-30 · 001</span><span class="board-row-title">The cover becomes the canvas</span><span class="board-row-chev" aria-hidden="true">›</span></summary>
-        <div class="board-body">
-          <p>The founding idea, made real: when Claude explains something substantial, the rich version
-            shouldn't scroll past in the terminal — it should land <em>here</em>, on the surface, where it
-            can be read, re-read, and refined in place. The terminal <strong>steers</strong>; the canvas
-            <strong>shows</strong>.</p>
-
-          <div class="pipeline" aria-label="terminal then canvas then brain">
-            <div class="pl-node pl-term"><span class="pl-k">Terminal</span><span class="pl-d">steer · short commands</span></div>
-            <span class="pl-arrow" aria-hidden="true">→</span>
-            <div class="pl-node pl-canvas"><span class="pl-k">Canvas</span><span class="pl-d">see · live rich boards</span></div>
-            <span class="pl-arrow" aria-hidden="true">→</span>
-            <div class="pl-node pl-brain"><span class="pl-k">Brain</span><span class="pl-d">settle · curated state</span></div>
-          </div>
-
-          <p>This board <em>is</em> the dogfood — the first elevated explanation written to the cover
-            instead of the scrollback. A <strong>board</strong> is freeform rich HTML (diagrams, tables,
-            code), themed to match, refinable with the toolbar like any Sandpaper surface. Boards live on
-            the canvas; only the durable ones get <em>promoted</em> into the curated brain — the canvas
-            never dumps into the <a class="ref" href="./wiki/index.html">wiki</a> or
-            <a class="ref" href="./decisions.html">decisions</a>.</p>
-        </div>
-        <footer class="board-foot">
-          <span class="board-tag">dogfood · board 001</span>
-          <a class="ref" href="./decisions.html#d-canvas">why the cover hosts it →</a>
-        </footer>
-      </details>
-
     </div><!-- /.canvas-earlier -->
     <!-- /BRAIN:CANVAS -->
   </section>
@@ -256,6 +253,7 @@
   <section class="zone" data-cid="s-log">
     <div class="eyebrow">Latest <span id="brain-unseen" class="badge open" hidden></span></div>
     <ol class="timeline" data-cid="logfeed">
+      <li data-kind="worklog" data-cid="w-0190"><div class="tl-row"><span class="tl-when">07-01</span><span class="tl-what">Answered the owner: the brain's <strong>out-links are the <em>link-never-copy</em> spine</strong>, not a flaw — the real fix is portable-publish (<code>t-0019</code>), not fewer links. Boarded as 006.</span><span class="tl-link"><a class="ref" href="./project/index.html#t-0019">t-0019 →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0189"><div class="tl-row"><span class="tl-when">07-01</span><span class="tl-what">Release prep — MIT <code>LICENSE</code>, richer <code>package.json</code>, <code>.gitignore</code>; <code>npm pack</code> verified clean (30 files, 60 kB). Name blocked — <code>sandpaper</code> is taken on npm.</span><span class="tl-link"><a class="ref" href="../package.json">package.json →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0188"><div class="tl-row"><span class="tl-when">07-01</span><span class="tl-what">Swapped the <code>SANDPAPER</code> banner to a cleaner <strong>3-row half-block</strong> font (owner's pick) — flush, 38 wide, in the install output + <code>/init</code> welcome.</span><span class="tl-link"><a class="ref" href="../src/setup.js">setup.js →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0187"><div class="tl-row"><span class="tl-when">07-01</span><span class="tl-what">Fixed the <strong>ASCII banner alignment</strong> — rebuilt <code>SANDPAPER</code> as a clean full-block banner (every row flush, 46 wide), in the install output + the <code>/init</code> welcome.</span><span class="tl-link"><a class="ref" href="../src/setup.js">setup.js →</a></span></div></li>
