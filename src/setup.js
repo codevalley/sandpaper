@@ -27,6 +27,44 @@ const projectName = (target) => {
 };
 const today = () => new Date().toISOString().slice(0, 10);
 
+// ---- branded terminal output (degrades to plain on a non-TTY or with NO_COLOR) ----
+const useColor = (process.stdout.isTTY || process.env.FORCE_COLOR) && !process.env.NO_COLOR;
+const paint = (code, s) => (useColor ? `\x1b[${code}m${s}\x1b[0m` : s);
+const bold = (s) => paint('1', s), dim = (s) => paint('2', s), green = (s) => paint('32', s), clay = (s) => paint('38;5;173', s);
+function banner() {
+  console.log('\n' + clay([
+    '  ▄▄▄  ▗▄▖ ▗▖  ▗▖▗▄▄▄  ▗▄▄▖ ▗▄▖ ▗▄▄▖ ▗▄▄▄▖▗▄▄▖',
+    '  ▐▌   ▐▌ ▐▌▐▛▚▖▐▌▐▌  █ ▐▌ ▐▌▐▌ ▐▌▐▌ ▐▌▐▌   ▐▌ ▐▌',
+    '   ▀▀▚▖▐▛▀▜▌▐▌ ▝▜▌▐▌  █ ▐▛▀▘ ▐▛▀▜▌▐▛▀▘ ▐▛▀▀▘▐▛▀▚▖',
+    '  ▗▄▄▞▘▐▌ ▐▌▐▌  ▐▌▐▙▄▄▀ ▐▌   ▐▌ ▐▌▐▌   ▐▙▄▄▖▐▌ ▐▌',
+  ].join('\n')));
+  console.log('  ' + dim('a living brain for your repo — refine it on the page') + '\n');
+}
+const section = (name) => console.log(`  ${bold(name)}`);
+const row = (label, target, note) => console.log(`   ${green('✓')}  ${label.padEnd(18)}${target.padEnd(30)}${note ? dim(note) : ''}`);
+const nextStep = () => {
+  console.log(`\n  ${clay('▸ NEXT')}   run  ${bold('/sandpaper:init')}  in Claude Code — it reads this repo`);
+  console.log('           and fills your brain: the cover, the lenses, and the books.\n');
+};
+
+// Do the brain scaffold work (assets · manifest · multi-page skeleton) and print its BRAIN rows.
+function scaffoldBrain(target, pkg) {
+  const brain = join(target, 'brain'), project = projectName(target), date = today();
+  const nA = copyDirFiles(join(pkg, 'brain', 'assets'), join(brain, 'assets'), true); // never clobber a skin
+  row('design system', 'brain/assets/', nA ? 'theme · engine · search' : 'kept your skin');
+  ensureDir(join(target, '.sandpaper'));
+  const manPath = join(target, '.sandpaper', 'manifest.json'), hadMan = existsSync(manPath);
+  if (!hadMan) writeFileSync(manPath, JSON.stringify({
+    version: 1, project, created: date, theme: 'brain/assets/theme.css', pkg, port: 4848,
+    lenses: ['product', 'engineering', 'project'], books: ['log', 'decisions', 'learnings'],
+    cidPrefixes: { worklog: 'w', task: 't', decision: 'd', learning: 'l', initiative: 'i' },
+    counters: { w: 1, t: 0, d: 0, l: 0, i: 0 },
+  }, null, 2) + '\n');
+  const nSkel = writeSkeleton(brain, project, date);
+  row('multi-page shell', nSkel ? 'cover · 3 lenses · 3 books' : 'already present', nSkel ? 'nav wired · ready to fill' : '');
+  row('manifest', '.sandpaper/manifest.json', hadMan ? 'kept · id counters' : 'ids · prefixes · port');
+}
+
 // ---- install-skill: make /sandpaper:* available + wire the auto-update hooks (use --no-hooks to skip) ----
 const HOOKS = [
   ['SessionStart', 'node .sandpaper/hooks/brain-inject.js', 10],
@@ -53,54 +91,37 @@ function wireHooks(target) {
 }
 
 export function installSkill(target, pkg, opts = {}) {
-  console.log(`\n  🪵  Installing the Sandpaper skill into ${target}\n`);
+  banner();
+  console.log(`  ${clay('▸')} installing into  ${bold(projectName(target))}\n`);
+  section('SKILL');
   const nCmds = copyDirFiles(join(pkg, 'skill', 'sandpaper', 'commands'), join(target, '.claude', 'commands', 'sandpaper'));
-  ok(`${nCmds} commands → .claude/commands/sandpaper/  (use them as /sandpaper:<name>)`);
+  row(`${nCmds} slash commands`, '.claude/commands/sandpaper/', '/sandpaper:<name>');
   const hookDir = join(target, '.sandpaper', 'hooks');
   ensureDir(hookDir);
   for (const h of ['brain-inject.js', 'brain-stamp-check.js']) copyFileSync(join(pkg, 'bin', h), join(hookDir, h));
-  ok('2 hooks → .sandpaper/hooks/');
   if (opts.noHooks) {
-    warn('--no-hooks: skipped wiring the auto-update hooks. To enable later, add to .claude/settings.json:');
+    row('2 auto-hooks', '.sandpaper/hooks/', 'not wired (--no-hooks)');
     console.log('\n' + hooksSnippet());
   } else {
     const r = wireHooks(target);
-    if (r.ok) ok(r.added ? 'auto-update hooks wired into .claude/settings.json  (delete them there, or re-run with --no-hooks, to disable)' : 'auto-update hooks already wired');
-    else { warn(r.reason + ' — add this by hand:'); console.log('\n' + hooksSnippet()); }
+    row('2 auto-hooks', '.sandpaper/hooks/', r.ok ? (r.added ? 'wired · keeps the brain current' : 'already wired') : 'needs wiring by hand');
+    if (!r.ok) { console.log('   ' + dim(r.reason)); console.log('\n' + hooksSnippet()); }
   }
+  console.log('');
   // Scaffold the brain from THIS package now, so /sandpaper:init has the design-system assets
-  // LOCALLY and never has to hunt the filesystem for a reference brain. scaffold prints its own
-  // "Next: …" closing.
-  scaffold(target, pkg);
+  // + the multi-page skeleton LOCALLY and never has to hunt the filesystem for a reference brain.
+  section('BRAIN');
+  scaffoldBrain(target, pkg);
+  nextStep();
 }
 
-// ---- init: scaffold brain/ (assets + manifest + a starter cover) — the mechanical part ----
+// ---- init: scaffold brain/ (assets + manifest + the multi-page skeleton) — the mechanical part ----
 export function scaffold(target, pkg) {
-  console.log(`\n  🪵  Scaffolding brain/ in ${target}\n`);
-  const brain = join(target, 'brain');
-  const nA = copyDirFiles(join(pkg, 'brain', 'assets'), join(brain, 'assets'), true); // never clobber a user's skin
-  ok(nA ? `brain/assets/ ← ${nA} design-system file(s)` : 'brain/assets/ already present — kept your customised skin');
-  const project = projectName(target), date = today();
-  ensureDir(join(target, '.sandpaper'));
-  const manPath = join(target, '.sandpaper', 'manifest.json');
-  if (existsSync(manPath)) warn('.sandpaper/manifest.json exists — kept (preserves the id counters)');
-  else {
-    writeFileSync(manPath, JSON.stringify({
-      version: 1, project, created: date, theme: 'brain/assets/theme.css',
-      pkg, // the Sandpaper package this was installed from — so /sandpaper:init can run `open` for the finale
-      port: 4848, // `npx sandpaper open` starts here (auto-bumps if taken); pin a distinct one per repo
-      lenses: ['product', 'engineering', 'project'], books: ['log', 'decisions', 'learnings'],
-      cidPrefixes: { worklog: 'w', task: 't', decision: 'd', learning: 'l', initiative: 'i' },
-      counters: { w: 1, t: 0, d: 0, l: 0, i: 0 },
-    }, null, 2) + '\n');
-    ok('.sandpaper/manifest.json (id counters · cid prefixes · theme path)');
-  }
-  // Write the multi-page SKELETON (cover + lens pages + books), each with the shared shell nav wired
-  // to relative paths — so /sandpaper:init FILLS a real multi-page structure instead of inventing one
-  // (which, with no reference, collapses into a single page with #anchor nav). skipExisting per file.
-  writeSkeleton(brain, project, date);
-  ok('brain/ skeleton — cover + 3 lens pages + 3 books (shell nav wired; /sandpaper:init fills them)');
-  console.log('\n  Next: run /sandpaper:init in Claude Code to harvest this repo and fill the brain.\n');
+  banner();
+  console.log(`  ${clay('▸')} scaffolding the brain into  ${bold(projectName(target))}\n`);
+  section('BRAIN');
+  scaffoldBrain(target, pkg);
+  nextStep();
 }
 
 // ---- doctor: health-check a Sandpaper setup ----
@@ -177,18 +198,14 @@ export function upgrade(target, pkg) {
 
 // ---- rebuild: a full, safe reset — back up the old brain, then reinstall + a fresh skeleton ----
 export function rebuild(target, pkg) {
-  console.log(`\n  🪵  Rebuilding the Sandpaper brain in ${target}`);
   const brain = join(target, 'brain');
   if (existsSync(brain)) {
     const bak = backupName(target);
-    try { renameSync(brain, bak); ok(`old brain kept safe → ${basename(bak)}/  (delete it once you're happy)`); }
+    try { renameSync(brain, bak); console.log(`\n  ${clay('▸')} backed up your old brain → ${bold(basename(bak) + '/')}   ${dim('(kept, just in case)')}`); }
     catch (e) { bad(`couldn't move the old brain aside (${e.message}) — aborting`); process.exitCode = 1; return; }
-  } else {
-    warn('no existing brain — building a fresh one');
   }
-  // reinstall (refresh commands + hooks) + scaffold a fresh multi-page skeleton
+  // reinstall (refresh commands + hooks) + a fresh multi-page skeleton — installSkill prints the branded flow
   installSkill(target, pkg);
-  console.log('  ↳ fresh skeleton is ready — run /sandpaper:init in Claude Code to fill it.\n');
 }
 // a non-clobbering backup path: brain.bak-YYYY-MM-DD, then -2, -3, … if that already exists
 function backupName(target) {
