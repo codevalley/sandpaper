@@ -13,11 +13,11 @@
 <!-- BRAIN:DIGEST — machine context for a fresh `claude`: read THIS first (~1KB) to rehydrate. -->
 <script type="application/json" id="brain-state">
 { "v":1, "project":"Sandpaper", "phase":"Phase 1 · packaging", "updated":"2026-06-30",
-  "session":"S25",
-  "focus":{ "one":"Made the `sandpaper install-skill` (and `init` / `rebuild`) terminal output MARKETING-friendly, from the owner's ask. It now opens with the block-char SANDPAPER banner + a tagline, groups the work under bold SKILL / BRAIN sections with aligned ✓ rows (label · target · dim note), and ends with a prominent '▸ NEXT — run /sandpaper:init' call-out. Subtle ANSI colour (clay banner + ▸, green ✓, dim notes, bold labels) that degrades to plain on a non-TTY or NO_COLOR and honours FORCE_COLOR. Refactored the printing: a shared scaffoldBrain() does the brain work AND prints its rows — install-skill and init both call it (install no longer double-headers via scaffold), and rebuild is lean (a backup line, then the branded install). Verified the output + that a fresh install still lays down 7 pages, doctor healthy. (Tooling/polish — terminal, no board.) Next: npm publish + rest of G", "ref":"../README.md" },
-  "worklog":[ {"date":"2026-07-01","one":"Made the install-skill / init / rebuild output marketing-friendly — ASCII banner, SKILL/BRAIN sections with aligned rows, a prominent NEXT call-out, subtle colour","cid":"w-0186"},
-              {"date":"2026-07-01","one":"Added `sandpaper rebuild` — one-command full reset: backs up the old brain to brain.bak-<date>/, reinstalls + lays down a fresh skeleton; run /sandpaper:init to fill it","cid":"w-0185"},
-              {"date":"2026-07-01","one":"Taught `sandpaper upgrade` to add missing skeleton pages (lens pages / books) to an existing brain via the shared writeSkeleton() — brings a single-pager up to the multi-page structure","cid":"w-0184"} ],
+  "session":"S26",
+  "focus":{ "one":"Fixed the ASCII banner alignment the owner caught — the top row read shifted-left in BOTH the install output and the /sandpaper:init welcome. Root cause: the dense figlet font (Pagga-style) rendered the 'S' top bar with flush-left full-blocks while the rows below started with inset half/quadrant blocks, so the top line looked left of the body; row 3 also had an extra leading space. Rather than fight per-glyph half-cell offsets, rebuilt it as a clean full-block SANDPAPER banner where every row is exactly 46 chars, flush at col 2 — verified all-rows-equal-width before shipping. Applied in both places (setup.js banner() + init.md) and mirrored; no old-banner remnants remain; the on-page welcome tour uses a text wordmark, not ASCII, so nothing else to touch. (Tooling/polish — terminal, no board.) Next: npm publish + rest of G", "ref":"../src/setup.js" },
+  "worklog":[ {"date":"2026-07-01","one":"Fixed the ASCII banner alignment — rebuilt SANDPAPER as a clean full-block banner (every row 46 wide, flush) in both the install output and the /init welcome","cid":"w-0187"},
+              {"date":"2026-07-01","one":"Made the install-skill / init / rebuild output marketing-friendly — ASCII banner, SKILL/BRAIN sections with aligned rows, a prominent NEXT call-out, subtle colour","cid":"w-0186"},
+              {"date":"2026-07-01","one":"Added `sandpaper rebuild` — one-command full reset: backs up the old brain to brain.bak-<date>/, reinstalls + lays down a fresh skeleton; run /sandpaper:init to fill it","cid":"w-0185"} ],
   "open":["decisions.html#q-anchoring","decisions.html#q-undo","decisions.html#q-billing"],
   "docs":["../sandpaper.html","../engg-spec.html"] }
 </script>
@@ -50,9 +50,9 @@
     <div class="pl-meta"><span class="now-tag">Now</span> the build stands at <a href="./project/index.html#i-package">Phase 1 — packaging</a></div>
     <!-- BRAIN:NOW -->
     <p class="now-line" data-cid="now" data-kind="now" data-ref="../src/setup.js">
-      Gave <code>sandpaper install-skill</code> a <strong>marketing-friendly</strong> first impression — the
-      ASCII banner, tidy <em>SKILL</em>/<em>BRAIN</em> sections, and a prominent <strong>▸ NEXT</strong>
-      call-out (subtle colour, degrades cleanly). <a class="ref" href="../src/setup.js">setup.js →</a>
+      Fixed the <strong>ASCII banner alignment</strong> — rebuilt <code>SANDPAPER</code> as a clean full-block
+      banner (every row flush, 46 wide) in both the install output and the <code>/sandpaper:init</code>
+      welcome. <a class="ref" href="../src/setup.js">setup.js →</a>
     </p>
     <!-- /BRAIN:NOW -->
   </header>
@@ -256,6 +256,7 @@
   <section class="zone" data-cid="s-log">
     <div class="eyebrow">Latest <span id="brain-unseen" class="badge open" hidden></span></div>
     <ol class="timeline" data-cid="logfeed">
+      <li data-kind="worklog" data-cid="w-0187"><div class="tl-row"><span class="tl-when">07-01</span><span class="tl-what">Fixed the <strong>ASCII banner alignment</strong> — rebuilt <code>SANDPAPER</code> as a clean full-block banner (every row flush, 46 wide), in the install output + the <code>/init</code> welcome.</span><span class="tl-link"><a class="ref" href="../src/setup.js">setup.js →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0186"><div class="tl-row"><span class="tl-when">07-01</span><span class="tl-what">Made <code>install-skill</code>'s output marketing-friendly — ASCII banner, <em>SKILL</em>/<em>BRAIN</em> sections with aligned rows, and a prominent <strong>▸ NEXT</strong> call-out.</span><span class="tl-link"><a class="ref" href="../src/setup.js">setup.js →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0185"><div class="tl-row"><span class="tl-when">07-01</span><span class="tl-what">Added <code>sandpaper rebuild</code> — one-command full reset: backs up the old brain, reinstalls, lays down a fresh multi-page skeleton. Run <code>/init</code> to fill it.</span><span class="tl-link"><a class="ref" href="../README.md">the README →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0184"><div class="tl-row"><span class="tl-when">07-01</span><span class="tl-what"><code>sandpaper upgrade</code> now adds missing lens pages + books to an existing brain — brings a single-pager up to the multi-page structure.</span><span class="tl-link"><a class="ref" href="../README.md">the README →</a></span></div></li>
