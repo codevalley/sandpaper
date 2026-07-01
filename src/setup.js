@@ -98,18 +98,7 @@ export function scaffold(target, pkg) {
   // Write the multi-page SKELETON (cover + lens pages + books), each with the shared shell nav wired
   // to relative paths — so /sandpaper:init FILLS a real multi-page structure instead of inventing one
   // (which, with no reference, collapses into a single page with #anchor nav). skipExisting per file.
-  const write = (rel, html) => {
-    const p = join(brain, rel);
-    if (existsSync(p)) { warn(`brain/${rel} exists — kept`); return; }
-    ensureDir(dirname(p)); writeFileSync(p, html);
-  };
-  write('index.html', pageShell({ project, prefix: '', title: 'cover', headExtra: coverDigest(project, date), main: coverMain(project, date) }));
-  for (const [slug, name, blurb] of [['product', 'Product', 'what it is & why it earns its place'],
-    ['engineering', 'Engineering', 'how it is built'], ['project', 'Project', 'the plan & progress']])
-    write(`${slug}/index.html`, pageShell({ project, prefix: '../', title: name, main: lensMain(name, blurb) }));
-  for (const [slug, name, blurb] of [['log', 'Log', 'the work log — newest first'],
-    ['decisions', 'Decisions', 'the ledger of calls made'], ['learnings', 'Learnings', 'gotchas & verdicts']])
-    write(`${slug}.html`, pageShell({ project, prefix: '', title: name, main: bookMain(name, blurb) }));
+  writeSkeleton(brain, project, date);
   ok('brain/ skeleton — cover + 3 lens pages + 3 books (shell nav wired; /sandpaper:init fills them)');
   console.log('\n  Next: run /sandpaper:init in Claude Code to harvest this repo and fill the brain.\n');
 }
@@ -169,13 +158,21 @@ export function upgrade(target, pkg) {
   if (existsSync(join(aDst, 'theme.css'))) warn('assets/theme.css kept — it is your skin (delete it + re-run to take the shipped one)');
   else if (existsSync(join(aSrc, 'theme.css'))) { copyFileSync(join(aSrc, 'theme.css'), join(aDst, 'theme.css')); ok('assets/theme.css added'); }
 
-  // 3. inject the canvas region into the cover if it predates the canvas
+  // 3. multi-page structure → add any MISSING skeleton pages (a single-pager / old brain lacks the
+  //    lens pages + books). skipExisting, so real content is never touched.
+  const nSkel = writeSkeleton(brain, projectName(target), today());
+  if (nSkel) ok(`${nSkel} missing skeleton page(s) added — lens pages / books were absent`);
+  else ok('multi-page skeleton already present');
+
+  // 4. inject the canvas region into the cover if it predates the canvas
   const r = ensureCanvas(join(brain, 'index.html'));
   if (r.had) ok('cover already hosts the canvas');
   else if (r.injected) ok(`canvas added to the cover (${r.anchor})`);
   else { warn('couldn\'t find a safe spot to add the canvas — paste this into brain/index.html just below the NOW plate:'); console.log('\n' + canvasSection() + '\n'); }
 
-  console.log('\n  Upgraded. `npx sandpaper open` to view; start a FRESH Claude Code session for the board-first canvas.\n');
+  console.log('\n  Upgraded. `npx sandpaper open` to view.');
+  if (nSkel) console.log('  Added missing structure — run /sandpaper:init in Claude Code to fill the new pages.\n  (For a clean rebuild of a single-pager, move brain/ aside and re-run install-skill + /sandpaper:init.)');
+  console.log('');
 }
 
 // The canvas section (empty state) — shared by the scaffold's starter cover and `upgrade`.
@@ -238,6 +235,25 @@ function checkLinks(brain) {
 }
 
 // ---- the multi-page skeleton: one shared shell + per-page bodies (so the brain is never a single page) ----
+// Write any MISSING skeleton pages (cover + 3 lens pages + 3 books). skipExisting → only adds; returns
+// the count added. Shared by scaffold (fresh) and upgrade (fills gaps in an existing brain).
+function writeSkeleton(brain, project, date) {
+  let added = 0;
+  const write = (rel, html) => {
+    const p = join(brain, rel);
+    if (existsSync(p)) return;
+    ensureDir(dirname(p)); writeFileSync(p, html); added++;
+  };
+  write('index.html', pageShell({ project, prefix: '', title: 'cover', headExtra: coverDigest(project, date), main: coverMain(project, date) }));
+  for (const [slug, name, blurb] of [['product', 'Product', 'what it is & why it earns its place'],
+    ['engineering', 'Engineering', 'how it is built'], ['project', 'Project', 'the plan & progress']])
+    write(`${slug}/index.html`, pageShell({ project, prefix: '../', title: name, main: lensMain(name, blurb) }));
+  for (const [slug, name, blurb] of [['log', 'Log', 'the work log — newest first'],
+    ['decisions', 'Decisions', 'the ledger of calls made'], ['learnings', 'Learnings', 'gotchas & verdicts']])
+    write(`${slug}.html`, pageShell({ project, prefix: '', title: name, main: bookMain(name, blurb) }));
+  return added;
+}
+
 // prefix: '' for pages at brain/ root (cover, books), '../' for pages one dir deep (lenses).
 function pageShell({ project, prefix, title, headExtra = '', main }) {
   const link = (href, label) => `<a href="${prefix}${href}">${label}</a>`;
