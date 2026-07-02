@@ -30,7 +30,7 @@ And to view it:
 npx github:codevalley/sandpaper open      # serves the repo + opens brain/index.html
 ```
 
-(An npm package is coming, which shortens these to `npx <package-name> <cmd>`.)
+(An npm package is coming as `sand-paper`, which will shorten these to `npx sand-paper <cmd>`.)
 
 ## What you get
 

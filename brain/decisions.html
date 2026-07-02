@@ -44,6 +44,16 @@
   </section>
 
   <section class="band" style="border-top:0;padding-top:0">
+    <article class="entry entry--decision" data-lens="engineering" data-kind="decision" id="d-npm-name" data-cid="d-npm-name" data-status="accepted" data-date="2026-07-02" data-ref="../package.json" data-tags="npm publish name package sand-paper naming bin dual">
+      <div class="entry-head"><span class="entry-id">D-016</span><h3>The npm package is <code>sand-paper</code> — the CLI stays <code>sandpaper</code></h3><span class="badge accepted">Accepted</span></div>
+      <dl class="entry-fields">
+        <div><dt>Decision</dt><dd><code>sandpaper</code> is taken on npm (v1.4.6, unrelated). Publishing as <strong><code>sand-paper</code></strong> (owner's pick over scoped <code>@codevalley/sandpaper</code> or <code>sandpaperjs</code>) — verified available. <code>package.json</code> keeps <strong>two <code>bin</code> entries</strong> pointing at the same <code>bin/cli.js</code>: <code>sandpaper</code> (the friendly command after a global install) and <code>sand-paper</code> (guarantees <code>npx sand-paper …</code> resolves to the right binary without depending on npx's single-bin fallback behavior).</dd></div>
+        <div><dt>Because</dt><dd>An unscoped name needs no <code>--access public</code> flag and no scope-ownership question; keeping the CLI's own name as <code>sandpaper</code> preserves the brand in every command a user actually types day to day — only the npm registry entry differs.</dd></div>
+        <div><dt>Instead of</dt><dd><code>@codevalley/sandpaper</code> (scoped — keeps the exact name but adds the scope prefix + a publish flag) or an unscoped alt like <code>sandpaperjs</code>.</dd></div>
+      </dl>
+      <div class="entry-foot"><a class="ref" href="../package.json">package.json →</a></div>
+    </article>
+
     <article class="entry entry--decision" data-lens="product" data-kind="decision" id="d-blueprint" data-cid="d-blueprint" data-status="accepted" data-date="2026-07-02" data-ref="./assets/theme.css" data-tags="design identity blueprint cyanotype as-built theme skin brand logo archivo jetbrains">
       <div class="entry-head"><span class="entry-id">D-015</span><h3>The blueprint identity — one visual world, product-wide</h3><span class="badge accepted">Accepted</span></div>
       <dl class="entry-fields">
