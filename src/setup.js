@@ -41,7 +41,7 @@ function banner() {
   console.log('  ' + dim('a living brain for your repo — refine it on the page') + '\n');
 }
 const section = (name) => console.log(`  ${bold(name)}`);
-const row = (label, target, note) => console.log(`   ${green('✓')}  ${label.padEnd(18)}${target.padEnd(30)}${note ? dim(note) : ''}`);
+const row = (label, target, note) => console.log(`   ${green('✓')}  ${label.padEnd(18)}${(target + '  ').padEnd(32)}${note ? dim(note) : ''}`); // the two spaces guarantee a gap when target overruns the column
 const nextStep = () => {
   console.log(`\n  ${clay('▸ NEXT')}   run  ${bold('/sandpaper:init')}  in Claude Code — it reads this repo`);
   console.log('           and fills your brain: the cover, the lenses, and the books.\n');
@@ -78,8 +78,12 @@ export function repoSource(target) {
   try { pkgName = JSON.parse(readFileSync(join(target, 'package.json'), 'utf8')).name || ''; } catch {}
   return { base: url + view + dir, pkg: pkgName }; // HEAD = default branch, survives renames
 }
+// escape for interpolation into HTML text/attributes — the base URL and package name come from
+// the TARGET repo (its remote, its package.json): treat them as untrusted (a cloned repo could
+// carry a hostile name) or the meta becomes stored XSS on every brain page.
+const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const sourceMetaTag = (source) => source
-  ? `<meta name="sandpaper:source" content="${source.base}"${source.pkg ? ` data-pkg="${source.pkg}"` : ''} />`
+  ? `<meta name="sandpaper:source" content="${esc(source.base)}"${source.pkg ? ` data-pkg="${esc(source.pkg)}"` : ''} />`
   : '';
 
 // every .html page under brain/, recursively
@@ -485,14 +489,14 @@ function pageShell({ project, prefix, title, headExtra = '', main, source = null
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-${meta ? meta + '\n' : ''}<title>${project} — ${title}</title>
+${meta ? meta + '\n' : ''}<title>${esc(project)} — ${title}</title>
 <link rel="stylesheet" href="${prefix}assets/brain.css" />
 ${headExtra}</head>
 <body>
 <div class="wrap">
   <div class="shell">
     <div class="shell-id">
-      <a class="shell-mark" href="${prefix}index.html">${project}</a>
+      <a class="shell-mark" href="${prefix}index.html">${esc(project)}</a>
       <div class="shell-state"><a href="${prefix}log.html">fresh brain</a></div>
     </div>
     <nav class="shell-rail" aria-label="Lenses">
@@ -520,7 +524,7 @@ ${main}
 // the cover needs the #brain-state digest in <head> — the SessionStart hook reads it to rehydrate
 function coverDigest(project, date) {
   return `<script type="application/json" id="brain-state">
-{ "v":1, "project":"${project}", "phase":"fresh", "updated":"${date}", "session":"S01",
+{ "v":1, "project":${JSON.stringify(String(project))}, "phase":"fresh", "updated":"${date}", "session":"S01",
   "focus":{ "one":"Brain scaffolded — run /sandpaper:init in Claude to harvest this repo and fill it", "ref":"#" },
   "worklog":[ {"date":"${date}","one":"Brain scaffolded by sandpaper","cid":"w-0001"} ],
   "open":[], "docs":[] }

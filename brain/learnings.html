@@ -43,6 +43,11 @@
   </section>
 
   <section class="zone flush col">
+    <aside class="entry entry--learning callout gotcha" data-kind="learning" data-lens="engineering" id="l-esc-target" data-cid="l-esc-target" data-status="active" data-date="2026-07-02" data-area="security" data-tags="xss escape package name remote url untrusted interpolation attribute pageShell meta">
+      <div class="eyebrow">▲ Gotcha · security</div>
+      <p><strong>Everything read from the <em>target</em> repo is untrusted input — a cloned repo's package name can be <code>x" onload="…</code>.</strong> The scaffolder interpolated the name and remote URL straight into HTML attributes and a hand-built JSON digest; caught by the post-commit security review. Fix: <code>esc()</code> for every attribute/text interpolation, <code>JSON.stringify</code> for the digest. <a class="ref" href="../src/setup.js">setup.js →</a></p>
+    </aside>
+
     <aside class="entry entry--learning callout gotcha" data-kind="learning" data-lens="engineering" id="l-remote-creds" data-cid="l-remote-creds" data-status="active" data-date="2026-07-02" data-area="security" data-tags="credentials token git remote origin leak published meta resolver review">
       <div class="eyebrow">▲ Gotcha · security</div>
       <p><strong>A git remote URL can carry credentials — never write it verbatim into a page built to be published.</strong> <code>repoSource()</code> derived the resolver's base from <code>git remote get-url origin</code>; an origin like <code>https://user:TOKEN@github.com/…</code> would have baked the token into all 13 brain pages. Caught by the adversarial review pre-publish; the fix strips userinfo before the base is ever written. <a class="ref" href="../src/setup.js">setup.js →</a></p>
