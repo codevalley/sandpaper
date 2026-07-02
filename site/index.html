@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sandpaper — your repo can explain itself</title>
+<meta name="description" content="Sandpaper puts a small website inside your repo — the plan, the decisions, the history — and your Claude Code agent stamps it fresh after every working session. Plain static HTML. Open source, zero dependencies." />
+<link rel="canonical" href="https://sandpaper.sh/" />
+<link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+<meta name="theme-color" content="#17150F" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://sandpaper.sh/" />
+<meta property="og:site_name" content="Sandpaper" />
+<meta property="og:title" content="Sandpaper — your repo can explain itself" />
+<meta property="og:description" content="The website your repo keeps about itself. A living brain, stamped by your Claude Code agent after every session." />
+<meta property="og:image" content="https://sandpaper.sh/og.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="Sandpaper — the website your repo keeps about itself" />
+<meta name="twitter:card" content="summary_large_image" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="./site.css" />
+</head>
+<body>
+
+<!-- ============ HERO — ink, grain, the pitch + the self-stamping demo ============ -->
+<header class="hero grain" id="top">
+  <nav class="nav">
+    <a class="mark" href="#top">Sand<span>paper</span></a>
+    <div class="nav-links">
+      <a href="#loop">how it works</a>
+      <a href="#inside">inside a brain</a>
+      <a href="#principles">principles</a>
+      <a class="nav-live" href="https://brain.sandpaper.sh">live brain ↗</a>
+      <a href="https://github.com/codevalley/sandpaper">GitHub ↗</a>
+    </div>
+  </nav>
+
+  <div class="hero-grid">
+    <div class="hero-copy">
+      <p class="eyebrow">for repos built with Claude Code · open source</p>
+      <h1>Your repo can<br/>explain itself.</h1>
+      <p class="sub">Sandpaper puts a small website <em>inside</em> your repo — the plan, the
+        decisions, the history — and your Claude&nbsp;Code agent stamps it fresh after every
+        working session. That site is the brain: plain static HTML, publish it anywhere.</p>
+      <div class="cta-row">
+        <button class="install" type="button" data-copy="npx github:codevalley/sandpaper install-skill">
+          <span class="install-prompt">$</span>
+          <span class="install-cmd">npx github:codevalley/sandpaper install-skill</span>
+          <span class="install-copy" aria-hidden="true">copy</span>
+        </button>
+      </div>
+      <div class="cta-row cta-row--links">
+        <a class="btn-ghost" href="https://brain.sandpaper.sh">Read the live brain →</a>
+        <span class="meta-line">then <code>/sandpaper:init</code> in Claude Code · MIT · zero deps · Node ≥ 18</span>
+      </div>
+    </div>
+
+    <!-- The demo: a real working turn becomes a stamped brain. Re-enacts log entry w-0193. -->
+    <figure class="demo" id="demo" aria-label="Demo: a coding session ends and the agent stamps the repo's brain — a new log row lands, the NOW line rewrites, the plan ticks 26/35 to 27/35">
+      <div class="card term" aria-hidden="true">
+        <div class="card-bar"><span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span><span class="card-title">claude code</span></div>
+        <div class="term-body">
+          <div class="tline tline-user"><span class="tprompt">&gt;</span><span id="ttype">ship it — create the public repo and push</span><span class="caret"></span></div>
+          <div class="tline tline-agent" data-step="1">⏺ gh repo create codevalley/sandpaper --public … done</div>
+          <div class="tline tline-agent" data-step="2">⏺ install verified on a fresh repo — npx github:…</div>
+          <div class="tline tline-stamp" data-step="3">🪵 stamping the brain …</div>
+        </div>
+      </div>
+
+      <div class="stamp-flow" aria-hidden="true"><span class="stamp-pulse"></span></div>
+
+      <div class="card brain" aria-hidden="true">
+        <div class="card-bar card-bar--paper">
+          <span class="brain-mark">Sand<i>paper</i></span>
+          <span class="brain-meta"><code class="bpath">brain/</code> · Edition 0.5 · <b class="ok">● build green</b></span>
+        </div>
+        <div class="brain-body">
+          <div class="bnow">
+            <span class="bnow-tag">NOW</span>
+            <span class="bnow-text" id="bnow">Install flow bullet-proofed — ready for the GitHub-push go.</span>
+          </div>
+          <div class="bplan">
+            <span class="bplan-label">plan</span>
+            <span class="track"><i id="bbar" style="width:74%"></i></span>
+            <span class="bplan-n" id="bcount">26/35</span>
+          </div>
+          <ol class="blog" id="blog">
+            <li class="brow"><span class="bwhen">07-02</span><span class="bwhat">Built the resolver — out-links survive any deploy</span></li>
+            <li class="brow"><span class="bwhen">07-02</span><span class="bwhat">Shipped the install skill — 12 commands, two hooks</span></li>
+            <li class="brow"><span class="bwhen">07-01</span><span class="bwhat">Decided: entries link to source, never copy it</span></li>
+          </ol>
+          <span class="stamp-chip" id="stampchip">✓ stamped just now</span>
+        </div>
+      </div>
+      <figcaption class="demo-cap">A real stamp of the <code>brain/</code> pages in the repo — this exact turn is in <a href="https://brain.sandpaper.sh/log.html">the live log</a>.</figcaption>
+    </figure>
+  </div>
+
+  <nav class="grit-strip" aria-label="Sections, graded coarse to fine">
+    <a href="#problem">P80 <i>· the problem</i></a>
+    <a href="#loop">P240 <i>· the loop</i></a>
+    <a href="#inside">P600 <i>· inside a brain</i></a>
+    <a href="#surface">P1200 <i>· the surface</i></a>
+    <a href="#principles">P2000 <i>· principles</i></a>
+  </nav>
+</header>
+
+<main>
+
+  <!-- ============ P80 — THE PROBLEM ============ -->
+  <section class="band" id="problem">
+    <div class="wrap">
+      <p class="grit">P80 grit <span>· coarse</span></p>
+      <h2>The work survives.<br/>The context doesn't.</h2>
+      <div class="beats">
+        <div class="beat">
+          <h3>The scrollback dies</h3>
+          <p>You built it in a rush of terminal sessions. Close the window and the reasoning is gone.</p>
+        </div>
+        <div class="beat">
+          <h3>Decisions live nowhere</h3>
+          <p>Three weeks in, nobody remembers why anything is the way it is — including the agent.</p>
+        </div>
+        <div class="beat">
+          <h3>Hand-written docs rot</h3>
+          <p>By Friday they describe a different project. Everyone knows it, so nobody reads them.</p>
+        </div>
+      </div>
+      <p class="capper">Three weeks from now, <em>you're</em> the stranger in your own repo.</p>
+    </div>
+  </section>
+
+  <!-- ============ P240 — THE LOOP ============ -->
+  <section class="band band--tint" id="loop">
+    <div class="wrap">
+      <p class="grit">P240 <span>· first pass</span></p>
+      <h2>Two commands, then it runs itself.</h2>
+      <ol class="steps">
+        <li>
+          <span class="step-n">1</span>
+          <h3>Install</h3>
+          <p><code>npx github:codevalley/sandpaper install-skill</code> adds 12 slash commands, two hooks, and a <code>brain/</code> folder of small static HTML pages.</p>
+        </li>
+        <li>
+          <span class="step-n">2</span>
+          <h3>Init</h3>
+          <p><code>/sandpaper:init</code> reads the repo, asks a few questions, and writes the first edition. Once — 15–30 minutes.</p>
+        </li>
+        <li>
+          <span class="step-n">3</span>
+          <h3>Work</h3>
+          <p>Just build. After every real session the agent <strong>stamps</strong> the brain; a hook won't let the session end unstamped. A stamp is a few templated edits — seconds, not a rewrite.</p>
+        </li>
+        <li>
+          <span class="step-n">4</span>
+          <h3>Read &amp; steer</h3>
+          <p>Open the brain anywhere. You steer the next session instead of reconstructing the last one.</p>
+        </li>
+      </ol>
+      <p class="aside-note">The brain is also the agent's memory: every fresh session starts warm, not cold.</p>
+    </div>
+  </section>
+
+  <!-- ============ P600 — INSIDE A BRAIN ============ -->
+  <section class="band" id="inside">
+    <div class="wrap">
+      <p class="grit">P600 <span>· taking shape</span></p>
+      <h2>Not docs you write —<br/>a record the work leaves behind.</h2>
+      <div class="anatomy">
+        <div class="organ">
+          <h3><span class="organ-k now-k">NOW</span></h3>
+          <p>One present-tense line: what's happening in the repo, right now. Rewritten every stamp.</p>
+        </div>
+        <div class="organ">
+          <h3><span class="organ-k">Canvas</span></h3>
+          <p>Rich explanations land here as boards — diagrams, comparisons, walkthroughs — instead of dying in scrollback.</p>
+        </div>
+        <div class="organ">
+          <h3><span class="organ-k">Plan</span></h3>
+          <p>Initiatives and tasks with honest progress bars, derived from status. Never hand-tinted.</p>
+        </div>
+        <div class="organ">
+          <h3><span class="organ-k">Log</span></h3>
+          <p>One line per session, newest first. Append-only, never rewritten: the heartbeat.</p>
+        </div>
+        <div class="organ">
+          <h3><span class="organ-k">Decisions</span></h3>
+          <p>Why it's built this way: each call, what it replaced, and the question it answered.</p>
+        </div>
+        <div class="organ">
+          <h3><span class="organ-k">Learnings</span></h3>
+          <p>The gotchas that bit, so they only bite once — for you <em>and</em> the agent.</p>
+        </div>
+      </div>
+      <p class="capper capper--small">Every entry <a class="link-strong" href="https://brain.sandpaper.sh/log.html">links</a> to the real source — never a copy — so it can't rot the way copied docs do.</p>
+    </div>
+  </section>
+
+  <!-- ============ P1200 — THE SURFACE ============ -->
+  <section class="band band--tint" id="surface">
+    <div class="wrap">
+      <p class="grit">P1200 <span>· fine</span></p>
+      <h2>On your machine, the page is an editing surface.</h2>
+      <p class="band-lede">Serve the brain locally and every element becomes refinable — the file on disk
+        stays the single source of truth, the page live-reloads from it.</p>
+      <div class="tools">
+        <div class="tool">
+          <h3><span aria-hidden="true">⌖ </span>Sand</h3>
+          <p>Point at any element, say the change in plain words. The agent edits the file.</p>
+        </div>
+        <div class="tool">
+          <h3><span aria-hidden="true">✎ </span>Hands</h3>
+          <p>Edit text directly on the page — no AI, just you. Saved straight to disk.</p>
+        </div>
+        <div class="tool">
+          <h3><span aria-hidden="true">❯ </span>Sling</h3>
+          <p>Too big for a tweak? Sling it: a terminal-ready instruction, copied and ready to paste into your next session.</p>
+        </div>
+      </div>
+      <p class="aside-note">The toolbar exists only when served locally. A published brain is read-only, by design.</p>
+    </div>
+  </section>
+
+  <!-- ============ P2000 — PRINCIPLES ============ -->
+  <section class="band" id="principles">
+    <div class="wrap">
+      <p class="grit">P2000 <span>· polish</span></p>
+      <h2>Opinions, held firmly.</h2>
+      <ul class="tenets">
+        <li><strong>Link, never copy.</strong> Entries point at the canonical anchor in your spec or source. No second copy to drift.</li>
+        <li><strong>The disk is the truth.</strong> The page reflects the file — never ahead of it, never instead of it.</li>
+        <li><strong>Zero dependencies.</strong> Node ≥ 18 built-ins only. Nothing to audit, nothing to break.</li>
+        <li><strong>Always publishable.</strong> No build step. Point any static host at the folder and it works.</li>
+        <li><strong>Local-first.</strong> Everything runs on <code>127.0.0.1</code>. Publishing is your call, not the default.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============ PROOF + INSTALL — ink bookend ============ -->
+  <section class="band band--ink grain" id="proof">
+    <div class="wrap">
+      <h2>Sandpaper is built with Sandpaper.</h2>
+      <p class="band-lede band-lede--ink">Its own brain is public — every decision, every gotcha, every stamped
+        session of the project you're reading about, kept by the agent that built it.</p>
+      <div class="proof-stats">
+        <a class="stat" href="https://brain.sandpaper.sh/decisions.html"><b>14</b><span>decisions recorded</span></a>
+        <a class="stat" href="https://brain.sandpaper.sh/learnings.html"><b>16</b><span>gotchas that bit once</span></a>
+        <a class="stat" href="https://brain.sandpaper.sh/project/"><b>28<i>/36</i></b><span>plan tasks shipped</span></a>
+        <a class="stat" href="https://brain.sandpaper.sh/log.html"><b>56</b><span>stamps — one line each</span></a>
+      </div>
+      <p class="stats-note">counts live in the brain · 2026-07-02</p>
+      <div class="cta-row cta-row--center">
+        <a class="btn-solid" href="https://brain.sandpaper.sh">Read the live brain →</a>
+        <a class="btn-ghost btn-ghost--ink" href="https://github.com/codevalley/sandpaper">Source on GitHub</a>
+      </div>
+
+      <div class="install-block">
+        <h3 class="install-h">Run it on your repo</h3>
+        <button class="install install--wide" type="button" data-copy="npx github:codevalley/sandpaper install-skill">
+          <span class="install-prompt">$</span>
+          <span class="install-cmd">npx github:codevalley/sandpaper install-skill</span>
+          <span class="install-copy" aria-hidden="true">copy</span>
+        </button>
+        <p class="install-note">then, inside Claude Code: <code>/sandpaper:init</code> — and
+          <code>npx github:codevalley/sandpaper open</code> to view.
+          An npm package is coming; installing straight from GitHub works today.</p>
+      </div>
+
+      <p class="contrib">Want to help? It's plain HTML and zero-dependency Node — read
+        <a href="https://github.com/codevalley/sandpaper/blob/main/CLAUDE.md">CLAUDE.md</a>,
+        open an <a href="https://github.com/codevalley/sandpaper/issues">issue</a>, or send a PR.</p>
+    </div>
+  </section>
+</main>
+
+<footer class="foot grain">
+  <div class="wrap foot-row">
+    <span class="foot-tag">The website your repo keeps about itself.</span>
+    <span class="foot-meta">
+      <a href="https://github.com/codevalley/sandpaper">GitHub</a> ·
+      <a href="https://github.com/codevalley/sandpaper/blob/main/LICENSE">MIT</a> ·
+      <a href="https://brain.sandpaper.sh">built with Sandpaper</a>
+    </span>
+  </div>
+</footer>
+
+<script src="./site.js" defer></script>
+</body>
+</html>

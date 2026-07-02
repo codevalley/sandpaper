@@ -15,10 +15,10 @@
 <script type="application/json" id="brain-state">
 { "v":1, "project":"Sandpaper", "phase":"Phase 1 · packaging", "updated":"2026-06-30",
   "session":"S28",
-  "focus":{ "one":"SANDPAPER IS PUBLIC — github.com/codevalley/sandpaper is live (public, MIT, main pushed) and the friend flow is verified end-to-end: `npx github:codevalley/sandpaper install-skill` on a fresh repo scaffolds skill + hooks + brain, deriving the source meta from THEIR origin. Dogfooding with friends can start now; npm publish stays deferred (name still TBD — `sandpaper` is taken). Post-push polish, committed on top: (1) install-output column overrun fixed (long targets glued to the note — two-space guaranteed gap); (2) SECURITY: everything read from the target repo is untrusted — a hostile cloned repo's package name (`x\" onload=…`) or remote URL was interpolated raw into generated pages' attributes and the hand-built digest JSON; now esc()'d everywhere + JSON.stringify for the digest (caught by the post-commit security review; verified with a hostile-name fixture). Earlier this session: the whole always-publishable resolver (D-014) built + bullet-proofed (5 panel defects fixed incl. a credential leak), fold-fit canvas, both READMEs. Next: hand friends the npx line, gather feedback; settle the npm name when ready.", "ref":"../README.md" },
-  "worklog":[ {"date":"2026-07-02","one":"PUBLIC: created + pushed github.com/codevalley/sandpaper; friend flow verified via npx github:… on a fresh repo. Post-push: column fix + escaped all target-repo inputs (stored-XSS guard)","cid":"w-0193"},
-              {"date":"2026-07-02","one":"Built + bullet-proofed the resolver (D-014): meta on 13 pages, probe, click-time rewrite-restore, fold-fit, READMEs, doctor lint. Review panel found 5 real defects (1 credential-leak blocker) — all fixed, browser-verified","cid":"w-0192"},
-              {"date":"2026-07-02","one":"Panel-tested always-publishable: runtime resolver wins (0 fatal); write-time absolute + publish-step judged dead. 158 out-links measured, 73% anchored spec refs. t-0019 reshaped. Board 007","cid":"w-0191"} ],
+  "focus":{ "one":"BUILT THE LANDING PAGE (site/ → sandpaper.sh; t-0029 done, board 008). The owner's brief: the money shot — friends didn't 'get' Sandpaper from demos, so the page must land the pitch in 15 seconds. Process (heavy ultracode): (1) PITCH LAB — 5 copywriters on 5 angles, 3 blind judges scoring cold comprehension; 'artifact' won (84): H1 'Your repo can explain itself', sub leads with the website-inside-the-repo; grafted 'stranger in your own repo', 'a hook won't let the session end unstamped', the README-rot beat. (2) BUILD — ink/paper editorial kin to the brain (Fraunces · Inter · Plex Mono, clay accent); signature = SELF-STAMPING HERO DEMO (terminal card types a real command → mini brain stamps: log row lands, NOW rewrites, plan ticks 26/35→27/35 — re-enacts w-0193); sections graded like sandpaper P80→P2000; static, zero-build, OG card rendered from og-source.html, grit favicon. (3) 4-CRITIC PANEL (cold-viewer · art-director · copy-chief · a11y) on screenshots + source: 30+ findings fixed — incl. a hand-tinted stat blocker (31/35 counted initiatives as tasks; truth 27/35 → stats are now LINKS into the brain), demo jargon ('friend flow'), WCAG contrast (new --mute-deep/--clay-text tokens), no-JS visibility (reveal + demo-lines scoped to html.js), wordmark #top anchor, demo layout jitter (hold 3 rows). Verified: stamp is a zero-reflow in-place swap (252px stable), all mechanics green. Deploy plan in site/README.md: Vercel ×2 — sandpaper.sh←site/, brain.sandpaper.sh←brain/ (resolver handles detached). Next: owner wires the domain; npm name still open.", "ref":"../site/index.html" },
+  "worklog":[ {"date":"2026-07-02","one":"Built sandpaper.sh (site/): judged pitch lab → 'Your repo can explain itself'; self-stamping hero demo re-enacting w-0193; P80→P2000 grit structure; 4-critic panel, 30+ fixes incl. a hand-tinted-stat blocker. Board 008","cid":"w-0194"},
+              {"date":"2026-07-02","one":"PUBLIC: created + pushed github.com/codevalley/sandpaper; friend flow verified via npx github:… on a fresh repo. Post-push: column fix + escaped all target-repo inputs (stored-XSS guard)","cid":"w-0193"},
+              {"date":"2026-07-02","one":"Built + bullet-proofed the resolver (D-014): meta on 13 pages, probe, click-time rewrite-restore, fold-fit, READMEs, doctor lint. Review panel found 5 real defects (1 credential-leak blocker) — all fixed, browser-verified","cid":"w-0192"} ],
   "open":["decisions.html#q-anchoring","decisions.html#q-undo","decisions.html#q-billing"],
   "docs":["../sandpaper.html","../engg-spec.html"] }
 </script>
@@ -50,10 +50,10 @@
   <header class="plate" data-cid="cover">
     <div class="pl-meta"><span class="now-tag">Now</span> the build stands at <a href="./project/index.html#i-package">Phase 1 — packaging</a></div>
     <!-- BRAIN:NOW -->
-    <p class="now-line" data-cid="now" data-kind="now" data-ref="../README.md">
-      <strong>Sandpaper is public</strong> — <code>github.com/codevalley/sandpaper</code> is live and the
-      friend flow (<code>npx github:codevalley/sandpaper install-skill</code>) is verified; dogfooding
-      starts now, npm deferred. <a class="ref" href="../README.md">the README →</a>
+    <p class="now-line" data-cid="now" data-kind="now" data-ref="../site/index.html">
+      The <strong>landing page is built</strong> (<code>site/</code> → sandpaper.sh) — judged pitch, a
+      self-stamping hero demo, 4-critic review (board 008); awaiting the domain wiring.
+      <a class="ref" href="../site/index.html">the page →</a>
     </p>
     <!-- /BRAIN:NOW -->
   </header>
@@ -68,45 +68,36 @@
     <!-- BRAIN:CANVAS — boards prepend here, newest first; .canvas-empty shows when there are none -->
     <!-- the whiteboard: a white container whose CONTENT scrolls inside it; the page scrolls everything else -->
     <div class="whiteboard" data-cid="whiteboard">
-      <article class="board board--live" data-cid="board-0007" data-kind="board" data-date="2026-07-02" data-ref="./decisions.html#q-deploy">
+      <article class="board board--live" data-cid="board-0008" data-kind="board" data-date="2026-07-02" data-ref="../site/index.html">
         <header class="board-head">
           <span class="board-dot" aria-hidden="true"></span>
-          <h3 class="board-title">Always publishable — you were right; resolve links at runtime, not build time</h3>
-          <span class="board-when">07-02 · board 007</span>
+          <h3 class="board-title">sandpaper.sh — making the pitch land in 15 seconds</h3>
+          <span class="board-when">07-02 · board 008</span>
         </header>
         <div class="board-body">
-          <p>Your instinct survived an adversarial review: <strong>“<code>brain/</code> is always
-            publishable” should be an invariant</strong> — point any static host at the folder, any moment,
-            <em>no build step</em>. The “portable publish” from board 006 fails that by construction: it
-            <em>is</em> a build step, and its spec snapshots quietly re-open the drift
-            <em>link-never-copy</em> exists to kill. You caught a real flaw.</p>
-          <p>The measured surface: <strong>158 out-of-<code>brain/</code> links</strong> across 13 pages —
-            <strong>116 (73%)</strong> are anchored refs into the two spec docs, 29 point at source, 13 at
-            meta. That 73% is the load-bearing fact: GitHub's blob view doesn't <em>render</em> HTML
-            (source view, dead <code>#anchors</code>), so any “rewrite to GitHub” scheme fails most of the
-            surface. Panel verdicts (one adversarial critic per candidate):</p>
-          <div class="layers">
-            <div class="layer layer--brain"><span class="layer-k">✗ absolute links at write time</span><span class="layer-d">dead — kills local-first + offline; bakes a mutable URL into append-only records</span></div>
-            <div class="layer layer--brain"><span class="layer-k">✗ publish / export build step</span><span class="layer-d">dead for this — it <em>is</em> the banned step; snapshot copies reintroduce drift</span></div>
-            <div class="layer layer--canvas"><span class="layer-k">✓ runtime resolver</span><span class="layer-d">viable — zero fatal flaws; five serious ones, each with a concrete fix, hardened below</span></div>
+          <p>The landing page is built (<code>site/</code> — static, zero-build, deployable as-is). The real
+            problem wasn't design, it was <strong>explanation</strong>: demos to friends kept failing because the
+            pitch led with mechanism. So the copy was chosen by a <strong>judged pitch lab</strong> — five
+            writers, five angles, three blind judges scoring 15-second comprehension cold.</p>
+          <div class="split">
+            <div class="split-col"><span class="split-k">Winner · “artifact” (84)</span><span class="split-d">“Your repo can explain itself.” Lead with the thing you GET — a website inside the repo — not the mechanism.</span></div>
+            <div class="split-col"><span class="split-k">Grafted from runners-up</span><span class="split-d">“stranger in your own repo” · “a hook won't let the session end unstamped” · the README-rot beat</span></div>
           </div>
-          <p><strong>The hardened design:</strong> links stay relative on disk (local-first, disk-true).
-            Every page head gets one meta naming the repo's source base (<code>blob/HEAD/</code> — survives
-            branch renames) plus the expected package name. <code>brain.js</code> probes
-            <code>../package.json</code> once per load — no caching (same-origin mode flips poisoned a cache),
-            and the name must match (defeats SPA soft-200s and stranger <code>package.json</code>s). Detached
-            → out-links resolve to the source base <em>at click time</em> (one delegated listener — no flash,
-            no race); no base configured → they dim with a “lives in the repo” tooltip. ~60–90 lines of
-            vanilla JS in the file every page already loads. Zero build. Zero deps.</p>
-          <p><strong>And the free path works today:</strong> deploy the <em>whole public repo</em> (GitHub
-            Pages, or Vercel with root = repo root) — the probe finds <code>package.json</code>, everything
-            stays relative, and the specs render with working anchors. That same deploy later doubles as the
-            <em>rendered</em> base for the 73% when <code>brain/</code> ships alone. <code>t-0019</code>
-            reshapes: resolver + a stamp-time link lint now; the snapshot exporter demotes to optional polish.</p>
+          <p><strong>The signature:</strong> a self-stamping hero demo — a terminal card types a real command,
+            and the mini brain beside it stamps: log row lands, NOW rewrites, plan ticks. It re-enacts
+            <a class="ref" href="./log.html#w-0193">w-0193</a>, the turn this repo went public. Show the loop,
+            don't describe it. Sections are graded like sandpaper — P80 (the problem, coarse) → P2000
+            (principles, polish).</p>
+          <p><strong>Then a 4-critic panel</strong> (cold-viewer · art director · copy chief · a11y) reviewed
+            screenshots + source: 30+ findings, all real ones fixed — including a caught
+            <em>hand-tinted stat</em> (31/35 counted initiatives as tasks; truth is task-only) on a page that
+            brags “never hand-tinted”, insider jargon in the demo, WCAG contrast failures, and a wordmark
+            anchor that scrolled the wrong way. Deploy: <code>sandpaper.sh</code> ← <code>site/</code>,
+            <code>brain.sandpaper.sh</code> ← <code>brain/</code> (the resolver makes that work).</p>
         </div>
         <footer class="board-foot">
-          <span class="board-tag">dogfood · board 007 · always-publishable</span>
-          <a class="ref" href="./decisions.html#q-deploy">q-deploy →</a>
+          <span class="board-tag">dogfood · board 008 · GTM</span>
+          <a class="ref" href="../site/index.html">the page →</a>
         </footer>
       </article>
     </div>
@@ -114,6 +105,23 @@
     <!-- Earlier: below the whiteboard, in normal page flow; the stack caps at 5, oldest falls away -->
     <div class="canvas-earlier" data-cid="canvas-earlier">
       <div class="earlier-label">Earlier <span class="n">· 4</span></div>
+
+      <details class="board board--past" data-cid="board-0007" data-kind="board" data-date="2026-07-02" data-ref="decisions.html#d-resolver">
+        <summary class="board-row"><span class="board-row-dot" aria-hidden="true"></span><span class="board-row-when">07-02 · 007</span><span class="board-row-title">Always publishable — resolve links at runtime, not build time</span><span class="board-row-chev" aria-hidden="true">›</span></summary>
+        <div class="board-body">
+          <p>The owner's invariant — <strong><code>brain/</code> deploys as-is, no build step</strong> —
+            survived an adversarial panel. Measured: 158 out-of-brain links, 73% anchored spec refs GitHub's
+            blob view can't render. Write-time absolute links and the publish/export step both judged dead.</p>
+          <p><strong>The survivor:</strong> links stay relative on disk; each page head names the source base
+            (<code>blob/HEAD/</code> + expected package name); <code>brain.js</code> probes
+            <code>../package.json</code> (no cache, name-checked) and rewrites out-links at click time when
+            detached; dim + tooltip when no base. Built as <a class="ref" href="./decisions.html#d-resolver">D-014</a>.</p>
+        </div>
+        <footer class="board-foot">
+          <span class="board-tag">dogfood · board 007 · always-publishable</span>
+          <a class="ref" href="./decisions.html#d-resolver">D-014 →</a>
+        </footer>
+      </details>
 
       <details class="board board--past" data-cid="board-0006" data-kind="board" data-date="2026-07-01" data-ref="decisions.html#d-ssot">
         <summary class="board-row"><span class="board-row-dot" aria-hidden="true"></span><span class="board-row-when">07-01 · 006</span><span class="board-row-title">The brain links outside itself — on purpose</span><span class="board-row-chev" aria-hidden="true">›</span></summary>
@@ -169,30 +177,6 @@
         <footer class="board-foot">
           <span class="board-tag">board 004</span>
           <a class="ref" href="./decisions.html#d-canvas">the canvas →</a>
-        </footer>
-      </details>
-
-      <details class="board board--past" data-cid="board-0003" data-kind="board" data-date="2026-06-30" data-ref="decisions.html#d-canvas">
-        <summary class="board-row"><span class="board-row-dot" aria-hidden="true"></span><span class="board-row-when">06-30 · 003</span><span class="board-row-title">Whiteboard, not notebook — and what “stamping” is</span><span class="board-row-chev" aria-hidden="true">›</span></summary>
-        <div class="board-body">
-          <p>You expected the canvas to show <em>one current thing</em>, not a growing pile — the better
-            instinct. So it's a <strong>whiteboard</strong> now: the newest board sits full and live up top;
-            earlier ones fold into the <em>Earlier</em> strip below (click any to reopen). The stack caps at
-            <strong>five</strong> — older boards fall away.</p>
-          <div class="layers">
-            <div class="layer layer--canvas"><span class="layer-k">Canvas · working</span><span class="layer-d">live, rich, freeform boards — explanations as they happen. This surface.</span></div>
-            <span class="layer-link" aria-hidden="true">promote ↓</span>
-            <div class="layer layer--brain"><span class="layer-k">Brain · settled</span><span class="layer-d">curated log · decisions · learnings · plan — updated by <b>stamping</b>.</span></div>
-          </div>
-          <p><strong>Stamping</strong> keeps that settled layer current: after a substantial turn I prepend a
-            one-line <em>log</em> row, rewrite the <em>NOW</em> focus, refresh the machine-readable
-            <em>digest</em>, record any <em>decision/gotcha</em>, and flip the <em>plan</em> status. A Stop
-            hook enforces it — change code without stamping and it blocks. The canvas is where thinking is
-            <em>formed</em>; stamping is how the durable parts get <em>kept</em>.</p>
-        </div>
-        <footer class="board-foot">
-          <span class="board-tag">board 003</span>
-          <a class="ref" href="./decisions.html#d-canvas">the canvas decision →</a>
         </footer>
       </details>
 
@@ -258,6 +242,7 @@
   <section class="zone" data-cid="s-log">
     <div class="eyebrow">Latest <span id="brain-unseen" class="badge open" hidden></span></div>
     <ol class="timeline" data-cid="logfeed">
+      <li data-kind="worklog" data-cid="w-0194"><div class="tl-row"><span class="tl-when">07-02</span><span class="tl-what">Built <strong>sandpaper.sh</strong> (<code>site/</code>) — judged pitch lab (“Your repo can explain itself”), a <strong>self-stamping hero demo</strong> re-enacting w-0193, P80→P2000 grit structure, 4-critic panel with 30+ fixes. Board 008.</span><span class="tl-link"><a class="ref" href="../site/index.html">the page →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0193"><div class="tl-row"><span class="tl-when">07-02</span><span class="tl-what"><strong>Sandpaper is PUBLIC</strong> — <code>github.com/codevalley/sandpaper</code> live; friend flow verified via <code>npx github:…</code>. Post-push: column fix + escaped all target-repo inputs (stored-XSS guard).</span><span class="tl-link"><a class="ref" href="../README.md">the README →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0192"><div class="tl-row"><span class="tl-when">07-02</span><span class="tl-what"><strong>Built the resolver</strong> (D-014) + fold-fit + both READMEs. Pre-publish review panel confirmed 5 real defects — all fixed, incl. a <em>credential-leak</em> blocker and a toolbar-commit corruption path. Browser-verified in all 3 modes.</span><span class="tl-link"><a class="ref" href="./decisions.html#d-resolver">D-014 →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0191"><div class="tl-row"><span class="tl-when">07-02</span><span class="tl-what">Panel-tested <strong>always-publishable</strong> — runtime resolver wins (0 fatal); write-time absolute + publish-step judged <em>dead</em>. 158 out-links measured (73% anchored spec refs). <code>t-0019</code> reshaped; board 007.</span><span class="tl-link"><a class="ref" href="./decisions.html#q-deploy">q-deploy →</a></span></div></li>
