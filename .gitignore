@@ -19,3 +19,7 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+
+# vercel (created by vercel link; projects: sandpaper-site, sandpaper-brain)
+.vercel/
+.env*.local

@@ -16,10 +16,10 @@
 <script type="application/json" id="brain-state">
 { "v":1, "project":"Sandpaper", "phase":"Phase 1 · packaging", "updated":"2026-06-30",
   "session":"S28",
-  "focus":{ "one":"BRAIN SKIN v2 — the real design pass, awaiting the owner's verdict (uncommitted). The token-swap reskin was rightly scored 2/10 ('walmart receipt', 'eye burns', 'unstyled type'): swapping palette+fonts without designing gave flat gray + untuned grotesk. v2 gives the brain the drawing LANGUAGE at engine level (brain.css): each page is a WHITE SHEET (bordered, shadowed) on a gridded drafting-table ground; condensed Archivo display (wdth 78/88 ramp — needed the wdth axis added to all 13 font links); boxed mono eyebrows; OUTLINED badges (not tinted washes); square status nodes everywhere; working-blue progress bars; prussian plate with 40px grid; sharp radii. Wordmark: the owner's mark + two-tone SAND|PAPER, aligned via a TIGHT logo viewBox ('12 92 576 468' — the glyph sits low in the drawn 600x600 box; this fixed BOTH reported misalignments, brain shell + site nav). Site: two-tone restored, favicons stripped to the bare mark (owner ask, 13 pages + site). A 2-critic panel scored v2 7.5-8/10 ('the world is back — craft debt now') and its punch list is APPLIED: bare `footer` selector leaked 56px into every board-foot (scoped to .wrap>footer), 86px void on the plan page (phase-head margin), stale hand-typed dates (log day-divider now DERIVED from data-date in brain.js; shells synced 07-02), round dots squared, split-col emphasis now class-based (.hot on the Winner), NOW chip matches the landing's outlined grammar, hollow done-dots. Pending: owner verdict on v2 → commit; then domains + npm name.", "ref":"./assets/brain.css" },
-  "worklog":[ {"date":"2026-07-02","one":"Re-did the brain skin properly after the 2/10 verdict: white sheet on a gridded drafting table, condensed display voice, boxed labels, outlined badges, square nodes; panel scored 7.5-8/10, punch list applied (bare-footer leak, plan void, derived dates). Bare-mark favicons. Uncommitted","cid":"w-0197"},
-              {"date":"2026-07-02","one":"Blueprint approved → identity everywhere (D-015): SANDPAPER titling fixed, owner's logomark integrated (site + 13 brain shells + favicons + OG), brain reskinned via theme.css token surgery. Shipped default skin is now blueprint","cid":"w-0196"},
-              {"date":"2026-07-02","one":"Redesigned the landing skin after the owner called warm-cream/serif/clay an AI cliché: cyanotype engineering-drawing system (as-built metaphor) — prussian grid, condensed Archivo, title block, red inspection stamp. UNCOMMITTED, awaiting the owner's verdict","cid":"w-0195"} ],
+  "focus":{ "one":"SHIPPED — sandpaper.sh AND brain.sandpaper.sh are LIVE (board 009, w-0198). The owner approved brain skin v2, everything committed + pushed, then published via Vercel CLI (owner logged in; GitHub Pages considered and skipped — one repo can't serve two custom-domain roots): vercel link + vercel deploy --prod for two projects, sandpaper-site ← site/ and sandpaper-brain ← brain/. Domains attached with ZERO registrar work — sandpaper.sh was bought through Vercel 3 days ago and its nameservers were already Vercel's; apex → sandpaper-site, brain.sandpaper.sh → sandpaper-brain (the CLI's 'domain already exists under a different context' error was misleading — the project-arg form 'vercel domains add <domain> <project>' resolved both). PRODUCTION-VERIFIED on the live detached brain: html.brain-detached set, ../package.json → https://github.com/codevalley/sandpaper/blob/HEAD/package.json rewritten at click time — D-014 working on the real internet. Housekeeping: vercel link's per-folder .gitignores consolidated into the root one (.vercel/, .env*.local). REMAINING: (1) redeploys are MANUAL — vercel deploy --prod --yes --cwd site|brain after pushes (wire the Vercel git integration + root directories in the dashboard for auto-deploy); (2) npm publish still waits on the name pick; (3) og:image URL now truly resolves (sandpaper.sh/og.png).", "ref":"../site/README.md" },
+  "worklog":[ {"date":"2026-07-02","one":"SHIPPED: sandpaper.sh + brain.sandpaper.sh live — two Vercel projects, domains attached (zero registrar work), resolver production-verified on the live detached brain. Board 009","cid":"w-0198"},
+              {"date":"2026-07-02","one":"Re-did the brain skin properly after the 2/10 verdict: white sheet on a gridded drafting table, condensed display voice, boxed labels, outlined badges, square nodes; panel scored 7.5-8/10, punch list applied (bare-footer leak, plan void, derived dates). Bare-mark favicons. Uncommitted","cid":"w-0197"},
+              {"date":"2026-07-02","one":"Blueprint approved → identity everywhere (D-015): SANDPAPER titling fixed, owner's logomark integrated (site + 13 brain shells + favicons + OG), brain reskinned via theme.css token surgery. Shipped default skin is now blueprint","cid":"w-0196"} ],
   "open":["decisions.html#q-anchoring","decisions.html#q-undo","decisions.html#q-billing"],
   "docs":["../sandpaper.html","../engg-spec.html"] }
 </script>
@@ -51,10 +51,11 @@
   <header class="plate" data-cid="cover">
     <div class="pl-meta"><span class="now-tag">Now</span> the build stands at <a href="./project/index.html#i-package">Phase 1 — packaging</a></div>
     <!-- BRAIN:NOW -->
-    <p class="now-line" data-cid="now" data-kind="now" data-ref="./assets/brain.css">
-      Brain skin <strong>v2 — the real design pass</strong> (sheet-on-drafting-table, panel-scored 7.5–8/10,
-      punch list applied); uncommitted, awaiting the owner's verdict.
-      <a class="ref" href="./assets/brain.css">brain.css →</a>
+    <p class="now-line" data-cid="now" data-kind="now" data-ref="./log.html#w-0198">
+      <strong>LIVE</strong> — <a href="https://sandpaper.sh">sandpaper.sh</a> and
+      <a href="https://brain.sandpaper.sh">brain.sandpaper.sh</a> are serving; the resolver is
+      production-verified. Next: auto-deploy wiring + the npm name.
+      <a class="ref" href="./log.html#w-0198">w-0198 →</a>
     </p>
     <!-- /BRAIN:NOW -->
   </header>
@@ -69,43 +70,55 @@
     <!-- BRAIN:CANVAS — boards prepend here, newest first; .canvas-empty shows when there are none -->
     <!-- the whiteboard: a white container whose CONTENT scrolls inside it; the page scrolls everything else -->
     <div class="whiteboard" data-cid="whiteboard">
-      <article class="board board--live" data-cid="board-0008" data-kind="board" data-date="2026-07-02" data-ref="../site/index.html">
+      <article class="board board--live" data-cid="board-0009" data-kind="board" data-date="2026-07-02" data-ref="./log.html#w-0198">
         <header class="board-head">
           <span class="board-dot" aria-hidden="true"></span>
-          <h3 class="board-title">sandpaper.sh — making the pitch land in 15 seconds</h3>
-          <span class="board-when">07-02 · board 008</span>
+          <h3 class="board-title">Shipped — sandpaper.sh is live, and so is this page</h3>
+          <span class="board-when">07-02 · board 009</span>
         </header>
         <div class="board-body">
-          <p>The landing page is built (<code>site/</code> — static, zero-build, deployable as-is). The real
-            problem wasn't design, it was <strong>explanation</strong>: demos to friends kept failing because the
-            pitch led with mechanism. So the copy was chosen by a <strong>judged pitch lab</strong> — five
-            writers, five angles, three blind judges scoring 15-second comprehension cold.</p>
+          <p><strong>The loop is closed.</strong> The landing you were promised is serving at
+            <a href="https://sandpaper.sh">sandpaper.sh</a>, and the page you are reading right now is its
+            proof — the live brain at <a href="https://brain.sandpaper.sh">brain.sandpaper.sh</a>, deployed
+            straight from the repo's <code>brain/</code> folder with no build step, exactly as
+            <a class="ref" href="./decisions.html#d-resolver">D-014</a> promised.</p>
           <div class="split">
-            <div class="split-col hot"><span class="split-k">Winner · “artifact” (84)</span><span class="split-d">“Your repo can explain itself.” Lead with the thing you GET — a website inside the repo — not the mechanism.</span></div>
-            <div class="split-col"><span class="split-k">Grafted from runners-up</span><span class="split-d">“stranger in your own repo” · “a hook won't let the session end unstamped” · the README-rot beat</span></div>
+            <div class="split-col"><span class="split-k">sandpaper.sh</span><span class="split-d">Vercel project <em>sandpaper-site</em> ← <code>site/</code> · the pitch, the demo, the schedule</span></div>
+            <div class="split-col hot"><span class="split-k">brain.sandpaper.sh</span><span class="split-d">Vercel project <em>sandpaper-brain</em> ← <code>brain/</code> · detached deploy — the resolver rewrites out-links to GitHub at click time, <strong>verified live</strong></span></div>
           </div>
-          <p><strong>The signature:</strong> a self-stamping hero demo — a terminal card types a real command,
-            and the mini brain beside it stamps: log row lands, NOW rewrites, plan ticks. It re-enacts
-            <a class="ref" href="./log.html#w-0193">w-0193</a>, the turn this repo went public. Show the loop,
-            don't describe it. Sections are graded like sandpaper — P80 (the problem, coarse) → P2000
-            (principles, polish).</p>
-          <p><strong>Then a 4-critic panel</strong> (cold-viewer · art director · copy chief · a11y) reviewed
-            screenshots + source: 30+ findings, all real ones fixed — including a caught
-            <em>hand-tinted stat</em> (31/35 counted initiatives as tasks; truth is task-only) on a page that
-            brags “never hand-tinted”, insider jargon in the demo, WCAG contrast failures, and a wordmark
-            anchor that scrolled the wrong way. Deploy: <code>sandpaper.sh</code> ← <code>site/</code>,
-            <code>brain.sandpaper.sh</code> ← <code>brain/</code> (the resolver makes that work).</p>
+          <p>Zero registrar work was needed — the domain was bought through Vercel and its nameservers were
+            already Vercel's. Two commands per surface: <code>vercel link</code>, <code>vercel deploy --prod</code>.
+            Redeploys are manual until the git integration is wired; npm still waits on a name.</p>
         </div>
         <footer class="board-foot">
-          <span class="board-tag">dogfood · board 008 · GTM</span>
-          <a class="ref" href="../site/index.html">the page →</a>
+          <span class="board-tag">dogfood · board 009 · launch</span>
+          <a class="ref" href="https://sandpaper.sh">sandpaper.sh →</a>
         </footer>
       </article>
+
     </div>
 
     <!-- Earlier: below the whiteboard, in normal page flow; the stack caps at 5, oldest falls away -->
     <div class="canvas-earlier" data-cid="canvas-earlier">
       <div class="earlier-label">Earlier <span class="n">· 4</span></div>
+
+      <details class="board board--past" data-cid="board-0008" data-kind="board" data-date="2026-07-02" data-ref="../site/index.html">
+        <summary class="board-row"><span class="board-row-dot" aria-hidden="true"></span><span class="board-row-when">07-02 · 008</span><span class="board-row-title">sandpaper.sh — making the pitch land in 15 seconds</span><span class="board-row-chev" aria-hidden="true">›</span></summary>
+        <div class="board-body">
+          <p>The landing was built to fix an <strong>explanation</strong> problem — demos to friends kept
+            failing because the pitch led with mechanism. Copy chosen by a <strong>judged pitch lab</strong>
+            (5 writers × 5 angles × 3 blind judges): the “artifact” angle won — <em>“Your repo can explain
+            itself.”</em></p>
+          <p><strong>The signature:</strong> a self-stamping hero demo re-enacting
+            <a class="ref" href="./log.html#w-0193">w-0193</a>; sections graded like sandpaper, P80 → P2000.
+            A 4-critic panel drove 30+ fixes, including a caught hand-tinted stat on a page that brags
+            “never hand-tinted”.</p>
+        </div>
+        <footer class="board-foot">
+          <span class="board-tag">dogfood · board 008 · GTM</span>
+          <a class="ref" href="../site/index.html">the page →</a>
+        </footer>
+      </details>
 
       <details class="board board--past" data-cid="board-0007" data-kind="board" data-date="2026-07-02" data-ref="decisions.html#d-resolver">
         <summary class="board-row"><span class="board-row-dot" aria-hidden="true"></span><span class="board-row-when">07-02 · 007</span><span class="board-row-title">Always publishable — resolve links at runtime, not build time</span><span class="board-row-chev" aria-hidden="true">›</span></summary>
@@ -162,24 +175,6 @@
         </footer>
       </details>
 
-      <details class="board board--past" data-cid="board-0004" data-kind="board" data-date="2026-06-30" data-ref="decisions.html#d-canvas">
-        <summary class="board-row"><span class="board-row-dot" aria-hidden="true"></span><span class="board-row-when">06-30 · 004</span><span class="board-row-title">A scrollable whiteboard — and boarding that doesn't rely on memory</span><span class="board-row-chev" aria-hidden="true">›</span></summary>
-        <div class="board-body">
-          <p>This is a board — the kind you said my summaries should be. Two things landed this turn.</p>
-          <p><strong>1 · The whiteboard is real.</strong> The canvas is now a white <em>container</em> with
-            its own scroll: a long board scrolls <em>inside</em> it, while the whole page — this box,
-            Earlier, the doors, the footer — scrolls together as one. A scrollable whiteboard, not a
-            trapped panel.</p>
-          <p><strong>2 · Boarding no longer relies on me remembering.</strong> Laying the turn's summary
-            here is now a <em>step of the STAMP</em> — the routine a Stop hook already enforces on every
-            substantive turn. So in any repo, when Claude stamps the brain (and it's blocked until it
-            does), it lays the current summary on this whiteboard too. That's the mechanism, not a promise.</p>
-        </div>
-        <footer class="board-foot">
-          <span class="board-tag">board 004</span>
-          <a class="ref" href="./decisions.html#d-canvas">the canvas →</a>
-        </footer>
-      </details>
 
     </div><!-- /.canvas-earlier -->
     <!-- /BRAIN:CANVAS -->
@@ -243,6 +238,7 @@
   <section class="zone" data-cid="s-log">
     <div class="eyebrow">Latest <span id="brain-unseen" class="badge open" hidden></span></div>
     <ol class="timeline" data-cid="logfeed">
+      <li data-kind="worklog" data-cid="w-0198"><div class="tl-row"><span class="tl-when">07-02</span><span class="tl-what"><strong>SHIPPED</strong> — <a href="https://sandpaper.sh">sandpaper.sh</a> + <a href="https://brain.sandpaper.sh">brain.sandpaper.sh</a> live on Vercel; domains attached, resolver production-verified on this very page. Board 009.</span><span class="tl-link"><a class="ref" href="https://sandpaper.sh">sandpaper.sh →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0197"><div class="tl-row"><span class="tl-when">07-02</span><span class="tl-what">Re-did the brain skin <strong>properly</strong> after the 2/10 verdict — <em>white sheet on a gridded drafting table</em>, condensed display voice, outlined badges, square nodes; 2-critic panel: <strong>7.5–8/10</strong>, punch list applied. Uncommitted, awaiting verdict.</span><span class="tl-link"><a class="ref" href="./assets/brain.css">brain.css →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0196"><div class="tl-row"><span class="tl-when">07-02</span><span class="tl-what"><strong>Blueprint approved → the identity</strong> (D-015): SANDPAPER titling, the owner's logomark on every surface, and the brain itself reskinned via a pure <code>theme.css</code> token surgery. The shipped default skin is now blueprint.</span><span class="tl-link"><a class="ref" href="./decisions.html#d-blueprint">D-015 →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0195"><div class="tl-row"><span class="tl-when">07-02</span><span class="tl-what">Reskinned the landing as a <strong>cyanotype engineering drawing</strong> (owner called the warm-serif look an AI cliché — right): title block, drafting grid, red inspection stamp, Archivo/JetBrains. <em>Uncommitted</em> — awaiting the verdict.</span><span class="tl-link"><a class="ref" href="../site/site.css">site.css →</a></span></div></li>
