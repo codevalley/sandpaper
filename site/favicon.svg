@@ -1,11 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <!-- blueprint sheet, drafting grid, one red inspection stamp -->
-  <rect width="64" height="64" rx="8" fill="#0E2C50"/>
-  <g stroke="#F3F6F9" stroke-width="1" opacity=".16">
-    <path d="M16 0v64M32 0v64M48 0v64M0 16h64M0 32h64M0 48h64"/>
-  </g>
-  <g transform="rotate(-8 32 32)">
-    <rect x="14" y="22" width="36" height="20" fill="none" stroke="#E04B3B" stroke-width="3.4"/>
-    <rect x="19" y="27" width="26" height="10" fill="#E04B3B"/>
+  <!-- the Sandpaper mark (owner's logo) on a sheet plate -->
+  <rect width="64" height="64" rx="8" fill="#F3F6F9"/>
+  <g transform="translate(6 6) scale(0.086666)">
+    <g transform="matrix(0.545861,0.545861,-0.545861,0.545861,300,-55.841103)">
+      <path d="M40,560L560,560L560,40L240,40L40,240" fill="#18293D"/>
+      <path d="M100,300L100,500L500,500L500,100L300,100L300,300L100,300Z" fill="#C63B30"/>
+    </g>
   </g>
 </svg>

@@ -1,84 +1,84 @@
 /* theme.css — Sandpaper's single skin.
    This is the ONE file a project owner edits to re-skin every Sandpaper surface
    (the brain books, sandpaper.html, engg-spec.html). Change a value here and the
-   whole warm "service-manual" look shifts with it. Pure CSS custom properties,
-   zero dependencies, no build step, valid standalone CSS.
+   whole look shifts with it. Pure CSS custom properties, zero dependencies,
+   no build step, valid standalone CSS.
 
-   Every value below is today's brain.css value verbatim, so adopting this file
-   without editing it keeps the rendered design pixel-identical. brain.css drops
-   its own :root and reads from here; the legacy alias block at the bottom keeps
-   brain.css's existing var(--serif)/var(--paper-2)/... references resolving.
+   CURRENT SKIN — "AS-BUILT": the cyanotype engineering-drawing system shared with
+   sandpaper.sh. Cool drafting sheets, prussian plate, one working blue, a red
+   inspection accent. Type: Archivo (grotesk) + JetBrains Mono. (The previous warm
+   service-manual skin lives in git history if you ever want it back.)
 
    NOTE: toolbar.css does NOT import this file (it is injected into arbitrary host
    pages and must stand alone) — it carries its own #sp-panel-scoped --sp-* copy as a
    fallback. But toolbar.js reads these :root tokens at runtime and overrides that copy
    when present, so re-skinning here reaches the floating toolbar too — no hand-sync. */
 :root{
-  /* ---- paper / surfaces (warm service-manual stock) ---- */
-  --paper:#F4F0E6;          /* base page background */
-  --panel:#EFEADD;          /* raised panel / card / input background */
-  --paper-3:#E7E0CE;        /* recessed progress track / lighter paper */
-  --card-feature:#F7ECE3;   /* feature-card cream wash */
-  --plate:#1c1a13;          /* dark drafting-plate / code-block background */
-  --white:#fff;             /* search & inline input fields */
+  /* ---- paper / surfaces (cool drafting sheets) ---- */
+  --paper:#F3F6F9;          /* base page background */
+  --panel:#E9EFF4;          /* raised panel / card / input background */
+  --paper-3:#DEE7EF;        /* recessed progress track / lighter paper */
+  --card-feature:#EDF3F8;   /* feature-card cool wash */
+  --plate:#0E2C50;          /* dark drafting-plate / code-block background — the blueprint */
+  --white:#FCFDFE;          /* search & inline input fields */
 
   /* ---- ink / text ---- */
-  --ink:#17150F;            /* primary text; cover-plate background */
-  --ink-2:#221F17;          /* darker ink variant */
-  --text:#33302a;           /* body copy inside records, cards, callouts */
-  --text-prose:#2a2820;     /* long-form wiki prose + lead */
-  --text-quote:#3a372e;     /* quoted text (toolbar blockquotes) */
-  --text-muted:#6b675b;     /* muted ledger / "today" text */
+  --ink:#18293E;            /* primary text; cover-plate background */
+  --ink-2:#122136;          /* darker ink variant */
+  --text:#2A3B50;           /* body copy inside records, cards, callouts */
+  --text-prose:#243348;     /* long-form wiki prose + lead */
+  --text-quote:#33445A;     /* quoted text (toolbar blockquotes) */
+  --text-muted:#54687D;     /* muted ledger / "today" text */
 
   /* ---- accents (semantic, never decorative) ---- */
-  --clay:#C75B39;           /* primary accent: links, interactive, WIP */
-  --pine:#3F5247;           /* secondary: success surface, sidebar, verdict */
-  --ochre:#C98A1E;          /* warning / open */
-  --moss:#4E7C59;           /* done / verified / progress fill */
-  --rust:#B23A2E;           /* error / blocked / gotcha */
-  --mute:#8A8578;           /* secondary text, idle, disabled */
+  --clay:#1C5085;           /* primary accent: links, interactive, WIP — the working blue */
+  --pine:#274768;           /* secondary: success surface, sidebar, verdict */
+  --ochre:#B07818;          /* warning / open — drafting amber */
+  --moss:#1F7A4D;           /* done / verified / progress fill */
+  --rust:#C63B2F;           /* error / blocked / gotcha — the inspection red */
+  --mute:#6B7E92;           /* secondary text, idle, disabled */
 
   /* ---- legible inks for tinted badges / the dark plate ---- */
-  --badge-done-ink:#365a40; /* text on the moss "done/verified" badge */
-  --badge-open-ink:#8a6212; /* text on the ochre "open" badge */
-  --on-plate-meta:#b9b2a0;  /* metadata text on the dark cover plate */
-  --on-plate-link:#d8d0bd;  /* links on the dark cover plate */
-  --on-plate-em:#e3b9a8;    /* italic accent inside the NOW hero */
+  --badge-done-ink:#1D5B3C; /* text on the "done/verified" badge */
+  --badge-open-ink:#7A5610; /* text on the "open" badge */
+  --on-plate-meta:#8FAAC6;  /* metadata text on the dark cover plate */
+  --on-plate-link:#C9D8E7;  /* links on the dark cover plate */
+  --on-plate-em:#FF9A8B;    /* accent inside the NOW hero */
 
   /* ---- status semantics (map onto the accents; always label-paired) ---- */
   --ok:var(--moss); --wip:var(--clay); --open:var(--ochre); --blocked:var(--rust); --idle:var(--mute);
 
   /* ---- hairlines, rules, and ink/paper/accent tints ---- */
-  --rule:rgba(23,21,15,.13);            /* standard divider */
-  --rule-2:rgba(23,21,15,.07);          /* faint divider */
+  --rule:rgba(24,41,62,.16);            /* standard divider */
+  --rule-2:rgba(24,41,62,.08);          /* faint divider */
   --hairline:1px solid var(--rule);     /* the canonical 1px border */
-  --tint-ink-code:rgba(23,21,15,.06);   /* inline-code wash */
-  --tint-ink-stub:rgba(23,21,15,.08);   /* stub / superseded badge wash */
-  --tint-ink-strike:rgba(23,21,15,.22); /* line-through decoration */
-  --tint-clay-sel:rgba(199,91,57,.22);  /* text selection */
-  --tint-clay-badge:rgba(199,91,57,.14);/* wip / fixed badge wash */
-  --tint-clay-focus:rgba(199,91,57,.3); /* input focus ring */
-  --tint-ochre-badge:rgba(201,138,30,.18);/* open badge wash */
-  --tint-moss-badge:rgba(78,124,89,.16);/* done badge wash */
-  --tint-rust-badge:rgba(178,58,46,.13); /* blocking badge wash */
-  --tint-moss-glow:rgba(78,124,89,.25); /* health-dot glow ring */
-  --tint-paper-grid:rgba(244,240,230,.05);/* plate grid lines */
-  --tint-paper-border:rgba(244,240,230,.3);/* health pill border on plate */
+  --tint-ink-code:rgba(28,80,133,.08);  /* inline-code wash */
+  --tint-ink-stub:rgba(24,41,62,.08);   /* stub / superseded badge wash */
+  --tint-ink-strike:rgba(24,41,62,.24); /* line-through decoration */
+  --tint-clay-sel:rgba(28,80,133,.22);  /* text selection */
+  --tint-clay-badge:rgba(28,80,133,.13);/* wip / fixed badge wash */
+  --tint-clay-focus:rgba(28,80,133,.3); /* input focus ring */
+  --tint-ochre-badge:rgba(176,120,24,.16);/* open badge wash */
+  --tint-moss-badge:rgba(31,122,77,.14);/* done badge wash */
+  --tint-rust-badge:rgba(198,59,47,.12); /* blocking badge wash */
+  --tint-moss-glow:rgba(31,122,77,.25); /* health-dot glow ring */
+  --tint-paper-grid:rgba(243,246,249,.07);/* plate grid lines */
+  --tint-paper-border:rgba(243,246,249,.3);/* health pill border on plate */
 
   /* ---- typography ---- */
-  --font-display:'Fraunces',Georgia,'Times New Roman',serif;            /* display, used sparingly */
-  --font-body:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; /* body */
-  --font-mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;             /* labels / code / metadata */
+  --font-display:'Archivo',system-ui,-apple-system,sans-serif;          /* display, used sparingly */
+  --font-body:'Archivo',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; /* body */
+  --font-mono:'JetBrains Mono',ui-monospace,Menlo,monospace;            /* labels / code / metadata */
 
-  /* ---- radii (key steps of the 3px–14px scale) ---- */
-  --radius:6px;             /* default container radius */
-  --radius-sm:3px;          /* inline code, id chips */
-  --radius-md:9px;          /* cards, panels */
-  --radius-lg:14px;         /* floating toolbar panel */
-  --radius-pill:999px;      /* pills, progress tracks, health badge */
+  /* ---- radii (drafting-sharp) ---- */
+  --radius:3px;             /* default container radius */
+  --radius-sm:2px;          /* inline code, id chips */
+  --radius-md:4px;          /* cards, panels */
+  --radius-lg:6px;          /* floating toolbar panel */
+  --radius-pill:3px;        /* chips, progress tracks, health badge — squared, like drawing labels */
 
   /* ---- elevation ---- */
-  --shadow-panel:0 10px 34px rgba(23,21,15,.20);
+  --shadow-panel:0 10px 30px rgba(10,20,40,.16);
 
   /* ---- legacy aliases (keep brain.css's existing names resolving) ---- */
   --paper-2:var(--panel);
