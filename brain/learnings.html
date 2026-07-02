@@ -44,6 +44,11 @@
   </section>
 
   <section class="zone flush col">
+    <aside class="entry entry--learning callout verdict" data-kind="learning" data-lens="product" id="l-fold-restraint" data-cid="l-fold-restraint" data-status="active" data-date="2026-07-02" data-area="design" data-tags="fold hero stamp restraint sting triplet chanel verdict">
+      <div class="eyebrow">◆ Verdict · design</div>
+      <p><strong>The fold's sting was already in the headline — every ornament added to it subtracted.</strong> A “radical” pass (giant H1 + inspection stamp in its airspace + a strengths triplet) was dropped by the owner in one look: the stamp unbalanced the fold, the triplet said nothing the demo doesn't show. When a strengths list feels needed, the demo isn't doing its job — fix the demo, not the copy. <a class="ref" href="../site/index.html">the fold →</a></p>
+    </aside>
+
     <aside class="entry entry--learning callout gotcha" data-kind="learning" data-lens="engineering" id="l-esc-target" data-cid="l-esc-target" data-status="active" data-date="2026-07-02" data-area="security" data-tags="xss escape package name remote url untrusted interpolation attribute pageShell meta">
       <div class="eyebrow">▲ Gotcha · security</div>
       <p><strong>Everything read from the <em>target</em> repo is untrusted input — a cloned repo's package name can be <code>x" onload="…</code>.</strong> The scaffolder interpolated the name and remote URL straight into HTML attributes and a hand-built JSON digest; caught by the post-commit security review. Fix: <code>esc()</code> for every attribute/text interpolation, <code>JSON.stringify</code> for the digest. <a class="ref" href="../src/setup.js">setup.js →</a></p>

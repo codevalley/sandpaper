@@ -17,9 +17,9 @@
 { "v":1, "project":"Sandpaper", "phase":"Phase 1 · packaging", "updated":"2026-06-30",
   "session":"S28",
   "focus":{ "one":"SHIPPED — sandpaper.sh AND brain.sandpaper.sh are LIVE (board 009, w-0198). The owner approved brain skin v2, everything committed + pushed, then published via Vercel CLI (owner logged in; GitHub Pages considered and skipped — one repo can't serve two custom-domain roots): vercel link + vercel deploy --prod for two projects, sandpaper-site ← site/ and sandpaper-brain ← brain/. Domains attached with ZERO registrar work — sandpaper.sh was bought through Vercel 3 days ago and its nameservers were already Vercel's; apex → sandpaper-site, brain.sandpaper.sh → sandpaper-brain (the CLI's 'domain already exists under a different context' error was misleading — the project-arg form 'vercel domains add <domain> <project>' resolved both). PRODUCTION-VERIFIED on the live detached brain: html.brain-detached set, ../package.json → https://github.com/codevalley/sandpaper/blob/HEAD/package.json rewritten at click time — D-014 working on the real internet. Housekeeping: vercel link's per-folder .gitignores consolidated into the root one (.vercel/, .env*.local). REMAINING: (1) redeploys are MANUAL — vercel deploy --prod --yes --cwd site|brain after pushes (wire the Vercel git integration + root directories in the dashboard for auto-deploy); (2) npm publish still waits on the name pick; (3) og:image URL now truly resolves (sandpaper.sh/og.png).", "ref":"../site/README.md" },
-  "worklog":[ {"date":"2026-07-02","one":"Sanded the outcome (uncommitted, under review): two-readers pitch elevated, fold decluttered, OG cache-busted (scraper cache from pre-launch, file was fine), canvas = recessed drafting-table band; rejected never-out-of-sync/drag-drop/canvas-dev-only; q-privacy + t-0035 opened","cid":"w-0199"},
-              {"date":"2026-07-02","one":"SHIPPED: sandpaper.sh + brain.sandpaper.sh live — two Vercel projects, domains attached (zero registrar work), resolver production-verified on the live detached brain. Board 009","cid":"w-0198"},
-              {"date":"2026-07-02","one":"Re-did the brain skin properly after the 2/10 verdict: white sheet on a gridded drafting table, condensed display voice, boxed labels, outlined badges, square nodes; panel scored 7.5-8/10, punch list applied (bare-footer leak, plan void, derived dates). Bare-mark favicons. Uncommitted","cid":"w-0197"} ],
+  "worklog":[ {"date":"2026-07-02","one":"Radical fold attempt DROPPED by the owner (stamp overkill + unbalancing; triplet added nothing) — reverted to the w-0199 checkpoint, which stays live. Verdict kept as l-fold-restraint: the sting was already in the headline; ornament subtracted","cid":"w-0200"},
+              {"date":"2026-07-02","one":"Sanded the outcome (committed+deployed as the checkpoint): two-readers pitch elevated, fold decluttered, OG cache-busted (scraper cache from pre-launch, file was fine), canvas = recessed drafting-table band; rejected never-out-of-sync/drag-drop/canvas-dev-only; q-privacy + t-0035 opened","cid":"w-0199"},
+              {"date":"2026-07-02","one":"SHIPPED: sandpaper.sh + brain.sandpaper.sh live — two Vercel projects, domains attached (zero registrar work), resolver production-verified on the live detached brain. Board 009","cid":"w-0198"} ],
   "open":["decisions.html#q-anchoring","decisions.html#q-undo","decisions.html#q-billing"],
   "docs":["../sandpaper.html","../engg-spec.html"] }
 </script>
@@ -51,11 +51,10 @@
   <header class="plate" data-cid="cover">
     <div class="pl-meta"><span class="now-tag">Now</span> the build stands at <a href="./project/index.html#i-package">Phase 1 — packaging</a></div>
     <!-- BRAIN:NOW -->
-    <p class="now-line" data-cid="now" data-kind="now" data-ref="./log.html#w-0198">
-      <strong>LIVE</strong> — <a href="https://sandpaper.sh">sandpaper.sh</a> and
-      <a href="https://brain.sandpaper.sh">brain.sandpaper.sh</a> are serving; the resolver is
-      production-verified. Next: auto-deploy wiring + the npm name.
-      <a class="ref" href="./log.html#w-0198">w-0198 →</a>
+    <p class="now-line" data-cid="now" data-kind="now" data-ref="./learnings.html#l-fold-restraint">
+      Fold experiment closed — the stamp-hero attempt was <strong>dropped</strong> (verdict:
+      <em>l-fold-restraint</em>); the live w-0199 checkpoint stands. Next: auto-deploy wiring + the npm name.
+      <a class="ref" href="./learnings.html#l-fold-restraint">the verdict →</a>
     </p>
     <!-- /BRAIN:NOW -->
   </header>
