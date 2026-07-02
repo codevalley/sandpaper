@@ -59,7 +59,8 @@ h3{font-variation-settings:"wdth" 88;font-weight:700} /* the h3 tier joins the w
 .now-line{font-family:var(--serif);font-weight:500;font-size:15.5px;line-height:1.42;color:var(--paper);margin:5px 0 0;max-width:64em}
 .now-line strong{color:var(--paper);font-weight:600}
 .now-line em{font-style:italic;color:var(--on-plate-em)}
-.now-line .ref{font-family:var(--mono);font-size:13px;color:var(--on-plate-em);white-space:nowrap} /* on the dark plate — --clay is unreadable there */
+.now-line a{color:var(--on-plate-link)} /* ANY link on the dark plate — --clay is unreadable there */
+.now-line .ref{font-family:var(--mono);font-size:13px;color:var(--on-plate-em);white-space:nowrap}
 
 /* ---- vitals row ---- */
 .vitals{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;margin-top:18px;font-family:var(--mono);font-size:12px}
@@ -306,10 +307,16 @@ ol.tasks .task{display:flex;align-items:baseline;gap:9px;padding:5px 0;font-size
 .shell-rail .dim{color:var(--mute);opacity:.6;padding:9px 13px;
   white-space:nowrap;pointer-events:none}
 @media(max-width:760px){.shell-id{padding:8px 0 6px}.shell-rail{font-size:11px}}
-@media(max-width:680px){.wrap{padding:0 18px 8px;margin-bottom:16px}.shell{margin:0 -18px;padding:6px 18px 0}}
+@media(max-width:680px){.wrap{padding:0 18px 8px;margin-bottom:16px}.shell{margin:0 -18px;padding:6px 18px 0}.canvas{margin:0 -18px;padding:20px 18px 16px}}
 
-/* ===== CANVAS — the live working surface: Claude's distilled/elevated boards (THE HERO) ===== */
-.canvas{padding:24px 0 6px}
+/* ===== CANVAS — the live working surface: Claude's distilled/elevated boards (THE HERO) =====
+   the working layer is a recessed drafting-table band inset into the sheet — fresh drawings
+   get pinned on the table; the settled books stay on plain white */
+.canvas{margin:0 -34px;padding:22px 34px 20px;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);
+  background:
+    repeating-linear-gradient(0deg,transparent 0 39px,rgba(28,80,133,.10) 39px 40px),
+    repeating-linear-gradient(90deg,transparent 0 39px,rgba(28,80,133,.10) 39px 40px),
+    var(--panel)}
 .canvas-rail{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:13px}
 .canvas-sub{color:var(--mute);font-weight:400;text-transform:none;letter-spacing:0}
 .canvas-count{font-family:var(--font-mono);font-size:11px;color:var(--mute);flex:none}

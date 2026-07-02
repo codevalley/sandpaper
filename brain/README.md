@@ -93,3 +93,7 @@ Deploying the whole repo publishes **all** of its files, not just the brain. Bra
 publishes just this folder — but its out-links point at the source host, which must be
 public for them to work. Either way, assume everything the brain links to is visible.
 Don't deploy a brain whose repo isn't ready to be read.
+
+Remember what the brain *is*: distilled internal state. The canvas boards are derived
+from working conversations, and the log/decisions/learnings record real reasoning —
+read them with publishing eyes before pointing a host at this folder.
