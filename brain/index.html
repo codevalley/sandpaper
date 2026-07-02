@@ -3,23 +3,23 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%228%22%20fill%3D%22%23F3F6F9%22%2F%3E%3Cg%20transform%3D%22translate(6%206)%20scale(0.086666)%22%3E%3Cg%20transform%3D%22matrix(0.545861%2C0.545861%2C-0.545861%2C0.545861%2C300%2C-55.841103)%22%3E%3Cpath%20d%3D%22M40%2C560L560%2C560L560%2C40L240%2C40L40%2C240%22%20fill%3D%22%2318293D%22%2F%3E%3Cpath%20d%3D%22M100%2C300L100%2C500L500%2C500L500%2C100L300%2C100L300%2C300L100%2C300Z%22%20fill%3D%22%23C63B30%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E" />
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%2212%2092%20576%20468%22%3E%3Cg%20transform%3D%22matrix(0.545861%2C0.545861%2C-0.545861%2C0.545861%2C300%2C-55.841103)%22%3E%3Cpath%20d%3D%22M40%2C560L560%2C560L560%2C40L240%2C40L40%2C240%22%20fill%3D%22%2318293D%22%2F%3E%3Cpath%20d%3D%22M100%2C300L100%2C500L500%2C500L500%2C100L300%2C100L300%2C300L100%2C300Z%22%20fill%3D%22%23C63B30%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E" />
 <meta name="sandpaper:source" content="https://github.com/codevalley/sandpaper/blob/HEAD/" data-pkg="sandpaper" />
 <title>Sandpaper — Project Log Book</title>
 <!-- COVER PLATE of the Sandpaper project brain. Stamped after each substantive turn (CLAUDE.md → "The project brain").
      Marker-delimited regions; static, zero runtime; links into the canonical docs, never copies them. -->
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,100..900;1,100..900&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wdth,wght@0,62..125,100..900;1,62..125,100..900&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="./assets/brain.css" />
 <!-- BRAIN:DIGEST — machine context for a fresh `claude`: read THIS first (~1KB) to rehydrate. -->
 <script type="application/json" id="brain-state">
 { "v":1, "project":"Sandpaper", "phase":"Phase 1 · packaging", "updated":"2026-06-30",
   "session":"S28",
-  "focus":{ "one":"THE BLUEPRINT IS THE IDENTITY (D-015). Owner approved the reskin ('Love it! This is epic') with three asks, all done: (1) TITLING — 'SANDPAPER' one word (the nav wordmark was a flex row with gap:9px splitting Sand|paper; fixed, single text node); (2) LOGOMARK — the owner drew a diamond-sheet mark (assets/logo-color.svg + logo-mono.svg, in the exact blueprint tokens #18293D/#C63B30); integrated as inline SVG in the site nav (reversed light-outer variant for the dark ground) + footer, rebuilt site/favicon.svg (mark on sheet plate), added to the OG card (regenerated), and into all 13 brain page shells + data-URI favicons (inline everywhere — NO new file under brain/assets, so scaffolded brains don't inherit dead brand assets); (3) BRAIN RESKINNED to match — pure theme.css token surgery (cool sheets #F3F6F9, prussian plate #0E2C50, working blue --clay:#1C5085, inspection red --rust:#C63B2F, Archivo + JetBrains Mono, sharp radii) + font links swapped on all 13 pages by script + ONE engine fix (.now-line .ref used --clay: unreadable on the new prussian plate → --on-plate-em). Verified in browser: cover, plan board, log all coherent; doctor healthy; tests pass. CONSEQUENCE, flagged to owner: brain/assets/theme.css is the SHIPPED DEFAULT — every new install now scaffolds the blueprint skin. Spec docs (sandpaper.html/engg-spec.html) are self-contained and keep their warm look (canonical archives). Pending: domain wiring (sandpaper.sh + brain.sandpaper.sh), npm name.", "ref":"./decisions.html#d-blueprint" },
-  "worklog":[ {"date":"2026-07-02","one":"Blueprint approved → identity everywhere (D-015): SANDPAPER titling fixed, owner's logomark integrated (site + 13 brain shells + favicons + OG), brain reskinned via theme.css token surgery. Shipped default skin is now blueprint","cid":"w-0196"},
-              {"date":"2026-07-02","one":"Redesigned the landing skin after the owner called warm-cream/serif/clay an AI cliché: cyanotype engineering-drawing system (as-built metaphor) — prussian grid, condensed Archivo, title block, red inspection stamp. UNCOMMITTED, awaiting the owner's verdict","cid":"w-0195"},
-              {"date":"2026-07-02","one":"Built sandpaper.sh (site/): judged pitch lab → 'Your repo can explain itself'; self-stamping hero demo re-enacting w-0193; P80→P2000 grit structure; 4-critic panel, 30+ fixes incl. a hand-tinted-stat blocker. Board 008","cid":"w-0194"} ],
+  "focus":{ "one":"BRAIN SKIN v2 — the real design pass, awaiting the owner's verdict (uncommitted). The token-swap reskin was rightly scored 2/10 ('walmart receipt', 'eye burns', 'unstyled type'): swapping palette+fonts without designing gave flat gray + untuned grotesk. v2 gives the brain the drawing LANGUAGE at engine level (brain.css): each page is a WHITE SHEET (bordered, shadowed) on a gridded drafting-table ground; condensed Archivo display (wdth 78/88 ramp — needed the wdth axis added to all 13 font links); boxed mono eyebrows; OUTLINED badges (not tinted washes); square status nodes everywhere; working-blue progress bars; prussian plate with 40px grid; sharp radii. Wordmark: the owner's mark + two-tone SAND|PAPER, aligned via a TIGHT logo viewBox ('12 92 576 468' — the glyph sits low in the drawn 600x600 box; this fixed BOTH reported misalignments, brain shell + site nav). Site: two-tone restored, favicons stripped to the bare mark (owner ask, 13 pages + site). A 2-critic panel scored v2 7.5-8/10 ('the world is back — craft debt now') and its punch list is APPLIED: bare `footer` selector leaked 56px into every board-foot (scoped to .wrap>footer), 86px void on the plan page (phase-head margin), stale hand-typed dates (log day-divider now DERIVED from data-date in brain.js; shells synced 07-02), round dots squared, split-col emphasis now class-based (.hot on the Winner), NOW chip matches the landing's outlined grammar, hollow done-dots. Pending: owner verdict on v2 → commit; then domains + npm name.", "ref":"./assets/brain.css" },
+  "worklog":[ {"date":"2026-07-02","one":"Re-did the brain skin properly after the 2/10 verdict: white sheet on a gridded drafting table, condensed display voice, boxed labels, outlined badges, square nodes; panel scored 7.5-8/10, punch list applied (bare-footer leak, plan void, derived dates). Bare-mark favicons. Uncommitted","cid":"w-0197"},
+              {"date":"2026-07-02","one":"Blueprint approved → identity everywhere (D-015): SANDPAPER titling fixed, owner's logomark integrated (site + 13 brain shells + favicons + OG), brain reskinned via theme.css token surgery. Shipped default skin is now blueprint","cid":"w-0196"},
+              {"date":"2026-07-02","one":"Redesigned the landing skin after the owner called warm-cream/serif/clay an AI cliché: cyanotype engineering-drawing system (as-built metaphor) — prussian grid, condensed Archivo, title block, red inspection stamp. UNCOMMITTED, awaiting the owner's verdict","cid":"w-0195"} ],
   "open":["decisions.html#q-anchoring","decisions.html#q-undo","decisions.html#q-billing"],
   "docs":["../sandpaper.html","../engg-spec.html"] }
 </script>
@@ -30,11 +30,11 @@
   <!-- ===== PERSISTENT SHELL (sticky) — identity + state + the 5-item lens rail ===== -->
   <div class="shell">
     <div class="shell-id">
-      <a class="shell-mark" href="./index.html"><svg viewBox="0 0 600 600" aria-hidden="true" style="width:17px;height:17px;flex:none;vertical-align:-3px;margin-right:8px"><g transform="matrix(0.545861,0.545861,-0.545861,0.545861,300,-55.841103)"><path d="M40,560L560,560L560,40L240,40L40,240" fill="#18293D"/><path d="M100,300L100,500L500,500L500,100L300,100L300,300L100,300Z" fill="#C63B30"/></g></svg>SANDPAPER</a>
+      <a class="shell-mark" href="./index.html"><svg viewBox="12 92 576 468" width="21" height="17" aria-hidden="true"><g transform="matrix(0.545861,0.545861,-0.545861,0.545861,300,-55.841103)"><path d="M40,560L560,560L560,40L240,40L40,240" fill="#18293D"/><path d="M100,300L100,500L500,500L500,100L300,100L300,300L100,300Z" fill="#C63B30"/></g></svg><b class="w" style="font-weight:inherit">SAND<span class="a">PAPER</span></b></a>
       <div class="shell-state">
         <a href="./log.html">Edition 0.5</a>
         <a class="shell-health" href="../engg-spec.html#s-build" data-cid="health" data-status="green"><span class="dot"></span>Build · Green</a>
-        <a href="./log.html">stamped 06-30</a>
+        <a href="./log.html">stamped 07-02</a>
       </div>
     </div>
     <nav class="shell-rail" aria-label="Lenses">
@@ -51,10 +51,10 @@
   <header class="plate" data-cid="cover">
     <div class="pl-meta"><span class="now-tag">Now</span> the build stands at <a href="./project/index.html#i-package">Phase 1 — packaging</a></div>
     <!-- BRAIN:NOW -->
-    <p class="now-line" data-cid="now" data-kind="now" data-ref="./decisions.html#d-blueprint">
-      The blueprint is <strong>the identity</strong> (D-015): skin approved, SANDPAPER titling + the owner's
-      logomark everywhere, and this brain now wears it too. Awaiting domain wiring.
-      <a class="ref" href="./decisions.html#d-blueprint">D-015 →</a>
+    <p class="now-line" data-cid="now" data-kind="now" data-ref="./assets/brain.css">
+      Brain skin <strong>v2 — the real design pass</strong> (sheet-on-drafting-table, panel-scored 7.5–8/10,
+      punch list applied); uncommitted, awaiting the owner's verdict.
+      <a class="ref" href="./assets/brain.css">brain.css →</a>
     </p>
     <!-- /BRAIN:NOW -->
   </header>
@@ -81,7 +81,7 @@
             pitch led with mechanism. So the copy was chosen by a <strong>judged pitch lab</strong> — five
             writers, five angles, three blind judges scoring 15-second comprehension cold.</p>
           <div class="split">
-            <div class="split-col"><span class="split-k">Winner · “artifact” (84)</span><span class="split-d">“Your repo can explain itself.” Lead with the thing you GET — a website inside the repo — not the mechanism.</span></div>
+            <div class="split-col hot"><span class="split-k">Winner · “artifact” (84)</span><span class="split-d">“Your repo can explain itself.” Lead with the thing you GET — a website inside the repo — not the mechanism.</span></div>
             <div class="split-col"><span class="split-k">Grafted from runners-up</span><span class="split-d">“stranger in your own repo” · “a hook won't let the session end unstamped” · the README-rot beat</span></div>
           </div>
           <p><strong>The signature:</strong> a self-stamping hero demo — a terminal card types a real command,
@@ -243,6 +243,7 @@
   <section class="zone" data-cid="s-log">
     <div class="eyebrow">Latest <span id="brain-unseen" class="badge open" hidden></span></div>
     <ol class="timeline" data-cid="logfeed">
+      <li data-kind="worklog" data-cid="w-0197"><div class="tl-row"><span class="tl-when">07-02</span><span class="tl-what">Re-did the brain skin <strong>properly</strong> after the 2/10 verdict — <em>white sheet on a gridded drafting table</em>, condensed display voice, outlined badges, square nodes; 2-critic panel: <strong>7.5–8/10</strong>, punch list applied. Uncommitted, awaiting verdict.</span><span class="tl-link"><a class="ref" href="./assets/brain.css">brain.css →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0196"><div class="tl-row"><span class="tl-when">07-02</span><span class="tl-what"><strong>Blueprint approved → the identity</strong> (D-015): SANDPAPER titling, the owner's logomark on every surface, and the brain itself reskinned via a pure <code>theme.css</code> token surgery. The shipped default skin is now blueprint.</span><span class="tl-link"><a class="ref" href="./decisions.html#d-blueprint">D-015 →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0195"><div class="tl-row"><span class="tl-when">07-02</span><span class="tl-what">Reskinned the landing as a <strong>cyanotype engineering drawing</strong> (owner called the warm-serif look an AI cliché — right): title block, drafting grid, red inspection stamp, Archivo/JetBrains. <em>Uncommitted</em> — awaiting the verdict.</span><span class="tl-link"><a class="ref" href="../site/site.css">site.css →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0194"><div class="tl-row"><span class="tl-when">07-02</span><span class="tl-what">Built <strong>sandpaper.sh</strong> (<code>site/</code>) — judged pitch lab (“Your repo can explain itself”), a <strong>self-stamping hero demo</strong> re-enacting w-0193, P80→P2000 grit structure, 4-critic panel with 30+ fixes. Board 008.</span><span class="tl-link"><a class="ref" href="../site/index.html">the page →</a></span></div></li>
