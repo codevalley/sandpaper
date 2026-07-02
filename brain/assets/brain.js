@@ -45,6 +45,13 @@
   // ---- (2) "since you last looked" on the log ----
   var logRows = Array.prototype.slice.call(document.querySelectorAll('.timeline li[data-cid], .entry--worklog[data-cid]'));
   if (logRows.length) {
+    // freshness is the product: derive the day divider from the newest row instead of trusting stale hand-typed text
+    var day = document.querySelector('.tl-day');
+    var newestDate = logRows[0].getAttribute('data-date');
+    if (day && newestDate) {
+      var d = new Date(newestDate + 'T00:00:00');
+      if (!isNaN(d)) day.textContent = d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }) + ' · latest';
+    }
     var KEY = 'brain:lastSeen';
     var last = null;
     try { last = localStorage.getItem(KEY); } catch (e) {}

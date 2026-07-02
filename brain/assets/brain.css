@@ -5,18 +5,26 @@
 /* All design tokens now live in theme.css (imported above) — the single file to re-skin a Sandpaper.
    brain.css only CONSUMES them via var(), so a theme.css override propagates everywhere. */
 *{box-sizing:border-box}
-body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:15.5px;line-height:1.62;
-  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+/* the drafting table: a gridded ground the sheet lies on */
+body{margin:0;color:var(--ink);font-family:var(--sans);font-size:15.5px;line-height:1.62;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+  background:
+    repeating-linear-gradient(0deg,transparent 0 39px,rgba(28,80,133,.07) 39px 40px),
+    repeating-linear-gradient(90deg,transparent 0 39px,rgba(28,80,133,.07) 39px 40px),
+    var(--paper)}
 ::selection{background:var(--tint-clay-sel)}
 a{color:var(--clay);text-underline-offset:3px;text-decoration-thickness:1px}
-code{font-family:var(--mono);font-size:.84em;background:var(--tint-ink-code);padding:1px 5px;border-radius:3px}
-.wrap{max-width:980px;margin:0 auto;padding:0 26px}
+code{font-family:var(--mono);font-size:.84em;background:var(--tint-ink-code);padding:1px 5px;border-radius:var(--radius-sm)}
+/* the sheet: every page is one white drawing laid on the table */
+.wrap{max-width:980px;margin:0 auto 34px;padding:0 34px 8px;background:var(--white);
+  border:1px solid var(--rule);border-top:0;box-shadow:0 14px 34px rgba(10,20,40,.10)}
 .col{max-width:760px}
-.eyebrow{font-family:var(--mono);text-transform:uppercase;letter-spacing:.2em;font-size:10.5px;color:var(--mute);font-weight:600}
-/* section labels read as newspaper "kickers": a short clay rule marks a new section (subtle, no boxes) */
-.zone > .eyebrow{display:flex;align-items:center;gap:9px}
-.zone > .eyebrow::before{content:"";width:16px;height:2px;background:var(--clay);border-radius:2px;flex:none}
-h1,h2,h3{font-family:var(--serif);font-weight:600;letter-spacing:-.015em;margin:0}
+.eyebrow{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.13em;
+  font-size:10.5px;color:var(--clay);font-weight:700;border:1px solid var(--rule);background:var(--white);padding:5px 10px}
+.eyebrow .badge{margin-left:8px}
+h1,h2,h3{font-family:var(--serif);font-weight:600;letter-spacing:-.005em;margin:0}
+h1,h2.h,.phase-title{font-variation-settings:"wdth" 78;font-weight:760;letter-spacing:.002em}
+h3{font-variation-settings:"wdth" 88;font-weight:700} /* the h3 tier joins the width ramp */
 .muted{color:var(--mute)}
 .mono{font-family:var(--mono)}
 
@@ -32,10 +40,10 @@ h1,h2,h3{font-family:var(--serif);font-weight:600;letter-spacing:-.015em;margin:
 .brain-nav .grow{margin-left:auto}
 .brain-nav .ext{color:var(--clay)}
 
-/* ---- cover: dark drafting plate ---- */
-.plate{margin:16px 0 14px;background:var(--ink);color:var(--paper);border-radius:10px;padding:13px 20px;
+/* ---- cover: dark drafting plate — the blueprint inset ---- */
+.plate{margin:16px 0 14px;background:var(--plate);color:var(--paper);border-radius:var(--radius-md);padding:13px 20px;
   background-image:linear-gradient(var(--tint-paper-grid) 1px,transparent 1px),linear-gradient(90deg,var(--tint-paper-grid) 1px,transparent 1px);
-  background-size:22px 22px}
+  background-size:40px 40px}
 .plate .pl-top{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap}
 .brain-mark{font-family:var(--serif);font-weight:600;font-size:clamp(40px,8vw,68px);line-height:.92;letter-spacing:-.04em;color:var(--paper)}
 .brain-mark .a{color:var(--clay)}
@@ -73,17 +81,17 @@ h2.h{font-size:22px;margin:0 0 4px}
 h2.h .pn{font-family:var(--mono);font-size:13px;color:var(--clay);margin-right:10px;font-weight:600}
 
 /* ---- status primitive (never colour-only) ---- */
-.sdot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--idle);margin-right:7px;vertical-align:baseline;flex:none}
+.sdot{display:inline-block;width:9px;height:9px;border-radius:1px;background:var(--idle);margin-right:7px;vertical-align:baseline;flex:none}
 .sdot.ok{background:var(--ok)} .sdot.wip{background:var(--wip)} .sdot.open{background:var(--open)} .sdot.blocked{background:var(--blocked)} .sdot.idle{background:var(--idle)}
 
-/* ---- badges ---- */
-.badge{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;font-weight:600;padding:3px 8px;border-radius:4px;white-space:nowrap}
-.badge.done,.badge.accepted,.badge.verified{background:var(--tint-moss-badge);color:var(--badge-done-ink)}
-.badge.wip,.badge.fixed{background:var(--tint-clay-badge);color:var(--clay)}
-.badge.open{background:var(--tint-ochre-badge);color:var(--badge-open-ink)}
-.badge.soon{background:var(--tint-ochre-badge);color:var(--badge-open-ink)}
-.badge.blocked{background:var(--tint-rust-badge);color:var(--rust)}
-.badge.stub,.badge.superseded{background:var(--tint-ink-stub);color:var(--mute)}
+/* ---- badges — outlined drawing labels, not tinted washes ---- */
+.badge{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;padding:3px 8px;
+  border-radius:var(--radius-sm);white-space:nowrap;background:var(--white);border:1.5px solid currentColor}
+.badge.done,.badge.accepted,.badge.verified{color:var(--badge-done-ink)}
+.badge.wip,.badge.fixed{color:var(--clay)}
+.badge.open,.badge.soon{color:var(--badge-open-ink)}
+.badge.blocked{color:var(--rust)}
+.badge.stub,.badge.superseded{color:var(--mute);border-style:dashed}
 /* distinct status glyphs, rendered through ONE system — identical box, size + baseline —
    so they read as a family (shape = status, colour from the badge's own currentColor) */
 .badge.done::before,.badge.accepted::before,.badge.verified::before,.badge.wip::before,.badge.fixed::before,.badge.open::before,.badge.soon::before,.badge.blocked::before,.badge.stub::before,.badge.superseded::before{display:inline-block;width:1.05em;margin-right:4px;text-align:center;font-size:.92em;line-height:1;vertical-align:middle;position:relative;top:-.5px}
@@ -96,10 +104,10 @@ h2.h .pn{font-family:var(--mono);font-size:13px;color:var(--clay);margin-right:1
 
 /* ---- progress bar (agent stamps data-done/data-total; brain.js derives the rest) ---- */
 .prog{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:11.5px;color:var(--mute)}
-.prog .track{flex:1;height:7px;background:var(--paper-3);border-radius:99px;overflow:hidden;min-width:80px}
-.prog .fill{height:100%;width:var(--pct,0%);background:linear-gradient(90deg,var(--moss),var(--pine));border-radius:99px;transition:width .5s ease}
-.bar-mini{height:5px;background:var(--paper-3);border-radius:99px;overflow:hidden;width:100%}
-.bar-mini i{display:block;height:100%;width:var(--pct,0%);background:var(--moss)}
+.prog .track{flex:1;height:7px;background:var(--paper-3);border-radius:var(--radius-sm);overflow:hidden;min-width:80px}
+.prog .fill{height:100%;width:var(--pct,0%);background:var(--clay);border-radius:0;transition:width .5s ease}
+.bar-mini{height:5px;background:var(--paper-3);border-radius:var(--radius-sm);overflow:hidden;width:100%}
+.bar-mini i{display:block;height:100%;width:var(--pct,0%);background:var(--clay)}
 
 /* ---- needs-you ---- */
 .needs{list-style:none;margin:8px 0 0;padding:0}
@@ -116,7 +124,7 @@ h2.h .pn{font-family:var(--mono);font-size:13px;color:var(--clay);margin-right:1
 .timeline li{position:relative;padding:11px 0 11px 4px;border-bottom:1px solid var(--rule-2)}
 .timeline li:last-child{border-bottom:0}
 /* the node sits exactly on the spine — shared centre at x=8; hollow ring = already seen */
-.timeline li::before{content:"";position:absolute;left:-26px;top:15px;width:12px;height:12px;box-sizing:border-box;border-radius:50%;background:var(--paper);border:2px solid var(--mute)}
+.timeline li::before{content:"";position:absolute;left:-26px;top:15px;width:11px;height:11px;box-sizing:border-box;border-radius:1px;background:var(--white);border:2px solid var(--mute)}
 /* filled ochre + ring = new since your last visit (reads with the "N NEW" badge above) */
 .timeline li.unseen::before{border-color:var(--ochre);background:var(--ochre);box-shadow:0 0 0 3px var(--tint-ochre-badge)}
 .tl-row{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
@@ -162,12 +170,12 @@ table.matrix{width:100%;border-collapse:collapse;margin-top:10px;font-size:13.5p
 
 /* glossary */
 .entry--glossary{display:grid;grid-template-columns:170px 1fr;gap:14px;padding:11px 0;border-bottom:1px solid var(--rule-2)}
-.g-term{font-family:var(--mono);font-weight:600;color:var(--pine)}
+.g-term{font-family:var(--mono);font-weight:600;color:var(--clay)}
 .g-def{margin:0;font-size:14px;color:var(--text)}
 @media(max-width:600px){.entry--glossary{grid-template-columns:1fr;gap:2px}}
 
 /* ---- callouts (semantic variants) ---- */
-.callout{border:1px solid var(--rule);border-left:3px solid var(--mute);background:var(--paper-2);padding:13px 16px;border-radius:0 5px 5px 0;margin:0 0 12px}
+.callout{border:1px solid var(--rule);border-left:3px solid var(--mute);background:var(--white);padding:13px 16px;border-radius:0;margin:0 0 12px}
 .callout .eyebrow{margin-bottom:3px}
 .callout p{font-size:14.5px;color:var(--text);margin:5px 0 0}
 .callout.gotcha{border-left-color:var(--rust)} .callout.gotcha .eyebrow{color:var(--rust)}
@@ -202,7 +210,7 @@ table.tbl{width:100%;border-collapse:collapse;margin-top:8px;font-size:13.5px}
 
 /* ---- cards ---- */
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:11px;margin-top:8px}
-.card{border:1px solid var(--rule);border-radius:9px;padding:15px;background:var(--paper-2);text-decoration:none;color:inherit;display:block}
+.card{border:1px solid var(--rule);border-radius:var(--radius-md);padding:15px;background:var(--white);text-decoration:none;color:inherit;display:block}
 .card:hover{border-color:var(--clay)}
 .card .k{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--clay)}
 .card h3{margin:7px 0 3px;font-size:16px}
@@ -225,42 +233,44 @@ table.tbl{width:100%;border-collapse:collapse;margin-top:8px;font-size:13.5px}
 
 /* ---- search ---- */
 .brain-search{margin:10px 0 0;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-#brain-q{flex:1;min-width:160px;height:34px;border:1px solid var(--rule);border-radius:8px;background:var(--white);padding:0 12px;font:inherit;font-size:14px}
+#brain-q{flex:1;min-width:160px;height:34px;border:1px solid var(--rule);border-radius:var(--radius-sm);background:var(--white);padding:0 12px;font:inherit;font-size:14px}
 #brain-q:focus{outline:2px solid var(--tint-clay-focus);border-color:var(--clay)}
-.facet{font-family:var(--mono);font-size:11px;border:1px solid var(--rule);background:var(--paper-2);border-radius:999px;padding:4px 11px;cursor:pointer;color:var(--ink)}
+.facet{font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;border:1px solid var(--rule);background:var(--white);border-radius:var(--radius-sm);padding:4px 11px;cursor:pointer;color:var(--ink)}
 .facet.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
 .entry.hidden{display:none}
 .searchnote{font-family:var(--mono);font-size:11px;color:var(--mute)}
 
 /* ---- plan board: initiatives → tasks → DERIVED progress (brain.js fills the bars) ---- */
 .plan-overall{display:flex;align-items:center;gap:12px;margin:6px 0 20px;font-family:var(--mono);font-size:12px;color:var(--pine)}
-.plan-overall .track{flex:1;max-width:360px;height:8px;background:var(--paper-3);border-radius:99px;overflow:hidden}
-.plan-overall .track i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--moss),var(--pine));transition:width .5s ease}
+.plan-overall .track{flex:1;max-width:360px;height:8px;background:var(--paper-3);border-radius:var(--radius-sm);overflow:hidden}
+.plan-overall .track i{display:block;height:100%;width:0;background:var(--clay);transition:width .5s ease}
 .entry--initiative{padding:16px 0;border-bottom:1px solid var(--rule)}
 .entry--initiative:last-child{border-bottom:0}
 .ini-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .ini-head h3{flex:1;min-width:150px;margin:0;font-size:16px}
 .ini-rung{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);border:1px solid var(--rule);border-radius:4px;padding:2px 6px}
 .ini-bar{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;color:var(--mute)}
-.ini-bar .track{width:84px;height:6px;background:var(--paper-3);border-radius:99px;overflow:hidden}
-.ini-bar .track i{display:block;height:100%;width:0;background:var(--moss);transition:width .5s ease}
+.ini-bar .track{width:84px;height:6px;background:var(--paper-3);border-radius:var(--radius-sm);overflow:hidden}
+.ini-bar .track i{display:block;height:100%;width:0;background:var(--clay);transition:width .5s ease}
 ol.tasks{list-style:none;margin:9px 0 0;padding:0 0 0 2px}
 ol.tasks .task{display:flex;align-items:baseline;gap:9px;padding:5px 0;font-size:14px;color:var(--text)}
 .task .t-what{flex:1}
 .task[data-status="done"] .t-what{color:var(--mute);text-decoration:line-through;text-decoration-color:var(--tint-ink-strike)}
+.task[data-status="done"] .sdot{background:transparent;border:1.5px solid var(--moss)} /* hollow = settled; solid green stays for live DONE badges */
 .task .t-sess{font-family:var(--mono);font-size:10px;color:var(--mute);white-space:nowrap}
 @media(prefers-reduced-motion:reduce){.plan-overall .track i,.ini-bar .track i{transition:none}}
 
 /* phase grouping headers — the build organises under Phase 0 (make it work) / Phase 1 (package) */
 .phase-head{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:30px 0 16px;padding-bottom:11px;border-bottom:2px solid var(--ink)}
+.zone > .phase-head:first-child{margin-top:0} /* no unexplained void between the filter row and the first phase */
 .phase-title{display:flex;align-items:center;gap:11px;font-size:20px;letter-spacing:-.01em;margin:0}
 .phase-n{font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--paper);background:var(--clay);padding:4px 10px;border-radius:var(--radius-pill)}
 .phase-bar{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:11px;color:var(--mute)}
-.phase-bar .track{width:140px;height:7px;background:var(--paper-3);border-radius:99px;overflow:hidden}
-.phase-bar .track i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--moss),var(--pine));transition:width .5s ease}
+.phase-bar .track{width:140px;height:7px;background:var(--paper-3);border-radius:var(--radius-sm);overflow:hidden}
+.phase-bar .track i{display:block;height:100%;width:0;background:var(--clay);transition:width .5s ease}
 @media(prefers-reduced-motion:reduce){.phase-bar .track i{transition:none}}
 
-footer{padding:30px 0 56px;font-family:var(--mono);font-size:11px;color:var(--mute);letter-spacing:.04em;border-top:2px solid var(--ink);margin-top:26px}
+.wrap > footer{padding:30px 0 56px;font-family:var(--mono);font-size:11px;color:var(--mute);letter-spacing:.04em;border-top:2px solid var(--ink);margin-top:26px} /* scoped: a bare `footer` leaked 56px of padding into every <footer class="board-foot"> */
 @media(prefers-reduced-motion:reduce){.prog .fill{transition:none}}
 
 /* ============================================================
@@ -270,17 +280,19 @@ footer{padding:30px 0 56px;font-family:var(--mono);font-size:11px;color:var(--mu
    ============================================================ */
 
 /* ---- persistent shell (sticky, LIGHT; replaces .brain-nav) ---- */
-.shell{position:sticky;top:0;z-index:50;background:var(--paper);
-  border-bottom:2px solid var(--ink);margin:0 -26px;padding:0 26px}
+.shell{position:sticky;top:0;z-index:50;background:var(--white);
+  border-bottom:2px solid var(--ink);margin:0 -34px;padding:6px 34px 0}
 .shell-id{display:flex;align-items:center;justify-content:space-between;
-  gap:12px 18px;flex-wrap:wrap;padding:10px 0 8px}
-.shell-mark{font-family:var(--font-display);font-weight:600;font-size:23px;
-  line-height:1;letter-spacing:-.02em;color:var(--ink);text-decoration:none}
+  gap:12px 18px;flex-wrap:wrap;padding:8px 0 7px}
+.shell-mark{display:inline-flex;align-items:center;gap:9px;font-family:var(--font-display);
+  font-variation-settings:"wdth" 72;font-weight:800;font-size:18.5px;letter-spacing:.045em;
+  text-transform:uppercase;line-height:1;color:var(--ink);text-decoration:none}
+.shell-mark svg{flex:none}
 .shell-mark .a{color:var(--clay)}
 .shell-state{display:flex;align-items:center;gap:8px 14px;flex-wrap:wrap;
   font-family:var(--font-mono);font-size:11px;letter-spacing:.05em;color:var(--text-muted)}
-.shell-state a{color:var(--text-muted);text-decoration:none;border-bottom:1px solid var(--rule)}
-.shell-state a:hover{color:var(--clay);border-color:var(--clay)}
+.shell-state a{color:var(--text-muted);text-decoration:none;border-bottom:1px solid transparent}
+.shell-state a:hover,.shell-state a:focus-visible{color:var(--clay);border-color:var(--clay)}
 .shell-health{display:inline-flex;align-items:center;gap:7px;text-transform:uppercase}
 .shell-health .dot{width:8px;height:8px;border-radius:var(--radius-pill);
   background:var(--moss);box-shadow:0 0 0 3px var(--tint-moss-glow)}
@@ -294,6 +306,7 @@ footer{padding:30px 0 56px;font-family:var(--mono);font-size:11px;color:var(--mu
 .shell-rail .dim{color:var(--mute);opacity:.6;padding:9px 13px;
   white-space:nowrap;pointer-events:none}
 @media(max-width:760px){.shell-id{padding:8px 0 6px}.shell-rail{font-size:11px}}
+@media(max-width:680px){.wrap{padding:0 18px 8px;margin-bottom:16px}.shell{margin:0 -18px;padding:6px 18px 0}}
 
 /* ===== CANVAS — the live working surface: Claude's distilled/elevated boards (THE HERO) ===== */
 .canvas{padding:24px 0 6px}
@@ -312,9 +325,9 @@ footer{padding:30px 0 56px;font-family:var(--mono);font-size:11px;color:var(--mu
 .board{background:var(--white);border:var(--hairline);border-radius:var(--radius-md);padding:18px 20px 15px;box-shadow:var(--shadow-panel)}
 .board--live{border-color:var(--clay);box-shadow:0 0 0 1px var(--tint-clay-badge),var(--shadow-panel)}
 .board-head{display:flex;align-items:center;gap:9px;margin-bottom:10px}
-.board-dot{width:7px;height:7px;border-radius:50%;background:var(--mute);flex:none}
+.board-dot{width:7px;height:7px;border-radius:1px;background:var(--mute);flex:none}
 .board--live .board-dot{background:var(--clay);box-shadow:0 0 0 3px var(--tint-clay-badge)}
-.board-title{font-family:var(--font-display);font-size:19px;font-weight:600;letter-spacing:-.01em;margin:0;flex:1;min-width:0}
+.board-title{font-family:var(--font-display);font-variation-settings:"wdth" 82;font-size:19px;font-weight:720;letter-spacing:0;margin:0;flex:1;min-width:0}
 .board-when{font-family:var(--font-mono);font-size:10.5px;color:var(--mute);flex:none}
 .board-body{color:var(--text);font-size:14.5px;line-height:1.6}
 .board-body p{margin:0 0 10px}
@@ -333,7 +346,7 @@ footer{padding:30px 0 56px;font-family:var(--mono);font-size:11px;color:var(--mu
 /* a numbered step list inside a board (e.g. the handoff chain) */
 .handoff{display:flex;flex-direction:column;gap:8px;margin:13px 0}
 .ho-step{display:flex;gap:11px;align-items:flex-start}
-.ho-n{flex:none;width:22px;height:22px;border-radius:50%;background:var(--ink);color:var(--paper);
+.ho-n{flex:none;width:22px;height:22px;border-radius:var(--radius-sm);background:var(--ink);color:var(--paper);
   font-family:var(--font-mono);font-size:11px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;margin-top:1px}
 .ho-step>div b{display:block;font-size:13px;color:var(--ink)}
 .ho-step>div span{display:block;font-family:var(--font-mono);font-size:11px;color:var(--mute);line-height:1.45}
@@ -348,8 +361,8 @@ footer{padding:30px 0 56px;font-family:var(--mono);font-size:11px;color:var(--mu
 /* a two-column "what goes where" split inside a board */
 .split{display:flex;gap:10px;margin:13px 0;flex-wrap:wrap}
 .split-col{flex:1;min-width:170px;border:var(--hairline);border-radius:var(--radius);padding:10px 13px;display:flex;flex-direction:column;gap:3px}
-.split-col:first-child{background:var(--panel)}
-.split-col:last-child{background:var(--card-feature);border-color:var(--clay)}
+.split-col{background:var(--panel)}
+.split-col.hot{background:var(--card-feature);border-color:var(--clay)} /* emphasis is a CLASS, not a position — mark the star fact `hot` */
 .split-k{font-family:var(--font-mono);font-size:12px;font-weight:600;color:var(--ink)}
 .split-d{font-family:var(--font-mono);font-size:10.5px;color:var(--mute);line-height:1.5}
 
@@ -364,7 +377,7 @@ footer{padding:30px 0 56px;font-family:var(--mono);font-size:11px;color:var(--mu
 .board--past:first-of-type{border-top:0}
 .board-row{display:flex;align-items:center;gap:11px;padding:10px 4px;cursor:pointer;list-style:none}
 .board-row::-webkit-details-marker{display:none}
-.board-row-dot{width:6px;height:6px;border-radius:50%;background:var(--mute);flex:none}
+.board-row-dot{width:6px;height:6px;border-radius:1px;background:var(--mute);flex:none}
 .board-row-when{font-family:var(--font-mono);font-size:10.5px;color:var(--mute);flex:none}
 .board-row-title{font-family:var(--font-display);font-size:15px;color:var(--ink);flex:1;min-width:0;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -433,15 +446,15 @@ footer{padding:30px 0 56px;font-family:var(--mono);font-size:11px;color:var(--mu
 
 /* the NOW "dateline" pill — a clay anchor on the dark plate (matches the Project door tab) */
 .now-tag{display:inline-block;font-family:var(--font-mono);font-size:10px;font-weight:600;letter-spacing:.16em;
-  text-transform:uppercase;color:var(--paper);background:var(--clay);
-  padding:3px 9px;border-radius:var(--radius-pill);margin-right:5px;vertical-align:baseline}
+  text-transform:uppercase;color:var(--on-plate-em);background:transparent;border:1px solid rgba(255,154,139,.5);
+  padding:2px 8px;border-radius:var(--radius-sm);margin-right:5px;vertical-align:baseline} /* one grammar with the landing's NOW chip */
 
 /* ---- lens-landing template (product/ · engineering/) ---- */
 .lens--product{--lens:var(--ochre)}
 .lens--engineering{--lens:var(--pine)}
 .lens--project{--lens:var(--clay)}
 .lens-hero{border:var(--hairline);border-left:3px solid var(--lens);
-  border-radius:var(--radius-md);background:var(--panel);
+  border-radius:var(--radius-md);background:var(--white);
   padding:20px 22px;margin-top:18px}
 .lens-hero .eyebrow{color:var(--lens)}
 .lens-hero h1{font-family:var(--font-display);font-size:30px;letter-spacing:-.02em;

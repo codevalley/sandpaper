@@ -49,8 +49,10 @@ code{font-family:var(--font-m);font-size:.84em;background:rgba(28,80,133,.09);pa
 .nav{max-width:var(--wrap);margin:0 auto;padding:24px 28px 0;display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap}
 .mark{font-family:var(--font-d);font-variation-settings:"wdth" 72;font-weight:800;font-size:21px;
   letter-spacing:.04em;text-transform:uppercase;text-decoration:none;display:flex;align-items:center;gap:10px;color:var(--sheet)}
-.mark-logo{width:21px;height:21px;flex:none}
-.mark-logo--foot{width:15px;height:15px;vertical-align:-3px;margin-right:9px;display:inline-block}
+.mark-word{font-weight:inherit}
+.mark-word span{color:var(--mute-bp)}
+.mark-logo{width:24px;height:19.5px;flex:none}
+.mark-logo--foot{width:18px;height:14.6px;margin-right:9px}
 .foot-tag{display:flex;align-items:center}
 .nav-links{display:flex;gap:22px;font-family:var(--font-m);font-size:12px;letter-spacing:.04em}
 .nav-links a{text-decoration:none;color:var(--mute-bp);transition:color .15s}

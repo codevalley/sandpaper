@@ -1,10 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <!-- the Sandpaper mark (owner's logo) on a sheet plate -->
-  <rect width="64" height="64" rx="8" fill="#F3F6F9"/>
-  <g transform="translate(6 6) scale(0.086666)">
-    <g transform="matrix(0.545861,0.545861,-0.545861,0.545861,300,-55.841103)">
-      <path d="M40,560L560,560L560,40L240,40L40,240" fill="#18293D"/>
-      <path d="M100,300L100,500L500,500L500,100L300,100L300,300L100,300Z" fill="#C63B30"/>
-    </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="12 92 576 468">
+  <!-- the Sandpaper mark (owner's logo), bare -->
+  <g transform="matrix(0.545861,0.545861,-0.545861,0.545861,300,-55.841103)">
+    <path d="M40,560L560,560L560,40L240,40L40,240" fill="#18293D"/>
+    <path d="M100,300L100,500L500,500L500,100L300,100L300,300L100,300Z" fill="#C63B30"/>
   </g>
 </svg>
