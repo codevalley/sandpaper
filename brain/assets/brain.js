@@ -1,5 +1,8 @@
-// brain.js — zero-dependency, no-fetch, file://-safe enhancements for the project brain.
+// brain.js — zero-dependency, file://-safe enhancements for the project brain.
 // (1) Live-DOM search/filter over .entry blocks.  (2) "Since you last looked" on the log.
+// (3) Plan progress derived from task status.  (4) Out-link resolver — keeps brain/
+//     publishable anywhere (one same-origin probe; the only network call in this file).
+// (5) Whiteboard fold-fit — the canvas caps at the first fold, content scrolls inside.
 (function () {
   'use strict';
 
@@ -96,5 +99,84 @@
       var pbar = document.querySelector('[data-phase-progress="' + ph + '"] i'); if (pbar) pbar.style.width = pp + '%';
       var plab = document.querySelector('[data-phase-label="' + ph + '"]'); if (plab) plab.textContent = pd + '/' + pt.length + ' · ' + pp + '%';
     });
+  }
+
+  // ---- (4) out-link resolver: brain/ stays publishable anywhere ----
+  // Refs to canonical truth (spec · source · meta) are written RELATIVE — link, never copy —
+  // so they resolve on disk and whenever the whole repo is served. Deployed DETACHED (a
+  // brain/-only static host), they would 404; so: probe once per load for the repo above us
+  // (../package.json, name-checked, NO caching — the same origin can serve both modes), and
+  // when detached, resolve out-links AT CLICK TIME to the source base named in
+  // <meta name="sandpaper:source" content=".../blob/HEAD/" data-pkg="name">.
+  // No meta → dim them with a tooltip instead of 404ing. file:// counts as attached (it IS
+  // the disk). NOTE: out-of-brain detection must read the RAW href prefix — at a root deploy
+  // the URL resolver silently eats "../" at the boundary, so resolved URLs can't tell.
+  var me = document.querySelector('script[src*="assets/brain.js"]');
+  var ups = me ? ((me.getAttribute('src') || '').match(/\.\.\//g) || []).length : 0; // page depth below the brain root
+  var OUT = new Array(ups + 2).join('../'); // (ups+1) ×  "../"  — the prefix that leaves brain/
+  var srcMeta = document.querySelector('meta[name="sandpaper:source"]');
+  var srcBase = srcMeta ? (srcMeta.getAttribute('content') || '') : '';
+  var srcPkg = srcMeta ? (srcMeta.getAttribute('data-pkg') || '') : '';
+
+  function outPath(a) { // the repo-relative path if this anchor leaves brain/, else null
+    var h = a.getAttribute('href') || '';
+    if (h.slice(0, OUT.length) !== OUT) return null;
+    var rest = h.slice(OUT.length);
+    return rest.slice(0, 3) === '../' ? null : rest; // above the repo root — unmappable
+  }
+
+  var outLinks = Array.prototype.slice.call(document.querySelectorAll('a[href]')).filter(outPath);
+  if (outLinks.length && location.protocol !== 'file:') {
+    fetch(OUT + 'package.json', { cache: 'no-store' })
+      .then(function (r) { if (!r.ok) throw 0; return r.json(); })
+      .then(function (j) { if (!j || typeof j.name !== 'string' || (srcPkg && j.name !== srcPkg)) detached(); })
+      .catch(detached);
+  }
+
+  function detached() {
+    document.documentElement.classList.add('brain-detached');
+    if (srcBase) {
+      outLinks.forEach(function (a) { a.title = 'repo file — opens the copy on the source host'; });
+      document.addEventListener('click', rewrite, true);
+      document.addEventListener('auxclick', rewrite, true); // middle-click
+    } else {
+      var block = function (e) { e.preventDefault(); };
+      outLinks.forEach(function (a) {
+        a.classList.add('ref-detached');
+        a.title = 'lives in the repo — open the brain locally (or set the sandpaper:source meta) to follow';
+        a.addEventListener('click', block);
+        a.addEventListener('auxclick', block);
+      });
+    }
+  }
+  // Resolve just-in-time, then RESTORE the raw href: the mutation must live only long enough
+  // for the browser's default navigation to read it. A rewrite left in the DOM gets captured
+  // by the refine toolbar's edit-in-place and committed to disk — an absolute URL baked into
+  // the brain file. Inert when something upstream (the toolbar) already claimed the click.
+  function rewrite(e) {
+    if (e.defaultPrevented) return;
+    var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+    if (!a) return;
+    var p = outPath(a);
+    if (!p) return;
+    var raw = a.getAttribute('href');
+    a.setAttribute('href', srcBase + p);
+    setTimeout(function () { a.setAttribute('href', raw); }, 0);
+  }
+
+  // ---- (5) whiteboard fold-fit ----
+  // CSS alone can't cap the canvas at the fold — how far down the whiteboard starts depends
+  // on the shell + NOW plate above it — so measure: cap = viewport − document offset − a
+  // breath. Re-fit on resize and once fonts settle (they shift the offset after first paint).
+  var wb = document.querySelector('.whiteboard');
+  if (wb) {
+    var fit = function () {
+      var top = wb.getBoundingClientRect().top + window.pageYOffset;
+      wb.style.maxHeight = Math.max(260, window.innerHeight - top - 26) + 'px';
+    };
+    fit();
+    window.addEventListener('resize', fit);
+    window.addEventListener('load', fit);
+    if (document.fonts && document.fonts.ready && document.fonts.ready.then) document.fonts.ready.then(fit);
   }
 })();

@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="sandpaper:source" content="https://github.com/codevalley/sandpaper/blob/HEAD/" data-pkg="sandpaper" />
 <title>Sandpaper — Project Log Book</title>
 <!-- COVER PLATE of the Sandpaper project brain. Stamped after each substantive turn (CLAUDE.md → "The project brain").
      Marker-delimited regions; static, zero runtime; links into the canonical docs, never copies them. -->
@@ -14,11 +15,11 @@
 <script type="application/json" id="brain-state">
 { "v":1, "project":"Sandpaper", "phase":"Phase 1 · packaging", "updated":"2026-06-30",
   "session":"S28",
-  "focus":{ "one":"The owner pushed back on board 006's 'portable publish': brain/ should be ALWAYS publishable — no build step. Ran an adversarial design panel (1 inventory agent + 3 critics, one per candidate). Measured: 158 out-of-brain links on 13 pages — 116 (73%) anchored refs into the two spec HTML docs (GitHub blob view can't render those; #anchors die), 29 source, 13 meta. Verdicts: write-time absolute links DEAD (kills local-first/offline; bakes a mutable URL into append-only records); publish/export step DEAD as the answer (it IS the banned build step; spec snapshots re-open drift); RUNTIME RESOLVER VIABLE (0 fatal) — links stay relative on disk; every page head gets one meta with the source base (blob/HEAD/, survives branch renames) + expected package name; brain.js probes ../package.json per load (GET, NO cache — same-origin mode flips poison a cache — and json.name must match, defeating SPA soft-200s); detached → out-links rewrite at CLICK time via one delegated listener; no base → dim + tooltip; ~60-90 lines vanilla JS, zero deps, zero build. Free path today: deploy the whole public repo (Pages / Vercel root=repo) — probe says attached, specs render, anchors work; that deploy later doubles as the rendered base for the 73%. t-0019 reshapes: resolver + stamp-time link lint now, snapshot exporter → optional. Boarded as 007; q-deploy regenerated to the shaped design, still open for the owner's go. Also pending: MIT confirm + the 'go' for gh repo create --public --push (npm deferred).", "ref":"./decisions.html#q-deploy" },
-  "worklog":[ {"date":"2026-07-02","one":"Panel-tested always-publishable: runtime resolver wins (0 fatal); write-time absolute + publish-step judged dead. 158 out-links measured, 73% anchored spec refs. t-0019 reshaped. Board 007","cid":"w-0191"},
-              {"date":"2026-07-01","one":"Answered the owner: the brain's out-links are the 'link, never copy' spine, not a flaw — real fix is portable-publish (t-0019), not fewer links. Boarded as 006","cid":"w-0190"},
-              {"date":"2026-07-01","one":"Release prep — MIT LICENSE, richer package.json (repo/homepage/bugs/author), .gitignore; npm pack verified (30 files, 60kB, clean). Name blocked: `sandpaper` is taken on npm","cid":"w-0189"} ],
-  "open":["decisions.html#q-anchoring","decisions.html#q-undo","decisions.html#q-billing","decisions.html#q-deploy"],
+  "focus":{ "one":"BUILT the always-publishable resolver (D-014, t-0019 done) — the owner said 'bullet proof before publishing', so: implemented brain.js §4 (out-link resolver: per-head sandpaper:source meta, name-checked no-cache probe of ../package.json, click-time rewrite-then-RESTORE, dim+tooltip fallback) + §5 (whiteboard fold-fit by real measurement — the CSS calc(100vh-184px) assumed a wrong fixed offset, the owner's screenshot caught it); setup.js repoSource() (origin → https, credential-STRIPPED, ssh-port dropped, bitbucket /src/HEAD/, monorepo show-prefix) + ensureSourceMeta on all pages + doctor lint (data-refs + meta consistency) + deploy guide in every scaffolded brain; root README + brain/README.md rewritten. Verified: npm test, doctor, repoSource edge battery, recipe YAML parse, and REAL-BROWSER e2e in all 3 modes (attached · detached+meta · detached-no-meta) incl. rewrite-restore + inert-when-claimed. An adversarial review panel (3 reviewers + verify agents) confirmed 5 real defects pre-publish — ALL FIXED: credential leak into published pages (blocker), toolbar edit-in-place could persist a rewritten absolute URL to disk (fix: restore href one tick later + defaultPrevented guard), invalid Actions YAML in the deploy recipe (${{ }} unquoted in flow mapping), ensureSourceMeta silent no-op without a viewport meta, wireHooks double-wiring when hooks run from another path (+ no-op writes now leave settings.json untouched). Still pending the owner: the 'go' for gh repo create codevalley/sandpaper --public --push (MIT settled; npm deferred).", "ref":"./decisions.html#d-resolver" },
+  "worklog":[ {"date":"2026-07-02","one":"Built + bullet-proofed the resolver (D-014): meta on 13 pages, probe, click-time rewrite-restore, fold-fit, READMEs, doctor lint. Review panel found 5 real defects (1 credential-leak blocker) — all fixed, browser-verified","cid":"w-0192"},
+              {"date":"2026-07-02","one":"Panel-tested always-publishable: runtime resolver wins (0 fatal); write-time absolute + publish-step judged dead. 158 out-links measured, 73% anchored spec refs. t-0019 reshaped. Board 007","cid":"w-0191"},
+              {"date":"2026-07-01","one":"Answered the owner: the brain's out-links are the 'link, never copy' spine, not a flaw — real fix is portable-publish (t-0019), not fewer links. Boarded as 006","cid":"w-0190"} ],
+  "open":["decisions.html#q-anchoring","decisions.html#q-undo","decisions.html#q-billing"],
   "docs":["../sandpaper.html","../engg-spec.html"] }
 </script>
 </head>
@@ -49,10 +50,10 @@
   <header class="plate" data-cid="cover">
     <div class="pl-meta"><span class="now-tag">Now</span> the build stands at <a href="./project/index.html#i-package">Phase 1 — packaging</a></div>
     <!-- BRAIN:NOW -->
-    <p class="now-line" data-cid="now" data-kind="now" data-ref="./decisions.html#q-deploy">
-      Shaped <strong>always-publishable</strong> via an adversarial panel — runtime resolver wins
-      (board 007, <code>t-0019</code> reshaped); awaiting the license confirm + the GitHub-push go.
-      <a class="ref" href="./decisions.html#q-deploy">q-deploy →</a>
+    <p class="now-line" data-cid="now" data-kind="now" data-ref="./decisions.html#d-resolver">
+      Resolver <strong>built &amp; bullet-proofed</strong> (D-014 — 5 panel-confirmed defects fixed, incl.
+      a credential leak; browser-verified in all 3 modes) + both READMEs + the canvas fold-fit;
+      ready for the GitHub-push go. <a class="ref" href="./decisions.html#d-resolver">D-014 →</a>
     </p>
     <!-- /BRAIN:NOW -->
   </header>
@@ -257,6 +258,7 @@
   <section class="zone" data-cid="s-log">
     <div class="eyebrow">Latest <span id="brain-unseen" class="badge open" hidden></span></div>
     <ol class="timeline" data-cid="logfeed">
+      <li data-kind="worklog" data-cid="w-0192"><div class="tl-row"><span class="tl-when">07-02</span><span class="tl-what"><strong>Built the resolver</strong> (D-014) + fold-fit + both READMEs. Pre-publish review panel confirmed 5 real defects — all fixed, incl. a <em>credential-leak</em> blocker and a toolbar-commit corruption path. Browser-verified in all 3 modes.</span><span class="tl-link"><a class="ref" href="./decisions.html#d-resolver">D-014 →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0191"><div class="tl-row"><span class="tl-when">07-02</span><span class="tl-what">Panel-tested <strong>always-publishable</strong> — runtime resolver wins (0 fatal); write-time absolute + publish-step judged <em>dead</em>. 158 out-links measured (73% anchored spec refs). <code>t-0019</code> reshaped; board 007.</span><span class="tl-link"><a class="ref" href="./decisions.html#q-deploy">q-deploy →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0190"><div class="tl-row"><span class="tl-when">07-01</span><span class="tl-what">Answered the owner: the brain's <strong>out-links are the <em>link-never-copy</em> spine</strong>, not a flaw — the real fix is portable-publish (<code>t-0019</code>), not fewer links. Boarded as 006.</span><span class="tl-link"><a class="ref" href="./project/index.html#t-0019">t-0019 →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0189"><div class="tl-row"><span class="tl-when">07-01</span><span class="tl-what">Release prep — MIT <code>LICENSE</code>, richer <code>package.json</code>, <code>.gitignore</code>; <code>npm pack</code> verified clean (30 files, 60 kB). Name blocked — <code>sandpaper</code> is taken on npm.</span><span class="tl-link"><a class="ref" href="../package.json">package.json →</a></span></div></li>

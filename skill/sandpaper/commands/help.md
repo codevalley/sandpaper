@@ -10,6 +10,7 @@ Show the user the Sandpaper command set, grouped like this, then offer to run on
 - `/sandpaper:plan` — add or flip a task / initiative on the plan board
 - `/sandpaper:decide` — record a decision, or open/resolve a question
 - `/sandpaper:learn` — record a gotcha or verdict learning
+- `/sandpaper:canvas` — elevate an explanation into a board on the cover's canvas
 - `/sandpaper:sync` — reconcile the brain against the code; find + heal drift
 
 **Set up & run**

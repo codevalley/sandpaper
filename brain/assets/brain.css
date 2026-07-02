@@ -301,9 +301,12 @@ footer{padding:30px 0 56px;font-family:var(--mono);font-size:11px;color:var(--mu
 .canvas-sub{color:var(--mute);font-weight:400;text-transform:none;letter-spacing:0}
 .canvas-count{font-family:var(--font-mono);font-size:11px;color:var(--mute);flex:none}
 /* the whiteboard: a white CONTAINER whose content scrolls inside it (a long board scrolls here);
-   everything else — this box, Earlier, the portal, the footer — is one normal page scroll */
+   everything else — this box, Earlier, the portal, the footer — is one normal page scroll.
+   fold-fit: brain.js measures the real offset and sets an exact max-height; min() is the JS-off fallback */
 .whiteboard{background:var(--white);border:var(--hairline);border-radius:var(--radius-md);box-shadow:var(--shadow-panel);
-  padding:18px 22px;min-height:240px;max-height:calc(100vh - 184px);overflow-y:auto;overscroll-behavior:contain}
+  padding:18px 22px;min-height:240px;max-height:min(56vh,600px);overflow-y:auto;overscroll-behavior:contain}
+/* an out-link on a detached deploy with no source base configured — visibly inert, never a silent 404 */
+.ref-detached{opacity:.5;cursor:help;text-decoration-style:dotted}
 .whiteboard>.board{background:transparent;border:0;border-radius:0;box-shadow:none;padding:0}
 /* a board = a sheet laid on the drafting table */
 .board{background:var(--white);border:var(--hairline);border-radius:var(--radius-md);padding:18px 20px 15px;box-shadow:var(--shadow-panel)}

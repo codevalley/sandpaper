@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="sandpaper:source" content="https://github.com/codevalley/sandpaper/blob/HEAD/" data-pkg="sandpaper" />
 <title>Sandpaper · Log Book — Learnings</title>
 <!-- 04 — LEARNINGS. Append ONE callout only when something actually bit us. gotcha=rust ▲ · verdict=pine ◆. -->
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -42,6 +43,21 @@
   </section>
 
   <section class="zone flush col">
+    <aside class="entry entry--learning callout gotcha" data-kind="learning" data-lens="engineering" id="l-remote-creds" data-cid="l-remote-creds" data-status="active" data-date="2026-07-02" data-area="security" data-tags="credentials token git remote origin leak published meta resolver review">
+      <div class="eyebrow">▲ Gotcha · security</div>
+      <p><strong>A git remote URL can carry credentials — never write it verbatim into a page built to be published.</strong> <code>repoSource()</code> derived the resolver's base from <code>git remote get-url origin</code>; an origin like <code>https://user:TOKEN@github.com/…</code> would have baked the token into all 13 brain pages. Caught by the adversarial review pre-publish; the fix strips userinfo before the base is ever written. <a class="ref" href="../src/setup.js">setup.js →</a></p>
+    </aside>
+
+    <aside class="entry entry--learning callout gotcha" data-kind="learning" data-lens="engineering" id="l-jit-rewrite" data-cid="l-jit-rewrite" data-status="active" data-date="2026-07-02" data-area="resolver" data-tags="resolver rewrite click dom mutation toolbar edit-in-place stopPropagation capture persist restore">
+      <div class="eyebrow">▲ Gotcha · resolver</div>
+      <p><strong>A click-time href rewrite left in the DOM becomes DATA the moment anything saves the DOM.</strong> The toolbar's edit-in-place commits <code>innerHTML</code> to disk — and <code>stopPropagation()</code> doesn't stop other listeners on the <em>same node</em>, so the resolver still fired under the toolbar and its absolute URL could be silently persisted into the brain file. Fix: rewrite just-in-time, then <em>restore the raw href</em> one tick later (+ stay inert when the click was already claimed). <a class="ref" href="./assets/brain.js">brain.js →</a></p>
+    </aside>
+
+    <aside class="entry entry--learning callout gotcha" data-kind="learning" data-lens="engineering" id="l-fold-fit" data-cid="l-fold-fit" data-status="active" data-date="2026-07-02" data-area="canvas" data-tags="whiteboard canvas max-height viewport calc fold overflow measure resize">
+      <div class="eyebrow">▲ Gotcha · canvas</div>
+      <p><strong>CSS viewport math can't know where an element <em>starts</em> — <code>max-height:calc(100vh - 184px)</code> assumed a fixed offset and the canvas sailed past the fold.</strong> The shell + NOW plate above the whiteboard vary in height, so the constant was wrong the day it was written. Fix: <code>brain.js</code> measures the real document offset and sets the cap (re-fit on resize + font load); the CSS keeps only a <code>min(56vh,600px)</code> JS-off fallback. <a class="ref" href="./assets/brain.js">brain.js →</a></p>
+    </aside>
+
     <aside class="entry entry--learning callout gotcha" data-kind="learning" data-lens="engineering" id="l-init-skeleton" data-cid="l-init-skeleton" data-status="active" data-date="2026-07-01" data-area="distribution" data-tags="init skeleton multi-page single-page structure scaffold prose invent shell nav">
       <div class="eyebrow">▲ Gotcha · distribution</div>
       <p><strong>Take away the reference and prose alone won't hold the structure — the brain collapses to a single page.</strong> After <code>init</code> stopped copying the dev's brain (<a class="ref" href="#l-init-templates">l-init-templates</a>), it had the assets but had to <em>invent</em> the page structure from the spec — and produced a one-page site with <code>#anchor</code> nav. Prose repeatedly loses to a shipped skeleton. Fix: <code>install-skill</code> now scaffolds the full <strong>multi-page skeleton</strong> (cover + 3 lens pages + 3 books, shell nav wired to relative paths); the slash command FILLS it, never invents. Ship structure, let the agent fill content. <a class="ref" href="../src/setup.js">setup.js →</a></p>

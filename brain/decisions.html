@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="sandpaper:source" content="https://github.com/codevalley/sandpaper/blob/HEAD/" data-pkg="sandpaper" />
 <title>Sandpaper · Log Book — Decisions</title>
 <!-- 02 — DECISIONS. Accepted calls + open questions = one lifecycle via data-status. Append on a new call/question; flip ONE data-status to resolve/supersede. A reversal is a NEW entry with data-rel="supersedes:<id>" — never rewrite. -->
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -42,6 +43,16 @@
   </section>
 
   <section class="band" style="border-top:0;padding-top:0">
+    <article class="entry entry--decision" data-lens="engineering" data-kind="decision" id="d-resolver" data-cid="d-resolver" data-status="accepted" data-date="2026-07-02" data-rel="resolves:q-deploy" data-ref="./assets/brain.js" data-tags="resolver out-links always-publishable source-meta probe click-time deploy runtime">
+      <div class="entry-head"><span class="entry-id">D-014</span><h3><code>brain/</code> is always publishable — out-links resolve at runtime</h3><span class="badge accepted">Accepted</span></div>
+      <dl class="entry-fields">
+        <div><dt>Decision</dt><dd>Out-of-brain refs stay <strong>relative on disk</strong> (link-never-copy, local-first). Every page head carries <code>&lt;meta name="sandpaper:source"&gt;</code> (base = origin + <code>/blob/HEAD/</code>, credential-stripped, monorepo-prefixed; + expected package name); <code>brain.js</code> probes <code>../package.json</code> per load (no cache, name-checked) and, when detached, resolves out-links <em>at click time</em> — rewrite, navigate, restore. No meta → dim + tooltip, never a silent 404. Doctor lints refs + meta consistency; a deploy guide ships in <code>brain/README.md</code>.</dd></div>
+        <div><dt>Because</dt><dd>The owner's invariant — deployable as-is, any moment, no build step — killed both alternatives under an adversarial panel (board 007): write-time absolute URLs break local-first; a publish step <em>is</em> the banned step.</dd></div>
+        <div><dt>Instead of</dt><dd>The original t-0019 publish/export build (demoted: an optional snapshot exporter, later, if rendered detached specs are ever wanted).</dd></div>
+      </dl>
+      <div class="entry-foot"><a class="ref" href="./assets/brain.js">the resolver →</a> &nbsp; <a class="ref" href="./README.md">the deploy guide →</a></div>
+    </article>
+
     <article class="entry entry--decision" data-lens="product" data-kind="decision" id="d-canvas" data-cid="d-canvas" data-status="accepted" data-date="2026-06-30" data-ref="./index.html#s-canvas" data-tags="canvas cover boards elevated second-screen surface">
       <div class="entry-head"><span class="entry-id">D-013</span><h3>The cover hosts the canvas — Claude's thinking, elevated</h3><span class="badge accepted">Accepted</span></div>
       <dl class="entry-fields">
@@ -185,9 +196,9 @@
       <p>The June-15 Agent-SDK credit-pool split is paused; <code>claude -p</code> still bills the plan. Keep the brain swappable in case it un-pauses. <a class="ref" href="../sandpaper.html#s-how">→</a></p>
     </article>
 
-    <article class="entry entry--question" data-kind="question" data-lens="engineering" id="q-deploy" data-cid="q-deploy" data-status="open" data-date="2026-07-01" data-ref="./project/index.html#t-0019" data-tags="deploy publish static out-links link-never-copy always-publishable resolver runtime vercel t-0019">
-      <div class="entry-head"><span class="badge open">open · shaped</span><h3>Make <code>brain/</code> always publishable — resolver designed, awaiting the go</h3></div>
-      <p>Detached (subfolder-only) deploys 404 the canonical out-refs; the owner's invariant is <em>always publishable, no build step</em>. An adversarial panel (07-02) killed write-time absolute links (breaks local-first) and the publish build step (is the step the invariant bans); the survivor is a <strong>runtime resolver</strong> — relative links + a per-head source meta (<code>blob/HEAD/</code> + expected package name) + a name-checked probe and click-time rewrite in <code>brain.js</code>, dim-with-tooltip when no base. Reshapes <a class="ref" href="./project/index.html#t-0019">t-0019</a> to resolver + stamp-time lint (exporter → optional); design on board 007. <a class="ref" href="./index.html#s-canvas">board 007 →</a></p>
+    <article class="entry entry--question" data-kind="question" data-lens="engineering" id="q-deploy" data-cid="q-deploy" data-status="resolved" data-date="2026-07-01" data-ref="./project/index.html#t-0019" data-tags="deploy publish static out-links link-never-copy always-publishable resolver runtime vercel t-0019">
+      <div class="entry-head"><span class="badge accepted">resolved · built</span><h3>Make <code>brain/</code> always publishable — resolver designed, awaiting the go</h3></div>
+      <p>Detached (subfolder-only) deploys 404 the canonical out-refs; the owner's invariant is <em>always publishable, no build step</em>. An adversarial panel (07-02) killed write-time absolute links (breaks local-first) and the publish build step (is the step the invariant bans); the survivor is a <strong>runtime resolver</strong> — relative links + a per-head source meta (<code>blob/HEAD/</code> + expected package name) + a name-checked probe and click-time rewrite in <code>brain.js</code>, dim-with-tooltip when no base. Resolved by <a class="ref" href="#d-resolver">D-014</a> — built, panel-reviewed, browser-verified (<a class="ref" href="./project/index.html#t-0019">t-0019</a> done). <a class="ref" href="./index.html#s-canvas">board 007 →</a></p>
     </article>
   </section>
   <footer class="portal-foot">

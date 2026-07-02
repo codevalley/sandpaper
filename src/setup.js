@@ -2,7 +2,8 @@
 // The plumbing half of Sandpaper (no AI): copy the skill + hooks + design-system templates from
 // THIS package into a target repo, write the manifest, and health-check a setup. Zero deps.
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, copyFileSync, statSync, renameSync } from 'node:fs';
-import { join, dirname, basename, normalize, extname } from 'node:path';
+import { join, dirname, basename, normalize, extname, resolve } from 'node:path';
+import { execFileSync } from 'node:child_process';
 
 const ok = (m) => console.log('  ✓ ' + m);
 const warn = (m) => console.log('  · ' + m);
@@ -46,6 +47,67 @@ const nextStep = () => {
   console.log('           and fills your brain: the cover, the lenses, and the books.\n');
 };
 
+// ---- the out-link source base: what keeps brain/ publishable away from its repo ----
+// The brain's refs to canonical truth (spec · source · package.json) are written RELATIVE —
+// local-first. When brain/ is deployed detached, the on-page resolver (brain.js) rewrites them
+// to this base at click time. Derived from the git origin, falling back to package.json's
+// "repository"; null when neither exists — the meta is then omitted and a detached brain dims
+// its out-links instead of rewriting them.
+export function repoSource(target) {
+  let url = '', dir = '';
+  try { url = execFileSync('git', ['-C', target, 'remote', 'get-url', 'origin'], { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch {}
+  // the target may sit BELOW the git root (a monorepo package) — out-links are relative to
+  // the target, so the base must carry that prefix. show-prefix ends with '/' when non-empty.
+  try { dir = execFileSync('git', ['-C', target, 'rev-parse', '--show-prefix'], { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch {}
+  if (!url) {
+    try {
+      const r = JSON.parse(readFileSync(join(target, 'package.json'), 'utf8')).repository;
+      url = typeof r === 'string' ? r : (r && r.url) || '';
+      if (!dir && r && r.directory) dir = r.directory.replace(/\/*$/, '/');
+    } catch {}
+  }
+  url = url.replace(/^git\+/, '').replace(/\.git$/, '')
+    .replace(/^github:/, 'https://github.com/')
+    .replace(/^git@([^:]+):/, 'https://$1/')
+    .replace(/^ssh:\/\/git@([^:/]+)(?::\d+)?\//, 'https://$1/'); // drop any SSH port — dead over TLS
+  if (!/^https:\/\//.test(url)) return null;
+  url = url.replace(/^(https:\/\/)[^@/]+@/, '$1'); // NEVER carry credentials into a published page
+  url = url.replace(/\/+$/, '');
+  const view = /\/\/bitbucket\.org\//.test(url) ? '/src/HEAD/' : '/blob/HEAD/'; // GitHub/GitLab grammar, Bitbucket's variant
+  let pkgName = '';
+  try { pkgName = JSON.parse(readFileSync(join(target, 'package.json'), 'utf8')).name || ''; } catch {}
+  return { base: url + view + dir, pkg: pkgName }; // HEAD = default branch, survives renames
+}
+const sourceMetaTag = (source) => source
+  ? `<meta name="sandpaper:source" content="${source.base}"${source.pkg ? ` data-pkg="${source.pkg}"` : ''} />`
+  : '';
+
+// every .html page under brain/, recursively
+function htmlPages(brain) {
+  const pages = [];
+  (function walk(d) { for (const e of readdirSync(d)) { const p = join(d, e); if (statSync(p).isDirectory()) walk(p); else if (extname(p) === '.html') pages.push(p); } })(brain);
+  return pages;
+}
+
+// inject (or refresh) the sandpaper:source meta on every EXISTING brain page. Idempotent;
+// returns how many pages were touched. New pages get it via pageShell.
+export function ensureSourceMeta(brain, source) {
+  if (!source) return 0;
+  const tag = sourceMetaTag(source);
+  let touched = 0;
+  for (const p of htmlPages(brain)) {
+    const html = readFileSync(p, 'utf8');
+    const next = html.includes('name="sandpaper:source"')
+      ? html.replace(/<meta name="sandpaper:source"[^>]*\/?>/, tag)
+      : /<meta name="viewport"/.test(html)
+        ? html.replace(/(<meta name="viewport"[^>]*\/?>\s*\n?)/, `$1${tag}\n`)
+        : html.replace(/(<head[^>]*>\s*\n?)/i, `$1${tag}\n`); // no viewport meta — inject at the head open
+    if (next !== html) { writeFileSync(p, next); touched++; }
+    else if (!html.includes('name="sandpaper:source"')) warn(`could not place the source meta in ${basename(p)} — no <head>?`);
+  }
+  return touched;
+}
+
 // Do the brain scaffold work (assets · manifest · multi-page skeleton) and print its BRAIN rows.
 function scaffoldBrain(target, pkg) {
   const brain = join(target, 'brain'), project = projectName(target), date = today();
@@ -59,9 +121,16 @@ function scaffoldBrain(target, pkg) {
     cidPrefixes: { worklog: 'w', task: 't', decision: 'd', learning: 'l', initiative: 'i' },
     counters: { w: 1, t: 0, d: 0, l: 0, i: 0 },
   }, null, 2) + '\n');
-  const nSkel = writeSkeleton(brain, project, date);
+  const source = repoSource(target);
+  const nSkel = writeSkeleton(brain, project, date, source);
   row('multi-page shell', nSkel ? 'cover · 3 lenses · 3 books' : 'already present', nSkel ? 'nav wired · ready to fill' : '');
   row('manifest', '.sandpaper/manifest.json', hadMan ? 'kept · id counters' : 'ids · prefixes · port');
+  if (source) {
+    ensureSourceMeta(brain, source);
+    row('source meta', source.base.replace('https://', '').replace('/blob/HEAD/', ''), 'out-links survive any deploy');
+  } else {
+    row('source meta', 'none yet', 'no git remote — re-run after `git remote add`');
+  }
 }
 
 // ---- install-skill: make /sandpaper:* available + wire the auto-update hooks (use --no-hooks to skip) ----
@@ -73,7 +142,9 @@ const hooksSnippet = () => JSON.stringify({ hooks: Object.fromEntries(HOOKS.map(
   [e, [{ matcher: '*', hooks: [{ type: 'command', command: c, timeout: t }] }]])) }, null, 2)
   .split('\n').map((l) => '    ' + l).join('\n');
 
-// merge our hooks into the target's .claude/settings.json — preserve existing settings, dedupe by command
+// merge our hooks into the target's .claude/settings.json — preserve existing settings. Dedupe by the
+// hook SCRIPT's filename, not the exact command: a repo may already run brain-inject.js from another
+// path (e.g. the Sandpaper repo itself runs it from bin/) and a second wiring would fire it twice.
 function wireHooks(target) {
   const sp = join(target, '.claude', 'settings.json');
   let s = {};
@@ -82,9 +153,11 @@ function wireHooks(target) {
   let added = 0;
   for (const [evt, cmd, to] of HOOKS) {
     s.hooks[evt] = s.hooks[evt] || [];
-    const present = s.hooks[evt].some((g) => (g.hooks || []).some((h) => h.command === cmd));
+    const script = cmd.split('/').pop();
+    const present = s.hooks[evt].some((g) => (g.hooks || []).some((h) => (h.command || '').includes(script)));
     if (!present) { s.hooks[evt].push({ matcher: '*', hooks: [{ type: 'command', command: cmd, timeout: to }] }); added++; }
   }
+  if (!added) return { ok: true, added }; // nothing to wire — leave the user's file byte-identical
   try { ensureDir(dirname(sp)); writeFileSync(sp, JSON.stringify(s, null, 2) + '\n'); return { ok: true, added }; }
   catch (e) { return { ok: false, reason: 'could not write .claude/settings.json (' + e.message + ')' }; }
 }
@@ -144,6 +217,12 @@ export function doctor(target) {
   } catch { bad('brain/index.html unreadable'); problems++; }
   const broken = checkLinks(brain);
   if (broken === 0) ok('internal links resolve'); else { bad(`${broken} broken internal link(s)`); problems++; }
+  // the out-link source meta: every page should carry the SAME base (or none at all)
+  const metas = htmlPages(brain).map((p) => (readFileSync(p, 'utf8').match(/name="sandpaper:source" content="([^"]*)"/) || [, null])[1]);
+  const distinct = [...new Set(metas)];
+  if (distinct.length === 1 && distinct[0]) ok(`sandpaper:source meta on all pages (${distinct[0].replace('https://', '').replace('/blob/HEAD/', '')})`);
+  else if (distinct.length === 1) warn('no sandpaper:source meta — a detached deploy dims its out-links; run `npx sandpaper upgrade` after adding a git remote');
+  else { bad(`sandpaper:source meta inconsistent across pages (${metas.filter(Boolean).length}/${metas.length} set) — run \`npx sandpaper upgrade\``); problems++; }
   const man = join(target, '.sandpaper', 'manifest.json');
   if (existsSync(man)) { try { JSON.parse(readFileSync(man, 'utf8')); ok('.sandpaper/manifest.json valid'); } catch { bad('manifest.json invalid JSON'); problems++; } }
   else warn('no .sandpaper/manifest.json — run `npx sandpaper init`');
@@ -169,10 +248,14 @@ export function upgrade(target, pkg) {
   if (wr.ok) ok(wr.added ? 'auto-update hooks wired into .claude/settings.json' : 'auto-update hooks already wired');
   else warn(wr.reason);
 
-  // 2. engine assets → latest brain.css + brain.js (these carry the canvas styles); PRESERVE theme.css (the skin)
+  // 2. engine assets → latest brain.css + brain.js (these carry the canvas styles); PRESERVE theme.css
+  //    (the skin). Same-path guard: run inside the Sandpaper repo itself, src and dst are ONE file —
+  //    copyFileSync would truncate it before reading.
   const aSrc = join(pkg, 'brain', 'assets'), aDst = join(brain, 'assets');
   ensureDir(aDst);
+  const samePath = resolve(aSrc) === resolve(aDst);
   for (const a of ['brain.css', 'brain.js']) {
+    if (samePath) { ok(`assets/${a} is the package copy`); continue; }
     if (existsSync(join(aSrc, a))) { copyFileSync(join(aSrc, a), join(aDst, a)); ok(`assets/${a} → latest`); }
   }
   if (existsSync(join(aDst, 'theme.css'))) warn('assets/theme.css kept — it is your skin (delete it + re-run to take the shipped one)');
@@ -180,9 +263,14 @@ export function upgrade(target, pkg) {
 
   // 3. multi-page structure → add any MISSING skeleton pages (a single-pager / old brain lacks the
   //    lens pages + books). skipExisting, so real content is never touched.
-  const nSkel = writeSkeleton(brain, projectName(target), today());
+  const source = repoSource(target);
+  const nSkel = writeSkeleton(brain, projectName(target), today(), source);
   if (nSkel) ok(`${nSkel} missing skeleton page(s) added — lens pages / books were absent`);
   else ok('multi-page skeleton already present');
+  if (source) {
+    const nMeta = ensureSourceMeta(brain, source);
+    ok(nMeta ? `sandpaper:source meta set on ${nMeta} page(s) — out-links survive any deploy` : 'sandpaper:source meta already current');
+  } else warn('no git remote / repository field — sandpaper:source meta skipped (a detached deploy dims its out-links)');
 
   // 4. inject the canvas region into the cover if it predates the canvas
   const r = ensureCanvas(join(brain, 'index.html'));
@@ -254,14 +342,15 @@ function ensureCanvas(coverPath) {
   return { injected: false };
 }
 
-// walk brain/*.html, return count of broken internal href/src (file missing or #anchor absent)
+// walk brain/*.html, return count of broken internal href/src/data-ref (file missing or #anchor
+// absent). data-ref is the brain's citation attribute — linting it here is the stamp-time guard
+// that keeps every out-of-brain ref true on disk (the resolver can then trust the mapping).
 function checkLinks(brain) {
-  const pages = [];
-  (function walk(d) { for (const e of readdirSync(d)) { const p = join(d, e); if (statSync(p).isDirectory()) walk(p); else if (extname(p) === '.html') pages.push(p); } })(brain);
+  const pages = htmlPages(brain);
   let bad = 0;
   for (const p of pages) {
     const html = readFileSync(p, 'utf8'), dir = dirname(p);
-    for (const m of html.matchAll(/(?:href|src)="([^"]+)"/g)) {
+    for (const m of html.matchAll(/(?:href|src|data-ref)="([^"]+)"/g)) {
       const hr = m[1];
       if (/^(https?:|#|mailto:|data:)/.test(hr)) continue;
       const [path, anchor] = hr.split('#');
@@ -276,32 +365,127 @@ function checkLinks(brain) {
 // ---- the multi-page skeleton: one shared shell + per-page bodies (so the brain is never a single page) ----
 // Write any MISSING skeleton pages (cover + 3 lens pages + 3 books). skipExisting → only adds; returns
 // the count added. Shared by scaffold (fresh) and upgrade (fills gaps in an existing brain).
-function writeSkeleton(brain, project, date) {
+function writeSkeleton(brain, project, date, source = null) {
   let added = 0;
   const write = (rel, html) => {
     const p = join(brain, rel);
     if (existsSync(p)) return;
     ensureDir(dirname(p)); writeFileSync(p, html); added++;
   };
-  write('index.html', pageShell({ project, prefix: '', title: 'cover', headExtra: coverDigest(project, date), main: coverMain(project, date) }));
+  write('index.html', pageShell({ project, prefix: '', title: 'cover', headExtra: coverDigest(project, date), main: coverMain(project, date), source }));
   for (const [slug, name, blurb] of [['product', 'Product', 'what it is & why it earns its place'],
     ['engineering', 'Engineering', 'how it is built'], ['project', 'Project', 'the plan & progress']])
-    write(`${slug}/index.html`, pageShell({ project, prefix: '../', title: name, main: lensMain(name, blurb) }));
+    write(`${slug}/index.html`, pageShell({ project, prefix: '../', title: name, main: lensMain(name, blurb), source }));
   for (const [slug, name, blurb] of [['log', 'Log', 'the work log — newest first'],
     ['decisions', 'Decisions', 'the ledger of calls made'], ['learnings', 'Learnings', 'gotchas & verdicts']])
-    write(`${slug}.html`, pageShell({ project, prefix: '', title: name, main: bookMain(name, blurb) }));
+    write(`${slug}.html`, pageShell({ project, prefix: '', title: name, main: bookMain(name, blurb), source }));
+  const readme = join(brain, 'README.md'); // the deploy guide rides along — not counted as a skeleton PAGE
+  if (!existsSync(readme)) { ensureDir(brain); writeFileSync(readme, deployReadme()); }
   return added;
 }
 
+// the deploy guide that ships inside every brain — kept generic (any project's brain)
+function deployReadme() {
+  return `# Deploying the brain
+
+## What this folder is
+
+This folder is the project's living brain: a small static site — a cover (\`index.html\`),
+lens pages, and the books (log · decisions · learnings) — styled by \`assets/theme.css\` +
+\`assets/brain.css\` with a little vanilla JS in \`assets/brain.js\`. No framework, no build
+step, no server-side anything. It is **always publishable**: point any static host at this
+folder as-is and it works.
+
+One design choice shapes everything below: the brain **links, never copies**. Canonical
+truth lives in the parent repo — the spec docs, source files, \`package.json\` — and the
+brain references them with relative paths (\`../…\`) so they resolve on disk and whenever
+the whole repo is served.
+
+## Two deploy shapes
+
+### 1. Whole-repo deploy (recommended for public repos)
+
+Serve the repo root and visit \`/brain/\`. Every out-of-brain link resolves: spec HTML docs
+render with working \`#anchors\`, source files are viewable. GitHub Pages serving the repo
+root does this perfectly.
+
+### 2. Brain-only deploy (site root = this folder)
+
+The relative \`../\` refs can't resolve — there's nothing above the root. The built-in
+resolver in \`assets/brain.js\` handles it. Each page's head carries:
+
+\`\`\`html
+<meta name="sandpaper:source" content="https://github.com/<owner>/<repo>/blob/HEAD/" data-pkg="<package-name>" />
+\`\`\`
+
+On load, the page probes \`../package.json\` and checks its \`name\` against \`data-pkg\`.
+If the probe fails (or the name doesn't match), the page knows it is detached, and
+out-links open the source-host copy instead (rewritten at click time). Source and meta
+files render fine on GitHub's blob view; spec **HTML** docs land on blob *source* view —
+unrendered. Use the whole-repo shape if you want rendered specs. With no meta configured,
+out-links dim with a tooltip instead of 404ing.
+
+The meta is written automatically by \`npx sandpaper init\` / \`upgrade\` from the git
+origin (or \`package.json\` → \`"repository"\`). \`npx sandpaper doctor\` verifies it is
+present and consistent across pages.
+
+## Deployed brains are read-only
+
+The refine toolbar (Sand / Hands / Sling) is injected only by the local \`sandpaper\`
+server — a deployed brain has no toolbar and can't be edited from the page. By design:
+the public copy is for reading.
+
+## Recipes
+
+**GitHub Pages (simplest)** — Settings → Pages → Source: *Deploy from a branch*, branch
+\`main\`, folder \`/ (root)\`. That's the whole-repo shape — visit
+\`https://<owner>.github.io/<repo>/brain/\`. For the brain-only shape, use Source:
+*GitHub Actions* with this workflow:
+
+\`\`\`yaml
+name: Deploy brain
+on: { push: { branches: [main] } }
+permissions: { contents: read, pages: write, id-token: write }
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: { name: github-pages, url: "\${{ steps.deployment.outputs.page_url }}" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: brain }          # 'path: .' switches to the whole-repo shape
+      - id: deployment
+        uses: actions/deploy-pages@v4
+\`\`\`
+
+**Vercel** — New Project → import the repo. Root Directory = repo root (or \`brain/\` for
+brain-only), Framework Preset = *Other*, no build command, Output Directory = \`./\`.
+
+**Netlify** — New site from Git. No build command. Publish directory: \`brain\` (or the
+repo root).
+
+**Cloudflare Pages** — Connect the repo. No build command. Build output directory:
+\`brain\` (or \`/\`).
+
+## Privacy
+
+Deploying the whole repo publishes **all** of its files, not just the brain. Brain-only
+publishes just this folder — but its out-links point at the source host, which must be
+public for them to work. Either way, assume everything the brain links to is visible.
+Don't deploy a brain whose repo isn't ready to be read.
+`;
+}
+
 // prefix: '' for pages at brain/ root (cover, books), '../' for pages one dir deep (lenses).
-function pageShell({ project, prefix, title, headExtra = '', main }) {
+function pageShell({ project, prefix, title, headExtra = '', main, source = null }) {
   const link = (href, label) => `<a href="${prefix}${href}">${label}</a>`;
+  const meta = sourceMetaTag(source);
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>${project} — ${title}</title>
+${meta ? meta + '\n' : ''}<title>${project} — ${title}</title>
 <link rel="stylesheet" href="${prefix}assets/brain.css" />
 ${headExtra}</head>
 <body>
