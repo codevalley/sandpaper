@@ -9,6 +9,19 @@ own work — via `/sandpaper:release`, never written from scratch.
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-07-03
+
+### Added
+- `/sandpaper:release` — draft release notes and a semver bump from
+  `brain/log.html`, then `npm version` + tag + push.
+- `bin/verify-publish.js` (`npm run verify-publish`) — tarball-safety gate:
+  no `site/`, no secrets, size envelope.
+- `.github/workflows/ci.yml` — tests + verify-publish on every push/PR,
+  Node 18/20/22.
+- `.github/workflows/release.yml` — a pushed tag runs tests → verify-publish
+  → `npm publish --provenance` → a GitHub Release.
+- `.github/dependabot.yml` — weekly Actions + npm dependency checks.
+
 ## [0.1.0] — 2026-07-03
 
 Initial public release.
@@ -26,5 +39,6 @@ Initial public release.
 - Published to npm as `@nynb/sandpaper` (`sandpaper` was taken; `sand-paper`
   blocked by npm's anti-squatting policy — see `brain/decisions.html#d-npm-scope`).
 
-[Unreleased]: https://github.com/codevalley/sandpaper/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/codevalley/sandpaper/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/codevalley/sandpaper/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/codevalley/sandpaper/releases/tag/v0.1.0
