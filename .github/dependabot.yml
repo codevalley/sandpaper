@@ -1,0 +1,14 @@
+version: 2
+updates:
+  # the CI/release workflows pin actions by tag — keep those patched (a common
+  # supply-chain vector: a compromised third-party action release).
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  # zero runtime deps today; this just means "if that ever changes, watch it."
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"

@@ -105,7 +105,8 @@ you might forget and a system that cannot silently drift.
 ## Commands
 `/help` (this list) · `/init` (harvest → interview → generate a brain) · `/stamp` (the 6-step
 stamp) · `/canvas` (elevate an explanation into a board on the cover) · `/plan` · `/decide` ·
-`/learn` · `/log` · `/sync` (reconcile + heal drift) ·
+`/learn` · `/log` · `/sync` (reconcile + heal drift) · `/release` (draft notes from the brain,
+pick a semver bump, tag, push) ·
 `/open` (serve + open the brain in a browser) · `/serve` (on-page refine toolbar) · `/theme`
 (re-skin from a brand hex). Run `/sandpaper:help` for the full grouped list.
 

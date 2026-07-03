@@ -44,6 +44,11 @@
   </section>
 
   <section class="zone flush col">
+    <aside class="entry entry--learning callout gotcha" data-kind="learning" data-lens="engineering" id="l-npm-automation-token" data-cid="l-npm-automation-token" data-status="active" data-date="2026-07-03" data-area="ci" data-tags="npm publish token automation 2fa auth-and-writes ci github-actions eotp headless">
+      <div class="eyebrow">▲ Gotcha · ci</div>
+      <p><strong>An account with 2FA-for-writes can't publish from CI using a normal npm token — it needs the <em>Automation</em> token type specifically.</strong> The earlier EOTP failures (two manual publish attempts blocked on a browser 2FA prompt) weren't a fluke: any classic Publish-scoped token still demands interactive OTP if the account's 2FA is set to <code>auth-and-writes</code>. Only an <strong>Automation</strong> token (npm → Access Tokens → Generate New Token → Automation) is exempt — it's designed for exactly this, non-interactive CI publishing while the account keeps 2FA everywhere else. The alternative with no token to manage is npm Trusted Publishing (OIDC), if available. <a class="ref" href="./decisions.html#d-release-process">D-018 →</a></p>
+    </aside>
+
     <aside class="entry entry--learning callout gotcha" data-kind="learning" data-lens="engineering" id="l-npm-similarity" data-cid="l-npm-similarity" data-status="active" data-date="2026-07-03" data-area="publish" data-tags="npm publish name similarity anti-squatting scope 403 view false-negative">
       <div class="eyebrow">▲ Gotcha · publish</div>
       <p><strong><code>npm view &lt;name&gt;</code> returning 404 does not mean the name is publishable.</strong> It only checks exact-name registration. npm separately enforces an anti-squatting policy at <em>publish</em> time that 403s any unscoped name too similar to an existing package — <code>sand-paper</code> was rejected as too similar to <code>sandpaper</code> (taken, unrelated) despite showing free. The fix npm itself suggests: scope it (<code>@you/name</code>) — scoped packages are exempt, since the scope is the disambiguator. <a class="ref" href="./decisions.html#d-npm-scope">D-017 →</a></p>

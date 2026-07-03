@@ -16,10 +16,10 @@
 <script type="application/json" id="brain-state">
 { "v":1, "project":"Sandpaper", "phase":"Phase 1 · packaging", "updated":"2026-06-30",
   "session":"S28",
-  "focus":{ "one":"TESTING AUTO-DEPLOY (t-0034). npm publish is fully done (w-0204: @nynb/sandpaper@0.1.0 live, verified, landing manually redeployed with the new install command). Owner then connected both Vercel projects to the GitHub repo and set root directories in the dashboard — sandpaper-site → site/, sandpaper-brain → brain/. This exact commit is the test: a plain `git push`, no manual `vercel deploy`, to see whether both projects auto-deploy. Owner is verifying on their end after this push lands. If it works: flip t-0034 to done, and the manual `vercel deploy --prod --cwd site|brain` steps retire for good. If not: check the Vercel dashboard's Deployments tab for a build that didn't trigger, and confirm the 'Production Branch' is set to main on both projects.", "ref":"./project/index.html#t-0034" },
-  "worklog":[ {"date":"2026-07-03","one":"Testing Vercel auto-deploy (t-0034): owner wired both projects' git integration + root dirs; this commit is a plain push to verify it fires without a manual vercel deploy","cid":"w-0205"},
-              {"date":"2026-07-03","one":"PUBLISHED: @nynb/sandpaper@0.1.0 is live on npm — verified via registry + a real npx smoke test. Flipped README + the live landing's install command to the npm form (GitHub kept as fallback). t-0037","cid":"w-0204"},
-              {"date":"2026-07-03","one":"First npm publish 403'd (name too similar to sandpaper — a policy npm view doesn't surface); renamed to scoped @nynb/sandpaper per npm's fix (D-017). Retried — blocked on EOTP (needs the owner's live browser approval). One step from done","cid":"w-0203"} ],
+  "focus":{ "one":"RELEASE PIPELINE BUILT (D-018, board 010) — t-0034 (Vercel auto-deploy) confirmed working first. Then, from the owner's two asks (a versioning strategy baked into the process + GitHub Actions hygiene for a public npm package): (1) /sandpaper:release — a NEW skill command that reads brain/log.html since the last tag, proposes a semver bump (confirmed via AskUserQuestion, never silent), drafts CHANGELOG.md from real sessions, runs `npm version` + `git push --follow-tags`. Mirrored to .claude/commands/, added to help.md + SKILL.md + README's command table (13 commands now, was 12 — fixed the one live-landing count that said otherwise). (2) bin/verify-publish.js — turns the manual npm-pack-dry-run vigilance (no site/, no secrets, a size envelope) into a script, wired as `npm run verify-publish`. (3) .github/workflows/ci.yml — tests + verify-publish on every push/PR, Node 18/20/22. (4) .github/workflows/release.yml — a version tag runs tests → verify-publish → `npm publish --provenance` → a GitHub Release cut from CHANGELOG.md. (5) .github/dependabot.yml — weekly, github-actions + npm ecosystems. Retroactively tagged v0.1.0 at the true publish commit (9e16323). CHANGELOG.md seeded. CAUGHT: CI can't publish yet — the account's 2FA-for-writes needs an npm Automation token (not a regular one, which still demands interactive OTP — the EOTP wall's CI-shaped twin), recorded as l-npm-automation-token. OWNER'S NEXT STEP: generate an npm Automation token, add it as the NPM_TOKEN repo secret. Everything else — the whole pipeline, tests, docs — is built and pushed.", "ref":"./decisions.html#d-release-process" },
+  "worklog":[ {"date":"2026-07-03","one":"Built the release pipeline (D-018): /sandpaper:release drafts notes+bump from the log; release.yml (tag-triggered publish+GH Release) + ci.yml (verify-publish gate) + dependabot.yml. Owner still needs to add an npm Automation token as NPM_TOKEN","cid":"w-0206"},
+              {"date":"2026-07-03","one":"Testing Vercel auto-deploy (t-0034): owner wired both projects' git integration + root dirs; this commit is a plain push to verify it fires without a manual vercel deploy","cid":"w-0205"},
+              {"date":"2026-07-03","one":"PUBLISHED: @nynb/sandpaper@0.1.0 is live on npm — verified via registry + a real npx smoke test. Flipped README + the live landing's install command to the npm form (GitHub kept as fallback). t-0037","cid":"w-0204"} ],
   "open":["decisions.html#q-anchoring","decisions.html#q-undo","decisions.html#q-billing"],
   "docs":["../sandpaper.html","../engg-spec.html"] }
 </script>
@@ -51,10 +51,10 @@
   <header class="plate" data-cid="cover">
     <div class="pl-meta"><span class="now-tag">Now</span> the build stands at <a href="./project/index.html#i-package">Phase 1 — packaging</a></div>
     <!-- BRAIN:NOW -->
-    <p class="now-line" data-cid="now" data-kind="now" data-ref="./project/index.html#t-0034">
-      Testing <strong>Vercel auto-deploy</strong> — root dirs are set, this push <em>is</em> the test.
-      A clean run retires manual <code>vercel deploy</code> for good.
-      <a class="ref" href="./project/index.html#t-0034">t-0034 →</a>
+    <p class="now-line" data-cid="now" data-kind="now" data-ref="./decisions.html#d-release-process">
+      The <strong>release pipeline</strong> is built (D-018) — <code>/sandpaper:release</code> + tag-triggered
+      publish + CI hygiene. One step left: an npm <strong>Automation</strong> token as the owner's
+      <code>NPM_TOKEN</code> secret. <a class="ref" href="./decisions.html#d-release-process">D-018 →</a>
     </p>
     <!-- /BRAIN:NOW -->
   </header>
@@ -69,29 +69,33 @@
     <!-- BRAIN:CANVAS — boards prepend here, newest first; .canvas-empty shows when there are none -->
     <!-- the whiteboard: a white container whose CONTENT scrolls inside it; the page scrolls everything else -->
     <div class="whiteboard" data-cid="whiteboard">
-      <article class="board board--live" data-cid="board-0009" data-kind="board" data-date="2026-07-02" data-ref="./log.html#w-0198">
+      <article class="board board--live" data-cid="board-0010" data-kind="board" data-date="2026-07-03" data-ref="./decisions.html#d-release-process">
         <header class="board-head">
           <span class="board-dot" aria-hidden="true"></span>
-          <h3 class="board-title">Shipped — sandpaper.sh is live, and so is this page</h3>
-          <span class="board-when">07-02 · board 009</span>
+          <h3 class="board-title">Versioning becomes a Sandpaper feature, not a side process</h3>
+          <span class="board-when">07-03 · board 010</span>
         </header>
         <div class="board-body">
-          <p><strong>The loop is closed.</strong> The landing you were promised is serving at
-            <a href="https://sandpaper.sh">sandpaper.sh</a>, and the page you are reading right now is its
-            proof — the live brain at <a href="https://brain.sandpaper.sh">brain.sandpaper.sh</a>, deployed
-            straight from the repo's <code>brain/</code> folder with no build step, exactly as
-            <a class="ref" href="./decisions.html#d-resolver">D-014</a> promised.</p>
-          <div class="split">
-            <div class="split-col"><span class="split-k">sandpaper.sh</span><span class="split-d">Vercel project <em>sandpaper-site</em> ← <code>site/</code> · the pitch, the demo, the schedule</span></div>
-            <div class="split-col hot"><span class="split-k">brain.sandpaper.sh</span><span class="split-d">Vercel project <em>sandpaper-brain</em> ← <code>brain/</code> · detached deploy — the resolver rewrites out-links to GitHub at click time, <strong>verified live</strong></span></div>
+          <p>Auto-deploy is confirmed (<a class="ref" href="./project/index.html#t-0034">t-0034</a> done — a
+            plain push lit up both Vercel projects, no manual <code>vercel deploy</code>). With shipping now
+            hands-off, the two things still fully manual were <strong>cutting a version</strong> and
+            <strong>trusting what gets published</strong>. Both are pipeline now.</p>
+          <div class="handoff">
+            <div class="ho-step"><span class="ho-n">1</span><div><b>/sandpaper:release</b><span>reads <code>brain/log.html</code> since the last tag, proposes a semver bump (confirmed, never silent), drafts <code>CHANGELOG.md</code> — from what happened, not from scratch</span></div></div>
+            <div class="ho-step"><span class="ho-n">2</span><div><b>npm version + push --follow-tags</b><span>one command bumps <code>package.json</code>, commits, tags <code>vX.Y.Z</code> — no hand-typed version numbers</span></div></div>
+            <div class="ho-step"><span class="ho-n">3</span><div><b>release.yml fires on the tag</b><span>tests again, then <code>verify-publish</code> — the tarball-safety checks (no <code>site/</code>, no secrets, a size envelope) that used to be my manual vigilance, now a standing gate</span></div></div>
+            <div class="ho-step"><span class="ho-n">4</span><div><b>npm publish --provenance + a GitHub Release</b><span>cut automatically from the changelog section — the agent never publishes directly; only this workflow does, after it re-checks</span></div></div>
           </div>
-          <p>Zero registrar work was needed — the domain was bought through Vercel and its nameservers were
-            already Vercel's. Two commands per surface: <code>vercel link</code>, <code>vercel deploy --prod</code>.
-            Redeploys are manual until the git integration is wired; npm still waits on a name.</p>
+          <p><strong>One thing only the owner can finish:</strong> CI can't publish yet. The account's
+            2FA-for-writes rejects a normal token from a headless run — the same wall the first two manual
+            publishes hit as EOTP. The fix is an npm <strong><code>Automation</code></strong> token (Access
+            Tokens → Generate New Token → Automation), added as the <code>NPM_TOKEN</code> repo secret.
+            Recorded as <a class="ref" href="./learnings.html#l-npm-automation-token">l-npm-automation-token</a>
+            — it's the CI-shaped version of a gotcha we'd already half-learned.</p>
         </div>
         <footer class="board-foot">
-          <span class="board-tag">dogfood · board 009 · launch</span>
-          <a class="ref" href="https://sandpaper.sh">sandpaper.sh →</a>
+          <span class="board-tag">dogfood · board 010 · release pipeline</span>
+          <a class="ref" href="./decisions.html#d-release-process">D-018 →</a>
         </footer>
       </article>
 
@@ -100,6 +104,20 @@
     <!-- Earlier: below the whiteboard, in normal page flow; the stack caps at 5, oldest falls away -->
     <div class="canvas-earlier" data-cid="canvas-earlier">
       <div class="earlier-label">Earlier <span class="n">· 4</span></div>
+
+      <details class="board board--past" data-cid="board-0009" data-kind="board" data-date="2026-07-02" data-ref="./log.html#w-0198">
+        <summary class="board-row"><span class="board-row-dot" aria-hidden="true"></span><span class="board-row-when">07-02 · 009</span><span class="board-row-title">Shipped — sandpaper.sh is live, and so is this page</span><span class="board-row-chev" aria-hidden="true">›</span></summary>
+        <div class="board-body">
+          <p><strong>The loop is closed.</strong> The landing serves at <a href="https://sandpaper.sh">sandpaper.sh</a>;
+            the live brain at <a href="https://brain.sandpaper.sh">brain.sandpaper.sh</a> is deployed straight
+            from <code>brain/</code> with no build step, exactly as <a class="ref" href="./decisions.html#d-resolver">D-014</a>
+            promised. Zero registrar work — the domain was bought through Vercel, nameservers already Vercel's.</p>
+        </div>
+        <footer class="board-foot">
+          <span class="board-tag">dogfood · board 009 · launch</span>
+          <a class="ref" href="https://sandpaper.sh">sandpaper.sh →</a>
+        </footer>
+      </details>
 
       <details class="board board--past" data-cid="board-0008" data-kind="board" data-date="2026-07-02" data-ref="../site/index.html">
         <summary class="board-row"><span class="board-row-dot" aria-hidden="true"></span><span class="board-row-when">07-02 · 008</span><span class="board-row-title">sandpaper.sh — making the pitch land in 15 seconds</span><span class="board-row-chev" aria-hidden="true">›</span></summary>
@@ -150,27 +168,6 @@
         <footer class="board-foot">
           <span class="board-tag">dogfood · board 006 · link-never-copy</span>
           <a class="ref" href="./decisions.html#d-ssot">d-ssot →</a>
-        </footer>
-      </details>
-
-      <details class="board board--past" data-cid="board-0005" data-kind="board" data-date="2026-06-30" data-ref="decisions.html#d-canvas">
-        <summary class="board-row"><span class="board-row-dot" aria-hidden="true"></span><span class="board-row-when">06-30 · 005</span><span class="board-row-title">Board-first — the canvas is where explanations live</span><span class="board-row-chev" aria-hidden="true">›</span></summary>
-        <div class="board-body">
-          <p>The decision: when my reply would be a substantial summary or explanation, the
-            <strong>board <em>is</em> the reply</strong> — it lands here, and the terminal gets one line
-            (<code>📋 … → on the canvas</code>). Not written twice.</p>
-          <p>We dropped the Stop-hook “nag”. A hook can't tell what's board-worthy — it only sees length,
-            so it over- or under-fires, and it never boards anything itself; it just pokes me, and the call
-            is still mine. So the fix puts that judgment in the <em>natural flow</em> instead of bolting on
-            a dumb detector.</p>
-          <div class="split">
-            <div class="split-col"><span class="split-k">Terminal · steer</span><span class="split-d">short answers · confirmations · the back-and-forth · the one-line pointer</span></div>
-            <div class="split-col"><span class="split-k">Canvas · show</span><span class="split-d">summaries · architectures · comparisons · walkthroughs — the rich stuff</span></div>
-          </div>
-        </div>
-        <footer class="board-foot">
-          <span class="board-tag">dogfood · board 005 · board-first</span>
-          <a class="ref" href="./decisions.html#d-canvas">the canvas →</a>
         </footer>
       </details>
 
@@ -237,7 +234,7 @@
   <section class="zone" data-cid="s-log">
     <div class="eyebrow">Latest <span id="brain-unseen" class="badge open" hidden></span></div>
     <ol class="timeline" data-cid="logfeed">
-      <li data-kind="worklog" data-cid="w-0205"><div class="tl-row"><span class="tl-when">07-03</span><span class="tl-what">Testing <strong>Vercel auto-deploy</strong> (<a class="ref" href="./project/index.html#t-0034">t-0034</a>) — owner wired both projects' git integration + root dirs (<code>sandpaper-site</code> → <code>site/</code>, <code>sandpaper-brain</code> → <code>brain/</code>). This commit is a plain push, no manual <code>vercel deploy</code>, to see if it fires.</span><span class="tl-link"><a class="ref" href="./project/index.html#t-0034">t-0034 →</a></span></div></li>
+      <li data-kind="worklog" data-cid="w-0206"><div class="tl-row"><span class="tl-when">07-03</span><span class="tl-what">Built the <strong>release pipeline</strong> (<a class="ref" href="./decisions.html#d-release-process">D-018</a>) — <code>/sandpaper:release</code> drafts notes + a bump from this log; a pushed tag runs tests → <code>verify-publish</code> → <code>npm publish --provenance</code> → a GitHub Release. Owner still needs an npm <strong>Automation</strong> token as <code>NPM_TOKEN</code>.</span><span class="tl-link"><a class="ref" href="./decisions.html#d-release-process">D-018 →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0201"><div class="tl-row"><span class="tl-when">07-02</span><span class="tl-what">Plan <strong>audit</strong> — Phase 1 was underreporting shipped work (three stale todos + uncredited D-015): 55% → <strong>71%</strong>, overall 33/40 · 83%. Landing stats trued up.</span><span class="tl-link"><a class="ref" href="./project/index.html">the plan →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0197"><div class="tl-row"><span class="tl-when">07-02</span><span class="tl-what">Re-did the brain skin <strong>properly</strong> after the 2/10 verdict — <em>white sheet on a gridded drafting table</em>, condensed display voice, outlined badges, square nodes; 2-critic panel: <strong>7.5–8/10</strong>, punch list applied. Uncommitted, awaiting verdict.</span><span class="tl-link"><a class="ref" href="./assets/brain.css">brain.css →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0196"><div class="tl-row"><span class="tl-when">07-02</span><span class="tl-what"><strong>Blueprint approved → the identity</strong> (D-015): SANDPAPER titling, the owner's logomark on every surface, and the brain itself reskinned via a pure <code>theme.css</code> token surgery. The shipped default skin is now blueprint.</span><span class="tl-link"><a class="ref" href="./decisions.html#d-blueprint">D-015 →</a></span></div></li>

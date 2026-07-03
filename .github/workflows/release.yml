@@ -1,0 +1,53 @@
+name: Release
+
+# Fires on a version tag (created by `npm version` inside /sandpaper:release, then
+# `git push --follow-tags`). Tests + verify-publish run again here even though CI
+# already ran them on main — belt and suspenders before anything public happens.
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write   # to create the GitHub Release
+  id-token: write   # for npm provenance (and OIDC trusted publishing, if configured)
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+
+      - name: syntax-check every shipped script
+        run: |
+          set -e
+          for f in $(git ls-files 'bin/*.js' 'src/*.js'); do node --check "$f"; done
+
+      - run: npm test
+      - run: npm run verify-publish
+
+      # Requires either the NPM_TOKEN repo secret (an npm "Automation" token — the
+      # 2FA-for-writes account setting rejects the interactive Publish token type in
+      # CI) or npm Trusted Publishing configured for this exact repo + workflow, in
+      # which case NPM_TOKEN can be removed and this step needs no env at all.
+      - name: publish to npm (with provenance)
+        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: extract this version's CHANGELOG section
+        id: notes
+        run: |
+          set -e
+          VERSION="${GITHUB_REF_NAME#v}"
+          awk -v ver="## \\[$VERSION\\]" 'BEGIN{p=0} $0 ~ ver {p=1; next} /^## \[/ && p {exit} p' CHANGELOG.md > /tmp/release-notes.md
+          if [ ! -s /tmp/release-notes.md ]; then echo "_No changelog entry found for $VERSION — see commit history._" > /tmp/release-notes.md; fi
+
+      - name: create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file /tmp/release-notes.md

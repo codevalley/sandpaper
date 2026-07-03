@@ -12,6 +12,7 @@ Show the user the Sandpaper command set, grouped like this, then offer to run on
 - `/sandpaper:learn` — record a gotcha or verdict learning
 - `/sandpaper:canvas` — elevate an explanation into a board on the cover's canvas
 - `/sandpaper:sync` — reconcile the brain against the code; find + heal drift
+- `/sandpaper:release` — cut a release: draft notes from the brain, pick a semver bump, tag, push
 
 **Set up & run**
 - `/sandpaper:init` — scaffold a new brain for this repo (harvest → interview → generate)

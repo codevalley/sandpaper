@@ -4,7 +4,7 @@
   "description": "A living project brain + refine-in-place toolbar for Claude Code projects. npx @nynb/sandpaper install-skill / init / doctor / open.",
   "type": "module",
   "bin": { "sandpaper": "bin/cli.js" },
-  "files": ["bin/", "src/", "public/", "skill/", "brain/assets/", "README.md"],
+  "files": ["bin/", "src/", "public/", "skill/", "brain/assets/", "README.md", "CHANGELOG.md"],
   "keywords": ["claude-code", "skill", "project-brain", "living-docs", "documentation", "agent"],
   "author": "Narayan <codevalley@live.com>",
   "license": "MIT",
@@ -14,6 +14,7 @@
   "engines": { "node": ">=18" },
   "scripts": {
     "start": "node bin/cli.js help",
-    "test": "node test/parse-test.js && node test/markdown-test.js && node test/edit-test.js"
+    "test": "node test/parse-test.js && node test/markdown-test.js && node test/edit-test.js",
+    "verify-publish": "node bin/verify-publish.js"
   }
 }

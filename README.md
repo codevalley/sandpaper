@@ -77,6 +77,7 @@ skips hook wiring and prints the settings snippet instead.
 - `/sandpaper:learn` — record a gotcha or verdict
 - `/sandpaper:canvas` — elevate an explanation into a board on the cover's canvas
 - `/sandpaper:sync` — reconcile the brain against the code; find and flag drift
+- `/sandpaper:release` — cut a release: draft notes from the brain, pick a semver bump, tag, push
 
 **Set up & run**
 
@@ -96,6 +97,29 @@ Two hooks keep the brain current without prodding. `install-skill` wires them in
 - **Stop** (`brain-stamp-check.js`) — if a turn ends with uncommitted project changes but
   nothing changed under `brain/`, it blocks once and asks the agent to stamp.
   Self-limiting: it never loops, and the agent can decline by stopping again.
+
+## Releasing (this repo's own npm package)
+
+Versioning is a Sandpaper feature, not a side process: `/sandpaper:release` reads
+`brain/log.html` since the last tag, proposes a semver bump with reasoning, drafts
+`CHANGELOG.md` from what actually happened (not from scratch), then runs `npm version`
+and `git push --follow-tags`. Pushing the tag hands off to
+[`.github/workflows/release.yml`](.github/workflows/release.yml), which re-runs tests
+and [`verify-publish`](bin/verify-publish.js) (the same tarball-safety checks — no
+`site/`, no secrets, size within envelope), then `npm publish --provenance` and cuts a
+GitHub Release from the changelog section.
+
+CI publishing needs one of:
+- an **`NPM_TOKEN`** repo secret — generate an **Automation** token from your npm
+  account (Access Tokens → Generate New Token → Automation). A regular Publish token
+  won't work if your account requires 2FA for writes — it still demands an interactive
+  OTP, which a CI runner can't provide.
+- or npm **Trusted Publishing** (OIDC) configured for this exact repo + workflow, if
+  your account offers it — no token to store or rotate.
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs the same tests + `verify-publish`
+on every push and PR, across Node 18/20/22. [`.github/dependabot.yml`](.github/dependabot.yml)
+keeps pinned Actions (and any future dependency) patched.
 
 ## Publishing the brain
 
