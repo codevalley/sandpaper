@@ -44,7 +44,12 @@ jobs:
         run: |
           set -e
           VERSION="${GITHUB_REF_NAME#v}"
-          awk -v ver="## \\[$VERSION\\]" 'BEGIN{p=0} $0 ~ ver {p=1; next} /^## \[/ && p {exit} p' CHANGELOG.md > /tmp/release-notes.md
+          # index()-based match, not a regex via -v: awk's -v assignment eats a lone
+          # backslash meant to escape [ ] for the ~ operator (\[ isn't a real C-style
+          # escape, so awk just drops the backslash) — index() is a literal substring
+          # search and sidesteps the whole escaping problem. Learned this the hard way
+          # on v0.2.0's own release: see brain/learnings.html#l-awk-v-escaping.
+          awk -v ver="## [$VERSION]" 'index($0, ver) == 1 {p=1; next} /^## \[/ && p {exit} p' CHANGELOG.md > /tmp/release-notes.md
           if [ ! -s /tmp/release-notes.md ]; then echo "_No changelog entry found for $VERSION — see commit history._" > /tmp/release-notes.md; fi
 
       - name: create the GitHub Release
