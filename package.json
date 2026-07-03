@@ -1,9 +1,9 @@
 {
-  "name": "sand-paper",
+  "name": "@nynb/sandpaper",
   "version": "0.1.0",
-  "description": "A living project brain + refine-in-place toolbar for Claude Code projects. npx sand-paper install-skill / init / doctor / open.",
+  "description": "A living project brain + refine-in-place toolbar for Claude Code projects. npx @nynb/sandpaper install-skill / init / doctor / open.",
   "type": "module",
-  "bin": { "sandpaper": "bin/cli.js", "sand-paper": "bin/cli.js" },
+  "bin": { "sandpaper": "bin/cli.js" },
   "files": ["bin/", "src/", "public/", "skill/", "brain/assets/", "README.md"],
   "keywords": ["claude-code", "skill", "project-brain", "living-docs", "documentation", "agent"],
   "author": "Narayan <codevalley@live.com>",

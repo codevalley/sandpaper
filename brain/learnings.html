@@ -44,6 +44,11 @@
   </section>
 
   <section class="zone flush col">
+    <aside class="entry entry--learning callout gotcha" data-kind="learning" data-lens="engineering" id="l-npm-similarity" data-cid="l-npm-similarity" data-status="active" data-date="2026-07-03" data-area="publish" data-tags="npm publish name similarity anti-squatting scope 403 view false-negative">
+      <div class="eyebrow">▲ Gotcha · publish</div>
+      <p><strong><code>npm view &lt;name&gt;</code> returning 404 does not mean the name is publishable.</strong> It only checks exact-name registration. npm separately enforces an anti-squatting policy at <em>publish</em> time that 403s any unscoped name too similar to an existing package — <code>sand-paper</code> was rejected as too similar to <code>sandpaper</code> (taken, unrelated) despite showing free. The fix npm itself suggests: scope it (<code>@you/name</code>) — scoped packages are exempt, since the scope is the disambiguator. <a class="ref" href="./decisions.html#d-npm-scope">D-017 →</a></p>
+    </aside>
+
     <aside class="entry entry--learning callout verdict" data-kind="learning" data-lens="product" id="l-fold-restraint" data-cid="l-fold-restraint" data-status="active" data-date="2026-07-02" data-area="design" data-tags="fold hero stamp restraint sting triplet chanel verdict">
       <div class="eyebrow">◆ Verdict · design</div>
       <p><strong>The fold's sting was already in the headline — every ornament added to it subtracted.</strong> A “radical” pass (giant H1 + inspection stamp in its airspace + a strengths triplet) was dropped by the owner in one look: the stamp unbalanced the fold, the triplet said nothing the demo doesn't show. When a strengths list feels needed, the demo isn't doing its job — fix the demo, not the copy. <a class="ref" href="../site/index.html">the fold →</a></p>
