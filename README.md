@@ -14,8 +14,8 @@ readable by you.
 ## Quick start
 
 ```bash
-# in your repo (npm package coming — GitHub install for now):
-npx github:codevalley/sandpaper install-skill
+# in your repo:
+npx @nynb/sandpaper install-skill
 ```
 
 Then, inside Claude Code:
@@ -27,10 +27,10 @@ Then, inside Claude Code:
 And to view it:
 
 ```bash
-npx github:codevalley/sandpaper open      # serves the repo + opens brain/index.html
+npx @nynb/sandpaper open      # serves the repo + opens brain/index.html
 ```
 
-(An npm package is coming as `@nynb/sandpaper`, which will shorten these to `npx @nynb/sandpaper <cmd>`.)
+(Or install straight from GitHub, no npm account needed: `npx github:codevalley/sandpaper install-skill`.)
 
 ## What you get
 
