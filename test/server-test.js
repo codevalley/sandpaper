@@ -158,6 +158,28 @@ function getText(url) {
   });
 }
 
+function getRawPath(baseUrl, path) {
+  const target = new URL(baseUrl);
+  return new Promise((resolve, reject) => {
+    httpRequest({
+      hostname: target.hostname,
+      port: target.port,
+      path,
+      method: 'GET',
+      headers: { Host: target.host },
+    }, (res) => {
+      const chunks = [];
+      res.on('data', (chunk) => chunks.push(chunk));
+      res.on('end', () => {
+        const text = Buffer.concat(chunks).toString();
+        let json = null;
+        try { json = JSON.parse(text); } catch { /* expose plain responses through text */ }
+        resolve({ status: res.statusCode, text, json });
+      });
+    }).on('error', reject).end();
+  });
+}
+
 const mutations = [
   ['/__sandpaper/turn', { page: '/', prompt: 'Change it' }, 1_000_000],
   ['/__sandpaper/write', { page: '/', cid: 'main', html: 'Changed' }, 2_000_000],
@@ -171,6 +193,24 @@ test('auth token is injected into served HTML', async (t) => {
   const response = await getText(url);
   assert.equal(response.status, 200);
   assert.match(response.text, /<script[^>]*type="module"[^>]*data-sandpaper-token="test-token"[^>]*>/);
+});
+
+test('rejects raw and percent-encoded dot segments before URL normalization', async (t) => {
+  const { url } = await fixture(t, { brain: true });
+  for (const path of [
+    '/brain/../README.md',
+    '/./index.html',
+    '/brain/%2e%2e/README.md',
+    '/%2E/index.html',
+  ]) {
+    const response = await getRawPath(url, `${path}?from=../query`);
+    assert.equal(response.status, 400, path);
+    assert.equal(response.json?.ok, false, path);
+    assert.equal(response.json?.error?.code, 'invalid_path', path);
+  }
+  const valid = await getRawPath(url, '/index.html?from=../query');
+  assert.equal(valid.status, 200);
+  assert.match(valid.text, /data-sandpaper-token=/);
 });
 
 for (const [path, body, limit] of mutations) {

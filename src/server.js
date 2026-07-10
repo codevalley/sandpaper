@@ -168,6 +168,18 @@ function jsonContentType(req) {
   return typeof contentType === 'string' && /^application\/json(?:\s*;\s*charset=[^;\s]+)?$/i.test(contentType.trim());
 }
 
+function hasRawDotSegment(requestUrl) {
+  const rawPath = String(requestUrl || '').split(/[?#]/, 1)[0];
+  return rawPath.split('/').some((segment) => {
+    try {
+      const decoded = decodeURIComponent(segment);
+      return decoded === '.' || decoded === '..';
+    } catch {
+      return false;
+    }
+  });
+}
+
 function fileHash(file) {
   try { return createHash('sha256').update(readFileSync(file)).digest('hex'); }
   catch { return null; }
@@ -633,6 +645,13 @@ export function createSandpaperServer(target, opts = {}, deps = {}) {
   const server = createServer((req, res) => {
     let url;
     let path;
+    if (hasRawDotSegment(req.url)) {
+      sendJson(res, 400, {
+        ok: false,
+        error: { code: 'invalid_path', message: 'Path dot segments are not allowed' },
+      });
+      return;
+    }
     try {
       url = new URL(req.url, `http://${req.headers.host || '127.0.0.1'}`);
       path = decodeURIComponent(url.pathname);
