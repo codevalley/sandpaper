@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 import {
@@ -94,6 +94,30 @@ test('resolver distinguishes unreadable paths from missing paths', (t) => {
   symlinkSync('loop', join(root, 'loop'));
 
   assert.deepEqual(resolveRepositoryPath(root, join(root, 'loop')), {
+    ok: false,
+    reason: PATH_REASONS.UNREADABLE,
+  });
+});
+
+test('resolver rejects an existing dangling symlink when existence is optional', (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'sandpaper-policy-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const alias = join(root, 'outside-alias');
+  symlinkSync(join(dirname(root), 'outside-new-file'), alias);
+
+  assert.deepEqual(resolveRepositoryPath(root, alias, { mustExist: false }), {
+    ok: false,
+    reason: PATH_REASONS.UNREADABLE,
+  });
+});
+
+test('resolver rejects a missing child beneath a dangling symlink', (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'sandpaper-policy-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const alias = join(root, 'outside-directory-alias');
+  symlinkSync(join(dirname(root), 'outside-new-directory'), alias);
+
+  assert.deepEqual(resolveRepositoryPath(root, join(alias, 'new-file'), { mustExist: false }), {
     ok: false,
     reason: PATH_REASONS.UNREADABLE,
   });

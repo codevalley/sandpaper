@@ -1,4 +1,4 @@
-import { existsSync, realpathSync } from 'node:fs';
+import { lstatSync, realpathSync } from 'node:fs';
 import { dirname, isAbsolute, join, normalize, relative, resolve, sep } from 'node:path';
 
 export const PATH_REASONS = Object.freeze({
@@ -115,11 +115,17 @@ function canonicalizeCandidate(candidate) {
 
   const suffix = [];
   let ancestor = candidate;
-  while (!existsSync(ancestor)) {
-    const parent = dirname(ancestor);
-    if (parent === ancestor) return { ok: false };
-    suffix.unshift(ancestor.slice(parent.length + (parent.endsWith(sep) ? 0 : 1)));
-    ancestor = parent;
+  while (true) {
+    try {
+      lstatSync(ancestor);
+      break;
+    } catch (error) {
+      if (error?.code !== 'ENOENT' && error?.code !== 'ENOTDIR') return { ok: false };
+      const parent = dirname(ancestor);
+      if (parent === ancestor) return { ok: false };
+      suffix.unshift(ancestor.slice(parent.length + (parent.endsWith(sep) ? 0 : 1)));
+      ancestor = parent;
+    }
   }
 
   try {
