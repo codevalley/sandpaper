@@ -49,12 +49,12 @@
       <div class="entry-head"><span class="entry-id">⌥</span><h3>bin/cli.js — CLI entry</h3><span class="badge verified">verified</span></div>
       <p>Validates the arg, resolves the doc, reads the port, starts the server, logs the URL. <a class="ref" href="../engg-spec.html#s-build">engg →</a></p>
     </article>
-    <article class="entry entry--component" data-kind="component" id="c-server" data-cid="c-server" data-status="built" data-date="2026-06-29" data-ref="../engg-spec.html#s-protocol" data-tags="server http sse watch">
-      <div class="entry-head"><span class="entry-id">⌥</span><h3>src/server.js — HTTP · SSE · file-watch · toolbar inject</h3><span class="badge done">built</span></div>
-      <p>Serves the doc (toolbar injected at response-time), <code>/turn</code>, SSE <code>/events</code>, deferred reload, snapshots, <code>/undo</code>. <a class="ref" href="../engg-spec.html#s-protocol">engg →</a></p>
+    <article class="entry entry--component" data-kind="component" id="c-server" data-cid="c-server" data-status="verified" data-date="2026-07-10" data-ref="../src/server.js" data-tags="server http sse auth lifecycle snapshots reload watch">
+      <div class="entry-head"><span class="entry-id">⌥</span><h3>src/server.js — HTTP · SSE · file-watch · toolbar inject</h3><span class="badge verified">verified</span></div>
+      <p>Owns authenticated requests, one turn lifecycle, byte-truth snapshots and undo, and page/client-scoped reloads. <a class="ref" href="../src/server.js">source →</a></p>
     </article>
-    <article class="entry entry--component" data-kind="component" id="c-path-policy" data-cid="c-path-policy" data-status="built" data-date="2026-07-10" data-ref="../src/path-policy.js" data-tags="security paths repository symlink secrets doctor">
-      <div class="entry-head"><span class="entry-id">⌥</span><h3>src/path-policy.js — shared repository serve · mutation boundary</h3><span class="badge done">built</span></div>
+    <article class="entry entry--component" data-kind="component" id="c-path-policy" data-cid="c-path-policy" data-status="verified" data-date="2026-07-10" data-ref="../src/path-policy.js" data-tags="security paths repository symlink secrets doctor">
+      <div class="entry-head"><span class="entry-id">⌥</span><h3>src/path-policy.js — shared repository serve · mutation boundary</h3><span class="badge verified">verified</span></div>
       <p>Classifies repository-relative paths and rechecks canonical aliases after realpath resolution. <a class="ref" href="../src/path-policy.js">source →</a></p>
     </article>
     <article class="entry entry--component" data-kind="component" id="c-claude" data-cid="c-claude" data-status="wip" data-date="2026-06-29" data-ref="../engg-spec.html#s-bridge" data-tags="claude bridge stream-json">

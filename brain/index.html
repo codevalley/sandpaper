@@ -15,11 +15,11 @@
 <!-- BRAIN:DIGEST — machine context for a fresh `claude`: read THIS first (~1KB) to rehydrate. -->
 <script type="application/json" id="brain-state">
 { "v":1, "project":"Sandpaper", "phase":"Phase 1 · packaging", "updated":"2026-07-10",
-  "session":"S30",
-  "focus":{ "one":"Authenticated server lifecycle hardening awaits reviewer acceptance.", "ref":"project/index.html#t-0043" },
-  "worklog":[ {"date":"2026-07-10","one":"Hardened authenticated server lifecycle, snapshots, and page-scoped reloads.","cid":"w-0218"},
-              {"date":"2026-07-10","one":"Implemented shared repository path policy; lifecycle hardening remains next.","cid":"w-0217"},
-              {"date":"2026-07-10","one":"Captured the approved stabilization specification and began implementation.","cid":"w-0216"} ],
+  "session":"S31",
+  "focus":{ "one":"Server hardening is verified; t-0044 repairs the browser contract next.", "ref":"project/index.html#t-0044" },
+  "worklog":[ {"date":"2026-07-10","one":"Accepted authenticated lifecycle hardening after independent review.","cid":"w-0219"},
+              {"date":"2026-07-10","one":"Hardened authenticated server lifecycle, snapshots, and page-scoped reloads.","cid":"w-0218"},
+              {"date":"2026-07-10","one":"Implemented shared repository path policy; lifecycle hardening remains next.","cid":"w-0217"} ],
   "open":["decisions.html#q-anchoring","decisions.html#q-undo","decisions.html#q-billing","decisions.html#q-privacy"],
   "docs":["../sandpaper.html","../engg-spec.html"] }
 </script>
@@ -51,7 +51,7 @@
   <header class="plate" data-cid="cover">
     <div class="pl-meta"><span class="now-tag">Now</span> the build stands at <a href="./project/index.html#i-stability">Phase 1 — hardening</a></div>
     <!-- BRAIN:NOW -->
-    <p class="now-line" id="now" data-cid="now" data-kind="now" data-status="active" data-date="2026-07-10" data-ref="../src/server.js">Authenticated server lifecycle hardening awaits reviewer acceptance. <a class="ref" href="../src/server.js">source →</a></p>
+    <p class="now-line" id="now" data-cid="now" data-kind="now" data-status="active" data-date="2026-07-10" data-ref="./project/index.html#t-0044">Server hardening is verified; <code>t-0044</code> repairs the browser contract next. <a class="ref" href="./project/index.html#t-0044">task →</a></p>
     <!-- /BRAIN:NOW -->
   </header>
   <!-- /BRAIN:EDITION -->
@@ -265,9 +265,9 @@
   <section class="zone" data-cid="s-log">
     <div class="eyebrow">Latest <span id="brain-unseen" class="badge open" hidden></span></div>
     <ol class="timeline" data-cid="logfeed">
-      <li class="entry entry--worklog" data-kind="worklog" id="w-0216" data-cid="w-0216" data-status="active" data-date="2026-07-10" data-ref="../docs/superpowers/specs/2026-07-10-v0.2.1-stabilization-design.md"><span class="log-when">07-10</span><span class="log-what">Captured the approved stabilization specification and began implementation.</span><span class="log-link"><a class="ref" href="../docs/superpowers/specs/2026-07-10-v0.2.1-stabilization-design.md">spec →</a></span></li>
-      <li class="entry entry--worklog" data-kind="worklog" id="w-0215" data-cid="w-0215" data-status="active" data-date="2026-07-10" data-ref="./decisions.html#d-layered-test-architecture"><span class="log-when">07-10</span><span class="log-what">Approved layered regression tests with a deterministic fake runner.</span><span class="log-link"><a class="ref" href="./decisions.html#d-layered-test-architecture">D-024 →</a></span></li>
-      <li class="entry entry--worklog" data-kind="worklog" id="w-0214" data-cid="w-0214" data-status="active" data-date="2026-07-10" data-ref="./decisions.html#d-browser-contract"><span class="log-when">07-10</span><span class="log-what">Defined the hardened browser and client contract.</span><span class="log-link"><a class="ref" href="./decisions.html#d-browser-contract">D-023 →</a></span></li>
+      <li class="entry entry--worklog" data-kind="worklog" id="w-0219" data-cid="w-0219" data-status="active" data-date="2026-07-10" data-ref="../src/server.js"><span class="log-when">07-10</span><span class="log-what">Accepted authenticated lifecycle hardening after independent review.</span><span class="log-link"><a class="ref" href="../src/server.js">server →</a></span></li>
+      <li class="entry entry--worklog" data-kind="worklog" id="w-0218" data-cid="w-0218" data-status="active" data-date="2026-07-10" data-ref="../src/server.js"><span class="log-when">07-10</span><span class="log-what">Hardened authenticated server lifecycle, snapshots, and page-scoped reloads.</span><span class="log-link"><a class="ref" href="../src/server.js">server →</a></span></li>
+      <li class="entry entry--worklog" data-kind="worklog" id="w-0217" data-cid="w-0217" data-status="active" data-date="2026-07-10" data-ref="../src/path-policy.js"><span class="log-when">07-10</span><span class="log-what">Implemented shared repository path policy; lifecycle hardening remains next.</span><span class="log-link"><a class="ref" href="../src/path-policy.js">policy →</a></span></li>
       <li class="entry entry--worklog" data-kind="worklog" id="w-0211" data-cid="w-0211" data-status="active" data-date="2026-07-10" data-ref="./decisions.html#d-safe-repo-serving"><span class="log-when">07-10</span><span class="log-what">Preserved repo-root links while closing secret-path exposure.</span><span class="log-link"><a class="ref" href="./decisions.html#d-safe-repo-serving">D-020 →</a></span></li>
       <li class="entry entry--worklog" data-kind="worklog" id="w-0210" data-cid="w-0210" data-status="active" data-date="2026-07-10" data-ref="./project/index.html#i-stability"><span class="log-when">07-10</span><span class="log-what">Scoped stabilization and first-class providers inside Phase 1.</span><span class="log-link"><a class="ref" href="./project/index.html#i-stability">plan →</a></span></li>
       <li data-kind="worklog" data-cid="w-0209"><div class="tl-row"><span class="tl-when">07-03</span><span class="tl-what"><strong>The pipeline works</strong> — <code>v0.2.0</code> published for real with a verified SLSA provenance attestation; a GitHub Release cut automatically. Found + fixed a changelog-extraction <code>awk</code> bug along the way, live.</span><span class="tl-link"><a class="ref" href="https://github.com/codevalley/sandpaper/releases/tag/v0.2.0">v0.2.0 →</a></span></div></li>
