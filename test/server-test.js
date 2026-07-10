@@ -202,6 +202,8 @@ test('rejects raw and percent-encoded dot segments before URL normalization', as
     '/./index.html',
     '/brain/%2e%2e/README.md',
     '/%2E/index.html',
+    '/foo%2F..%2Findex.html',
+    '/foo%5C..%5Cindex.html',
   ]) {
     const response = await getRawPath(url, `${path}?from=../query`);
     assert.equal(response.status, 400, path);

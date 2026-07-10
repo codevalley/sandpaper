@@ -170,14 +170,10 @@ function jsonContentType(req) {
 
 function hasRawDotSegment(requestUrl) {
   const rawPath = String(requestUrl || '').split(/[?#]/, 1)[0];
-  return rawPath.split('/').some((segment) => {
-    try {
-      const decoded = decodeURIComponent(segment);
-      return decoded === '.' || decoded === '..';
-    } catch {
-      return false;
-    }
-  });
+  let decodedPath;
+  try { decodedPath = decodeURIComponent(rawPath); }
+  catch { return false; }
+  return decodedPath.split(/[\\/]/).some((segment) => segment === '.' || segment === '..');
 }
 
 function fileHash(file) {
