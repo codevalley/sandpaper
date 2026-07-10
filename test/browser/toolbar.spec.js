@@ -117,6 +117,23 @@ test('AI reload rehydrates one completed transcript turn without duplication', a
   await expect(page.locator('.sp-turnmeta .sp-undo')).toHaveCount(1);
 });
 
+test('fresh tab terminal replay updates status without creating a blank transcript turn', async ({ page, context }) => {
+  const call = await submit(page, 'Finish before fresh tab opens');
+  runner.complete(call);
+  await expect(page.locator('.sp-turnmeta .sp-tag')).toHaveText('Replied');
+
+  const fresh = await context.newPage();
+  await fresh.addInitScript(() => {
+    localStorage.setItem('sp-welcomed:v1', '1');
+    sessionStorage.setItem('sp-welcomed:v1', '1');
+  });
+  await fresh.goto(new URL('/hostile.html', baseUrl).href);
+  await expect(fresh.locator('#sp-label')).toHaveText('done');
+  await expect(fresh.locator('.sp-turn')).toHaveCount(0);
+  await expect(fresh.locator('.sp-turnmeta')).toHaveCount(0);
+  await fresh.close();
+});
+
 for (const failure of [
   { name: '409', status: 409, body: { ok: false, error: { code: 'turn_in_progress', message: 'A turn is already in progress' } }, message: 'A turn is already in progress' },
   { name: 'authentication', status: 403, body: { ok: false, error: { code: 'invalid_token', message: 'Invalid Sandpaper token' } }, message: 'Invalid Sandpaper token' },
@@ -222,6 +239,46 @@ test('direct undo recovers after refusal and disappears after successful consump
   await expect(undo).toBeHidden();
 });
 
+test('direct and undo request errors preserve an active turn busy state and unrelated scope', async ({ page }) => {
+  const first = await submit(page, 'Create AI undo');
+  const aiReload = page.waitForEvent('framenavigated', (frame) => frame === page.mainFrame());
+  runner.edit(readFileSync(pageFile, 'utf8').replace('Gamma row', 'Gamma AI undo row'), first);
+  runner.complete(first);
+  await aiReload;
+  const aiUndo = page.locator('.sp-turnmeta .sp-undo');
+  await expect(aiUndo).toBeVisible();
+
+  await enterHands(page);
+  await editHtml(page, 'row-a', 'Create direct undo');
+  const directUndo = page.locator('#sp-undo');
+  await expect(directUndo).toBeVisible();
+
+  const active = await submit(page, 'Hold this active turn');
+  await expect(page.locator('#sp-chip')).toHaveClass(/sp-busy/);
+  await page.locator('#sp-pick').dispatchEvent('click');
+  await page.locator('[data-cid="row-c"]').dispatchEvent('click');
+  const scoped = await page.locator('#sp-target').textContent();
+  await expect(page.locator('#sp-target')).toBeVisible();
+
+  await enterHands(page);
+  await editHtml(page, 'row-b', 'Rejected during active AI');
+  await expect(page.locator('#sp-label')).toHaveText('An AI turn is editing this page');
+  await expect(page.locator('#sp-chip')).toHaveClass(/sp-busy/);
+  await expect(page.locator('#sp-input')).toBeDisabled();
+  await expect(page.locator('#sp-target')).toHaveText(scoped);
+
+  await aiUndo.dispatchEvent('click');
+  await expect(page.locator('#sp-label')).toHaveText('An AI turn is editing this page');
+  await expect(page.locator('#sp-chip')).toHaveClass(/sp-busy/);
+  await expect(page.locator('#sp-target')).toHaveText(scoped);
+
+  await directUndo.dispatchEvent('click');
+  await expect(page.locator('#sp-label')).toHaveText('An AI turn is editing this page');
+  await expect(page.locator('#sp-chip')).toHaveClass(/sp-busy/);
+  await expect(page.locator('#sp-target')).toHaveText(scoped);
+  runner.complete(active);
+});
+
 test('Pick and Hands are mutually exclusive pressed modes', async ({ page }) => {
   const pick = page.locator('#sp-pick');
   const hands = page.locator('#sp-edit');
@@ -265,7 +322,7 @@ test('switching from Hands to Pick commits active rich text before Pick activate
   await expect(row).not.toHaveAttribute('contenteditable', 'true');
 });
 
-test('latest mode request wins while a Hands commit is pending', async ({ page }) => {
+test('additional mode changes are ignored while a Hands commit is pending', async ({ page }) => {
   let writeSeen;
   const requestSeen = new Promise((resolve) => { writeSeen = resolve; });
   let finishWrite;
@@ -281,10 +338,11 @@ test('latest mode request wins while a Hands commit is pending', async ({ page }
   await page.locator('#sp-pick').dispatchEvent('click');
   await requestSeen;
   await page.locator('#sp-edit').dispatchEvent('click');
-  await expect(page.locator('#sp-edit')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#sp-edit')).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('#sp-edit')).toBeDisabled();
   finishWrite();
-  await expect(page.locator('#sp-edit')).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('#sp-pick')).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('#sp-edit')).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('#sp-pick')).toHaveAttribute('aria-pressed', 'true');
 });
 
 test('failed rich text write restores exact innerHTML without reload', async ({ page }) => {
@@ -338,20 +396,36 @@ test('failed move restores exact sibling bytes and order without reload', async 
   await expect(page.locator('#sp-label')).toHaveText('Move refused');
 });
 
-test('optimistic direct mutations are serialized', async ({ page }) => {
+test('a pending direct transaction blocks a second optimistic mutation on the same node', async ({ page }) => {
   let requests = 0;
-  let releaseFirst;
+  let rejectFirst;
   await page.route('**/__sandpaper/write', async (route) => {
     requests += 1;
-    if (requests === 1) await new Promise((resolve) => { releaseFirst = resolve; });
-    await route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true,"undoable":true}' });
+    await new Promise((resolve) => { rejectFirst = resolve; });
+    await route.fulfill({
+      status: 409,
+      contentType: 'application/json',
+      body: '{"ok":false,"error":{"code":"write_refused","message":"First write refused"}}',
+    });
   });
   await enterHands(page);
+  const row = page.locator('[data-cid="row-a"]');
+  const original = await row.evaluate((element) => element.innerHTML);
   await editHtml(page, 'row-a', 'Alpha first transaction');
-  await editHtml(page, 'row-b', 'Beta second transaction');
   await expect.poll(() => requests).toBe(1);
-  releaseFirst();
-  await expect.poll(() => requests).toBe(2);
+  await expect(page.locator('#sp-edit')).toBeDisabled();
+  await expect(page.locator('#sp-edit')).toHaveAttribute('aria-disabled', 'true');
+  await row.dispatchEvent('click');
+  await expect(row).not.toHaveAttribute('contenteditable', 'true');
+  await row.dispatchEvent('mouseover');
+  await expect(page.locator('#sp-rowctl')).toBeHidden();
+  expect(requests).toBe(1);
+
+  rejectFirst();
+  await expect.poll(() => row.evaluate((element) => element.innerHTML)).toBe(original);
+  await expect(page.locator('#sp-edit')).toBeEnabled();
+  await expect(page.locator('#sp-edit')).toHaveAttribute('aria-disabled', 'false');
+  expect(requests).toBe(1);
 });
 
 test('direct undo is disabled while a queued direct mutation is active', async ({ page }) => {
@@ -456,12 +530,41 @@ test('/ shortcut ignores interactive targets, modifiers, composition, and preven
   }
 });
 
+test('/ shortcut respects form and contenteditable targets inside a shadow root', async ({ page }) => {
+  await page.evaluate(() => {
+    const host = document.createElement('div');
+    host.id = 'shadow-shortcut-host';
+    const shadow = host.attachShadow({ mode: 'open' });
+    const input = document.createElement('input');
+    input.id = 'shadow-input';
+    const editable = document.createElement('div');
+    editable.id = 'shadow-editable';
+    editable.contentEditable = 'true';
+    editable.textContent = 'editable';
+    shadow.append(input, editable);
+    document.body.appendChild(host);
+  });
+
+  for (const id of ['shadow-input', 'shadow-editable']) {
+    await page.evaluate((targetId) => {
+      document.querySelector('#shadow-shortcut-host').shadowRoot.querySelector(`#${targetId}`).focus();
+    }, id);
+    await page.keyboard.press('/');
+    const state = await page.evaluate(() => ({
+      shadowActive: document.querySelector('#shadow-shortcut-host').shadowRoot.activeElement?.id,
+      searchActive: document.activeElement?.id === 'brain-q',
+    }));
+    expect(state).toEqual({ shadowActive: id, searchActive: false });
+  }
+});
+
 test('status, transcript, toolbar controls, and composer expose baseline semantics', async ({ page }) => {
   await expect(page.locator('#sp-chip')).toHaveAttribute('role', 'status');
   await expect(page.locator('#sp-chip')).toHaveAttribute('aria-live', 'polite');
   await expect(page.locator('#sp-chip')).toHaveAttribute('aria-atomic', 'true');
   await expect(page.locator('#sp-thread')).toHaveAttribute('role', 'log');
   await expect(page.locator('#sp-thread')).toHaveAttribute('aria-label', 'Sandpaper conversation');
+  await expect(page.locator('#sp-thread')).not.toHaveAttribute('aria-live', /.+/);
   await expect(page.locator('#sp-toggle')).toHaveAttribute('aria-expanded', 'false');
   await expect(page.locator('#sp-toggle')).toHaveAttribute('aria-controls', 'sp-thread');
   await expect(page.locator('#sp-pick')).toHaveAttribute('aria-label', 'Pick a page element');
@@ -492,6 +595,36 @@ test('thinking and change-card disclosures are named buttons with expanded state
   await expect(card).toHaveAttribute('aria-expanded', 'true');
 });
 
+test('rehydrated disclosure IDs stay unique when a new turn adds controls', async ({ page }) => {
+  const first = await submit(page, 'First disclosure turn');
+  runner.emit({ type: 'assistant_delta', kind: 'thinking', text: 'First thought.' }, first);
+  runner.emit({
+    type: 'edit', tool: 'Edit', file: 'hostile.html', added: 1, removed: 1,
+    hunks: [{ oldText: 'first before', newText: 'first after' }],
+  }, first);
+  runner.complete(first);
+  await page.reload();
+
+  const second = await submit(page, 'Second disclosure turn');
+  runner.emit({ type: 'assistant_delta', kind: 'thinking', text: 'Second thought.' }, second);
+  runner.emit({
+    type: 'edit', tool: 'Edit', file: 'hostile.html', added: 1, removed: 1,
+    hunks: [{ oldText: 'second before', newText: 'second after' }],
+  }, second);
+  runner.complete(second);
+
+  const state = await page.evaluate(() => {
+    const controls = Array.from(document.querySelectorAll('.sp-think-toggle, .sp-card-head'));
+    const ids = controls.map((control) => control.getAttribute('aria-controls'));
+    return {
+      ids,
+      targetCounts: ids.map((id) => document.querySelectorAll(`#${CSS.escape(id)}`).length),
+    };
+  });
+  expect(new Set(state.ids).size).toBe(state.ids.length);
+  expect(state.targetCounts.every((count) => count === 1)).toBe(true);
+});
+
 test('welcome traps focus, closes on Escape, and restores prior focus', async ({ context }) => {
   const tour = await context.newPage();
   await tour.goto(new URL('/hostile.html', baseUrl).href);
@@ -505,6 +638,8 @@ test('welcome traps focus, closes on Escape, and restores prior focus', async ({
   await tour.reload();
   const dialog = tour.locator('#sp-welcome');
   await expect(dialog).toBeVisible();
+  await expect(dialog).toHaveAttribute('aria-labelledby', 'sp-welcome-title');
+  await expect(tour.locator('#sp-welcome-title')).toHaveText('This page is your project’s brain.');
   await expect(tour.locator('.sp-w-go')).toBeFocused();
   await tour.keyboard.press('Tab');
   await expect(tour.locator('.sp-w-x')).toBeFocused();

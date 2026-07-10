@@ -45,13 +45,13 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
       '<button type="button" id="sp-min" aria-label="Minimize Sandpaper" title="Minimize">–</button>' +
       '<button type="button" id="sp-toggle" aria-label="Expand or collapse conversation" aria-controls="sp-thread" aria-expanded="false">▸</button>' +
     '</div>' +
-    '<div id="sp-thread" role="log" aria-label="Sandpaper conversation" aria-live="polite" hidden></div>' +
+    '<div id="sp-thread" role="log" aria-label="Sandpaper conversation" hidden></div>' +
     '<div id="sp-target" hidden></div>' +
     '<form id="sp-form">' +
       '<input id="sp-input" aria-label="Message Claude Code" placeholder="Ask, discuss, or describe a change…" autocomplete="off" />' +
       '<div id="sp-actions">' +
-        '<button type="button" id="sp-pick" aria-label="Pick a page element" aria-pressed="false" title="Scope — point at an element to target your message">' + ICON_PICK + '</button>' +
-        '<button type="button" id="sp-edit" aria-label="Edit page content directly" aria-pressed="false" title="Edit text in place — your words, no AI">' + ICON_EDIT + '</button>' +
+        '<button type="button" id="sp-pick" aria-label="Pick a page element" aria-pressed="false" aria-disabled="false" title="Scope — point at an element to target your message">' + ICON_PICK + '</button>' +
+        '<button type="button" id="sp-edit" aria-label="Edit page content directly" aria-pressed="false" aria-disabled="false" title="Edit text in place — your words, no AI">' + ICON_EDIT + '</button>' +
         '<span class="sp-spring"></span>' +
         '<button type="button" id="sp-sling" aria-label="Copy instruction for terminal" title="Send to terminal — copy a ready instruction to paste into your Claude session">&gt;_</button>' +
         '<button type="submit" id="sp-send">Sand</button>' +
@@ -130,6 +130,18 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
     undoBtn.disabled = disabled;
     Array.prototype.forEach.call(thread.querySelectorAll('.sp-undo'), function (button) { button.disabled = disabled; });
   }
+  function syncDirectLockState() {
+    var locked = directPending > 0;
+    pickBtn.disabled = locked; editBtn.disabled = locked;
+    pickBtn.setAttribute('aria-disabled', String(locked));
+    editBtn.setAttribute('aria-disabled', String(locked));
+    if (delBtn) { delBtn.disabled = locked; delBtn.setAttribute('aria-disabled', String(locked)); }
+    if (grip) {
+      grip.setAttribute('draggable', String(!locked));
+      grip.setAttribute('aria-disabled', String(locked));
+    }
+    if (locked && rowctl) rowctl.hidden = true;
+  }
   function setBusy(busy) {
     turnBusy = busy;
     chip.classList.toggle('sp-busy', busy);
@@ -149,6 +161,13 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
   function reducedMotion() {
     return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   }
+  function announceRequestError(error) {
+    var message = errorMessage(error);
+    label.textContent = message;
+    led.style.background = COLORS.error;
+    chip.style.color = COLORS.error;
+    persist(); stick();
+  }
   function rejectPendingTurn(record, error, draft, terminal) {
     var message = errorMessage(error);
     if (record && !record.errorShown) {
@@ -159,15 +178,14 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
     if (draft != null) input.value = draft;
     renderScope(record && record.scope ? record.scope : null);
     setBusy(false);
-    label.textContent = message;
-    led.style.background = COLORS.error;
-    chip.style.color = COLORS.error;
+    announceRequestError(error);
     if (record && terminal && terminal.changed) finalizeTurn(record, terminal);
     persist(); stick(); input.focus();
   }
   function queueDirect(path, payload, onSuccess, rollback) {
     directPending += 1;
     syncUndoAvailability();
+    syncDirectLockState();
     var request = directQueue.then(function () { return client.post(path, payload); });
     var handled = request.then(function (result) {
       if (onSuccess) onSuccess(result);
@@ -176,16 +194,17 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
       try {
         if (rollback) rollback();
       } catch (rollbackError) {
-        rejectPendingTurn(null, new Error('Couldn’t restore the page after a rejected edit'), null);
+        announceRequestError(new Error('Couldn’t restore the page after a rejected edit'));
         location.reload();
         return null;
       }
-      rejectPendingTurn(null, error, null);
+      announceRequestError(error);
       return null;
     });
     var settled = handled.then(function (result) {
       directPending -= 1;
       syncUndoAvailability();
+      syncDirectLockState();
       return result;
     });
     directQueue = settled.then(function () {}, function () {});
@@ -230,6 +249,12 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
     var t = createTurn(turnId, null, null); if (turnId) turns[turnId] = t; return t;
   }
 
+  function knownTerminalTurn(turnId) {
+    if (turnId && turns[turnId]) return turns[turnId];
+    if (pendingTurn && (!pendingTurn.id || pendingTurn.id === turnId)) return getTurn(turnId);
+    return null;
+  }
+
   function scheduleFlush(rec) {
     if (rec.raf) return;
     rec.raf = requestAnimationFrame(function () {
@@ -250,11 +275,16 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
     setBusy(busy);
     if (typeof f.cost === 'number') cost.textContent = '$' + f.cost.toFixed(4);
     if (f.state === 'error' && f.turnId) {
-      var te = getTurn(f.turnId);
-      rejectPendingTurn(te, new Error(f.detail || f.label || 'Turn failed'), te.draft, f);
+      var te = knownTerminalTurn(f.turnId);
+      var terminalError = new Error(f.detail || f.label || 'Turn failed');
+      if (te) rejectPendingTurn(te, terminalError, te.draft, f);
+      else announceRequestError(terminalError);
       return;
     }
-    if ((f.done || f.phase === 'done') && f.turnId) finalizeTurn(getTurn(f.turnId), f);
+    if ((f.done || f.phase === 'done') && f.turnId) {
+      var doneTurn = knownTerminalTurn(f.turnId);
+      if (doneTurn) finalizeTurn(doneTurn, f);
+    }
   }
 
   function finalizeTurn(rec, f) {
@@ -311,6 +341,10 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
     thread.innerHTML = saved;
     panel.classList.add('sp-has-thread');
     for (var key in turns) delete turns[key];
+    Array.prototype.forEach.call(thread.querySelectorAll('[id^="sp-think-body-"], [id^="sp-card-body-"]'), function (node) {
+      var match = node.id.match(/-(\d+)$/);
+      if (match) disclosureSeq = Math.max(disclosureSeq, parseInt(match[1], 10));
+    });
     Array.prototype.forEach.call(thread.querySelectorAll('.sp-turn[data-turn]'), function (box) {
       var id = box.getAttribute('data-turn');
       var meta = box.querySelector('.sp-turnmeta');
@@ -421,7 +455,8 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
         .then(function () { node.hidden = true; })
         .catch(function (error) {
           node.disabled = false; node.textContent = 'Undo'; node.hidden = false;
-          rejectPendingTurn(null, error, null);
+          syncUndoAvailability();
+          announceRequestError(error);
         });
     }
   });
@@ -470,6 +505,7 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
     if (!editing && rowctl) { rowctl.hidden = true; clearDrag(); }
   }
   function setMode(next) {
+    if (directPending > 0) return Promise.resolve();
     var version = ++modeVersion;
     if (next !== 'idle' && next !== 'pick' && next !== 'hands') next = 'idle';
     if (next === mode) next = 'idle';
@@ -506,7 +542,11 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
     rec.el.removeAttribute('contenteditable');
   }
   function beginEdit(elm) {
-    if (current) commitEdit();
+    if (directPending > 0) return;
+    if (current) {
+      commitEdit();
+      if (directPending > 0) return;
+    }
     var rec = { el: elm, cid: elm.getAttribute('data-cid'), original: elm.innerHTML };
     rec.onKey = function (ev) {
       if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); elm.blur(); }        // Enter commits
@@ -534,7 +574,7 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
 
   // capture-phase so a click on a leaf record edits it instead of following links / scoping
   document.addEventListener('click', function (e) {
-    if (!editing || panel.contains(e.target)) return;
+    if (!editing || directPending > 0 || panel.contains(e.target)) return;
     var elm = e.target.closest ? e.target.closest('[data-cid]') : null;
     if (!elm || elm.querySelector('[data-cid]')) return; // only leaf records are editable
     if (current && current.el === elm) return;           // already editing this one — let the caret move
@@ -569,7 +609,7 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
   }
 
   document.addEventListener('mouseover', function (e) {
-    if (!editing || dragEl || current) return; // no handle while a text edit is in progress
+    if (!editing || directPending > 0 || dragEl || current) return; // no handle while a text edit is in progress
     if (rowctl.contains(e.target)) { clearTimeout(hideT); return; }
     var elm = e.target.closest ? e.target.closest('.sp-editable') : null;
     if (elm && !panel.contains(elm)) { clearTimeout(hideT); showCtl(elm); }
@@ -583,7 +623,7 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
 
   delBtn.addEventListener('click', function (e) {
     e.preventDefault(); e.stopPropagation();
-    if (!hoverRow) return;
+    if (directPending > 0 || !hoverRow) return;
     var removed = hoverRow, cid = removed.getAttribute('data-cid');
     var anchor = document.createComment('sandpaper-delete-rollback');
     removed.parentNode.insertBefore(anchor, removed);
@@ -597,7 +637,7 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
   });
 
   grip.addEventListener('dragstart', function (e) {
-    if (!hoverRow || current) { e.preventDefault(); return; }
+    if (directPending > 0 || !hoverRow || current) { e.preventDefault(); return; }
     dragEl = hoverRow; dragCid = dragEl.getAttribute('data-cid');
     e.dataTransfer.effectAllowed = 'move';
     try { e.dataTransfer.setData('text/plain', dragCid); } catch (x) {}
@@ -607,7 +647,7 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
   });
   grip.addEventListener('dragend', clearDrag);
   document.addEventListener('dragover', function (e) {
-    if (!dragEl) return;
+    if (directPending > 0 || !dragEl) return;
     var elm = e.target.closest ? e.target.closest('.sp-editable') : null;
     if (!elm || panel.contains(elm) || elm === dragEl || dragEl.contains(elm) || elm.parentNode !== dragEl.parentNode) return; // reorder among siblings only
     e.preventDefault(); e.dataTransfer.dropEffect = 'move';
@@ -619,6 +659,7 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
     elm.classList.toggle('sp-drop-after', dropMode === 'after');
   }, true);
   document.addEventListener('drop', function (e) {
+    if (directPending > 0) { clearDrag(); return; }
     if (!dragEl || !dropTarget) { clearDrag(); return; }
     e.preventDefault();
     var moved = dragEl, cid = dragCid, tgt = dropTarget, mode = dropMode, tcid = tgt.getAttribute('data-cid');
@@ -639,12 +680,14 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
   // undo affordance after ANY direct edit (text · delete · move) — one level, server-snapshotted
   function directDone(label, undoable) { setChip({ state: 'done', label: label + ' · no AI' }); undoBtn.hidden = !undoable; }
   undoBtn.addEventListener('click', function () {
+    if (directPending > 0) return;
     undoBtn.disabled = true; undoBtn.textContent = 'Undoing…';
     client.post('/undo-direct', { page: location.pathname })
       .then(function () { undoBtn.hidden = true; undoBtn.disabled = false; undoBtn.textContent = '⟲ undo'; })
       .catch(function (error) {
         undoBtn.hidden = false; undoBtn.disabled = false; undoBtn.textContent = '⟲ undo';
-        rejectPendingTurn(null, error, null);
+        syncUndoAvailability();
+        announceRequestError(error);
       });
   });
 
@@ -666,14 +709,14 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
   function maybeWelcome() {
     if (welcomed()) return;
     var previousFocus = document.activeElement;
-    var w = el('div'); w.id = 'sp-welcome'; w.setAttribute('role', 'dialog'); w.setAttribute('aria-modal', 'true'); w.setAttribute('aria-label', 'Welcome to Sandpaper');
+    var w = el('div'); w.id = 'sp-welcome'; w.setAttribute('role', 'dialog'); w.setAttribute('aria-modal', 'true'); w.setAttribute('aria-labelledby', 'sp-welcome-title');
     if (hostSkin) for (var sk in hostSkin) w.style.setProperty(sk, hostSkin[sk]); // the tour wears the host skin too
     w.innerHTML =                                                        // static template — no untrusted data
       '<div class="sp-w-card">' +
         '<div class="sp-w-head"><span class="sp-w-mark">Sand<span>paper</span></span>' +
           '<button type="button" class="sp-w-x" aria-label="Close">×</button></div>' +
         '<div class="sp-w-body">' +
-          '<h2 class="sp-w-title">This page is your project&rsquo;s brain.</h2>' +
+          '<h2 class="sp-w-title" id="sp-welcome-title">This page is your project&rsquo;s brain.</h2>' +
           '<p class="sp-w-lede">It mirrors where the project stands — and you refine it right here, in the page. Three ways:</p>' +
           '<ul class="sp-w-tools">' +
             '<li><span class="sp-w-g sp-w-sand">Sand</span><div><b>Say a change</b><span class="d">Describe it in plain words — Claude edits the page, scoped to whatever you point at.</span></div></li>' +

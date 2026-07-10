@@ -43,8 +43,12 @@
     // press "/" to focus search
     document.addEventListener('keydown', function (e) {
       if (e.defaultPrevented || e.isComposing || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || e.key !== '/') return;
+      var path = typeof e.composedPath === 'function' ? e.composedPath() : [];
+      var interactive = path.some(function (node) {
+        return node && node.nodeType === 1 && node.matches('input, textarea, select, button, [contenteditable]');
+      });
       var target = e.target;
-      if (target && target.nodeType === 1 && target.closest('input, textarea, select, button, [contenteditable]')) return;
+      if (interactive || (target && target.nodeType === 1 && target.closest('input, textarea, select, button, [contenteditable]'))) return;
       if (document.activeElement !== q) { e.preventDefault(); q.focus(); }
     });
   }
