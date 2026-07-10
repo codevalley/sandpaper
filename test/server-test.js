@@ -111,7 +111,7 @@ async function nextFrame(events, predicate, timeout = 1_000) {
   throw new Error('timed out waiting for matching SSE frame');
 }
 
-function startReceivingTurn(baseUrl) {
+function startReceivingTurn(baseUrl, clientId = 'client-a') {
   const url = new URL('/__sandpaper/turn', baseUrl);
   let responseResolve;
   let responseReject;
@@ -124,7 +124,7 @@ function startReceivingTurn(baseUrl) {
     headers: {
       'Content-Type': 'application/json',
       'X-Sandpaper-Token': 'test-token',
-      'X-Sandpaper-Client': 'client-a',
+      'X-Sandpaper-Client': clientId,
       Origin: baseUrl.replace(/\/$/, ''),
     },
   }, (res) => {
@@ -419,6 +419,41 @@ test('turn SSE replays the current turn ID, page, phase, and latest status', asy
   assert.equal(replay.state, 'thinking');
 });
 
+test('SSE rejects nonexistent and non-HTML page IDs instead of falling back to the root page', async (t) => {
+  const { url, root } = await fixture(t, { brain: true });
+  writeFileSync(join(root, 'notes.txt'), 'not an HTML page');
+  for (const page of ['/missing.html', '/notes.txt']) {
+    const response = await openEvents(url, { page, clientId: `invalid-${page.slice(1, 4)}` });
+    assert.equal(response.status, 400);
+    assert.equal(response.json?.ok, false);
+    assert.equal(response.json?.error?.code, 'invalid_page');
+  }
+  const single = await fixture(t);
+  const singlePage = await openEvents(single.url, { page: '/other.html', clientId: 'invalid-single' });
+  assert.equal(singlePage.status, 400);
+  assert.equal(singlePage.json?.error?.code, 'invalid_page');
+});
+
+test('receiving status stays with its client while init reaches only the same page', async (t) => {
+  const { url } = await fixture(t, { brain: true });
+  const clientA = await openEvents(url, { clientId: 'lifecycle-a', page: '/' });
+  const clientB = await openEvents(url, { clientId: 'lifecycle-b', page: '/' });
+  const otherPage = await openEvents(url, { clientId: 'lifecycle-c', page: '/other.html' });
+  t.after(() => { clientA.close(); clientB.close(); otherPage.close(); });
+  await Promise.all([clientA.next(), clientB.next(), otherPage.next()]);
+
+  const receiving = startReceivingTurn(url, 'lifecycle-a');
+  receiving.response.catch(() => {});
+  assert.equal((await clientA.next()).state, 'receiving');
+  await Promise.all([noFrame(clientB, 80), noFrame(otherPage, 80)]);
+
+  receiving.req.end('}');
+  const accepted = await receiving.response;
+  const init = await nextFrame(clientB, (frame) => frame.turnId === accepted.json.turnId && frame.state === 'init');
+  assert.equal(init.page, '/');
+  await noMatchingFrame(otherPage, (frame) => frame.turnId === accepted.json.turnId);
+});
+
 test('late terminal frames from turn 1 cannot clear or relabel turn 2', async (t) => {
   const { url, fakeRunner } = await fixture(t);
   await requestJson(url, '/__sandpaper/turn', { body: { page: '/', prompt: 'one' } });
@@ -674,6 +709,29 @@ test('undo consumes its snapshot and restores the original bytes', async (t) => 
   assert.equal(existsSync(join(root, '.sandpaper', 'snapshots', `${accepted.json.turnId}.html`)), false);
   const consumed = await requestJson(url, '/__sandpaper/undo', { body: { turnId: accepted.json.turnId, page: '/' } });
   assert.equal(consumed.status, 404);
+});
+
+test('AI undo binds the snapshot to payload.page and leaves bytes untouched on a cross-page request', async (t) => {
+  const { url, fakeRunner, pageFile, otherFile } = await fixture(t, { brain: true });
+  const original = readFileSync(pageFile, 'utf8');
+  const otherOriginal = readFileSync(otherFile, 'utf8');
+  const accepted = await requestJson(url, '/__sandpaper/turn', { body: { page: '/', prompt: 'change root' } });
+  writeFileSync(pageFile, '<!doctype html><html><body><main data-cid="main">Changed root</main></body></html>');
+  fakeRunner.complete();
+
+  const crossPage = await requestJson(url, '/__sandpaper/undo', {
+    body: { turnId: accepted.json.turnId, page: '/other.html' },
+  });
+  assert.equal(crossPage.status, 409);
+  assert.equal(crossPage.json?.error?.code, 'page_mismatch');
+  assert.notEqual(readFileSync(pageFile, 'utf8'), original);
+  assert.equal(readFileSync(otherFile, 'utf8'), otherOriginal);
+
+  const valid = await requestJson(url, '/__sandpaper/undo', {
+    body: { turnId: accepted.json.turnId, page: '/' },
+  });
+  assert.equal(valid.status, 200);
+  assert.equal(readFileSync(pageFile, 'utf8'), original);
 });
 
 test('third retained turn prunes the oldest snapshot from memory and disk', async (t) => {

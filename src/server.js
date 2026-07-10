@@ -290,7 +290,7 @@ export function createSandpaperServer(target, opts = {}, deps = {}) {
   const listenRetryTimers = new Set();
   const directSnapDir = join(root, '.sandpaper', 'snapshots', 'direct');
   let activeTurn = null;
-  let currentStatus = { type: 'status', state: 'idle', label: 'idle' };
+  const currentStatusByPage = new Map();
   let watcher = null;
   let closed = false;
 
@@ -330,6 +330,21 @@ export function createSandpaperServer(target, opts = {}, deps = {}) {
     }
   };
 
+  const broadcastToClient = (clientId, frame) => {
+    const set = clients.get(clientId);
+    if (!set) return;
+    for (const res of set) if (!writeFrame(res, frame)) removeClient(clientId, res);
+  };
+
+  const broadcastToPage = (page, frame) => {
+    for (const [clientId, set] of clients) {
+      for (const res of set) {
+        if (clientMeta.get(res)?.page !== page) continue;
+        if (!writeFrame(res, frame)) removeClient(clientId, res);
+      }
+    }
+  };
+
   const broadcastReload = (page, exceptClientId = null) => {
     const frame = isDir ? { type: 'reload', page } : { type: 'reload' };
     for (const [clientId, set] of clients) {
@@ -341,16 +356,23 @@ export function createSandpaperServer(target, opts = {}, deps = {}) {
     }
   };
 
-  const setStatus = (frame) => {
-    currentStatus = frame;
-    broadcast(frame);
+  const publishStatus = (frame, { page = frame.page, clientId = null } = {}) => {
+    if (page) {
+      currentStatusByPage.set(page, frame);
+      broadcastToPage(page, frame);
+      return;
+    }
+    if (clientId) broadcastToClient(clientId, frame);
   };
 
   const releaseReceivingTurn = (record) => {
     if (activeTurn !== record || record.phase !== 'receiving') return;
     record.terminal = true;
     activeTurn = null;
-    setStatus({ type: 'status', state: 'idle', label: 'idle' });
+    publishStatus({ type: 'status', state: 'idle', label: 'idle' }, {
+      page: record.page,
+      clientId: record.clientId,
+    });
   };
 
   const takeDirectSnap = (pageFile) => {
@@ -435,14 +457,17 @@ export function createSandpaperServer(target, opts = {}, deps = {}) {
     }
 
     const record = {
-      id: uuid(), page: null, pageFile: null, clientId,
+      id: uuid(), page: isDir ? null : '/', pageFile: null, clientId,
       phase: 'receiving',
       status: { type: 'status', state: 'receiving', label: 'receiving…' },
       beforeHash: null, snapshot: null, reloadPending: false, terminal: false,
       runnerHandle: null,
     };
     activeTurn = record;
-    setStatus({ ...record.status, turnId: record.id, page: record.page, phase: record.phase });
+    publishStatus({ ...record.status, turnId: record.id, page: record.page, phase: record.phase }, {
+      page: record.page,
+      clientId: record.clientId,
+    });
 
     let payload;
     try { payload = await readJson(req, BODY_LIMITS['/__sandpaper/turn']); }
@@ -460,7 +485,9 @@ export function createSandpaperServer(target, opts = {}, deps = {}) {
     record.beforeHash = fileHash(record.pageFile);
     record.phase = 'running';
     record.status = { type: 'status', state: 'init', label: 'starting…' };
-    setStatus({ ...record.status, turnId: record.id, page: record.page, phase: record.phase });
+    publishStatus({ ...record.status, turnId: record.id, page: record.page, phase: record.phase }, {
+      page: record.page,
+    });
 
     try {
       const handle = runner({
@@ -489,7 +516,7 @@ export function createSandpaperServer(target, opts = {}, deps = {}) {
           }
           if (frame.type === 'status') {
             record.status = enriched;
-            setStatus(enriched);
+            publishStatus(enriched, { page: record.page });
           } else {
             broadcast(enriched);
           }
@@ -518,7 +545,7 @@ export function createSandpaperServer(target, opts = {}, deps = {}) {
         changed: record.beforeHash !== fileHash(record.pageFile), undoable: false,
       };
       record.status = terminal;
-      setStatus(terminal);
+      publishStatus(terminal, { page: record.page });
       throw new RequestError(500, 'runner_start_failed', 'Runner could not be started');
     }
 
@@ -529,6 +556,10 @@ export function createSandpaperServer(target, opts = {}, deps = {}) {
     const record = turnSnapshots.get(payload.turnId);
     if (!record || !record.snapshot || !existsSync(record.snapshot)) {
       throw new RequestError(404, 'snapshot_not_found', 'No snapshot exists for that turn');
+    }
+    const pageFile = resolveMutablePage(payload.page);
+    if (pageFile !== record.pageFile) {
+      throw new RequestError(409, 'page_mismatch', 'Snapshot belongs to a different page');
     }
     if (sameActivePage(record.pageFile)) {
       throw new RequestError(409, 'turn_in_progress', 'An AI turn is editing this page');
@@ -631,14 +662,27 @@ export function createSandpaperServer(target, opts = {}, deps = {}) {
         apiFailure(res, invalidOrigin);
         return;
       }
-      const pageFile = resolveUnder(url.searchParams.get('page') || '/', { mutable: true });
-      const page = pageFile && extname(pageFile) === '.html' ? pageForFile(pageFile) : (isDir ? (url.searchParams.get('page') || '/') : '/');
+      const requestedPage = url.searchParams.get('page') || '/';
+      let pageFile;
+      try {
+        if (!isDir && requestedPage !== '/') {
+          throw new RequestError(400, 'invalid_page', 'Unknown or immutable page');
+        }
+        pageFile = resolveMutablePage(requestedPage);
+        if (extname(pageFile) !== '.html') {
+          throw new RequestError(400, 'invalid_page', 'Unknown or immutable page');
+        }
+      } catch (error) {
+        apiFailure(res, error);
+        return;
+      }
+      const page = pageForFile(pageFile);
       res.writeHead(200, {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
         Connection: 'keep-alive',
       });
-      writeFrame(res, currentStatus);
+      writeFrame(res, currentStatusByPage.get(page) || { type: 'status', state: 'idle', label: 'idle' });
       const set = clients.get(clientId) || new Set();
       set.add(res);
       clients.set(clientId, set);
@@ -797,6 +841,7 @@ export function createSandpaperServer(target, opts = {}, deps = {}) {
       try { res.end(); } catch { /* best-effort */ }
     }
     clients.clear();
+    currentStatusByPage.clear();
     if (!server.listening) return Promise.resolve();
     const stopped = new Promise((resolve) => server.close(() => resolve()));
     for (const socket of sockets) socket.destroy();
