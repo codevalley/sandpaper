@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { get as httpGet, request as httpRequest } from 'node:http';
-import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { createServer as createHttpServer, get as httpGet, request as httpRequest } from 'node:http';
+import { copyFileSync, existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
 import { createSandpaperServer } from '../src/server.js';
@@ -16,17 +16,22 @@ const IDS = [
   '00000000-0000-4000-8000-000000000004',
 ];
 
-async function fixture(t, { brain = false, watch, now = () => 1_000 } = {}) {
+async function fixture(t, {
+  brain = false, watch, now = () => 1_000, runner, writeFile, restoreFile,
+} = {}) {
   const repo = makeRepo();
   const fakeRunner = createFakeRunner();
+  const runnerImpl = runner || fakeRunner;
   let uuidIndex = 0;
   const controller = createSandpaperServer(brain ? repo.root : repo.pageFile,
     { brain, snapshotLimit: 2 }, {
-      runner: fakeRunner,
+      runner: runnerImpl,
       uuid: () => IDS[uuidIndex++],
       tokenFactory: () => 'test-token',
       now,
       watch,
+      writeFile,
+      restoreFile,
     });
   const url = await controller.listen();
   t.after(async () => {
@@ -34,6 +39,34 @@ async function fixture(t, { brain = false, watch, now = () => 1_000 } = {}) {
     repo.cleanup();
   });
   return { ...repo, fakeRunner, controller, url };
+}
+
+function controlledTimers() {
+  let nextId = 1;
+  const timers = new Map();
+  return {
+    setTimeout(callback) {
+      const timer = { id: nextId++, callback, cleared: false };
+      timers.set(timer.id, timer);
+      return timer;
+    },
+    clearTimeout(timer) {
+      if (timer) timer.cleared = true;
+    },
+    get size() { return timers.size; },
+    runAll() {
+      for (const timer of timers.values()) timer.callback();
+      timers.clear();
+    },
+  };
+}
+
+async function waitUntil(predicate, timeout = 1_000) {
+  const deadline = Date.now() + timeout;
+  while (!predicate()) {
+    if (Date.now() >= deadline) throw new Error('timed out waiting for condition');
+    await new Promise((resolve) => setImmediate(resolve));
+  }
 }
 
 function controlledWatch() {
@@ -218,6 +251,111 @@ test('SSE auth rejects missing credentials and accepts token with client ID', as
   assert.deepEqual(await events.next(), { type: 'status', state: 'idle', label: 'idle' });
 });
 
+test('SSE origin rejects absent and foreign Origin', async (t) => {
+  const { url } = await fixture(t);
+  for (const origin of [null, 'https://foreign.example']) {
+    const events = await openEvents(url, { origin, clientId: origin === null ? 'missing-origin' : 'foreign-origin' });
+    events.close();
+    assert.equal(events.status, 403);
+    assert.equal(events.json.error.code, 'invalid_origin');
+  }
+});
+
+test('valid JSON requires an object body for turn and direct mutations', async (t) => {
+  const cases = [
+    ['/__sandpaper/turn', null],
+    ['/__sandpaper/turn', []],
+    ['/__sandpaper/turn', 'text'],
+    ['/__sandpaper/turn', 7],
+    ['/__sandpaper/turn', true],
+    ['/__sandpaper/write', null],
+    ['/__sandpaper/write', []],
+    ['/__sandpaper/write', false],
+  ];
+  for (const [path, body] of cases) {
+    await t.test(`${path} rejects ${JSON.stringify(body)}`, async (subtest) => {
+      const { url } = await fixture(subtest);
+      const response = await requestJson(url, path, { body });
+      assert.equal(response.status, 400);
+      assert.equal(response.json.error.code, 'invalid_body');
+    });
+  }
+});
+
+test('turn receiving rejections broadcast retained idle recovery', async (t) => {
+  const cases = [
+    ['malformed', { rawBody: '{' }, 400],
+    ['oversized', { rawBody: JSON.stringify({ pad: 'x'.repeat(1_000_000) }) }, 413],
+    ['invalid page', { body: { page: '/missing.html', prompt: 'nope' } }, 400],
+  ];
+  for (const [name, request, status] of cases) {
+    await t.test(name, async (subtest) => {
+      const { url } = await fixture(subtest);
+      const events = await openEvents(url, { clientId: `${name.replace(' ', '-')}-observer` });
+      subtest.after(() => events.close());
+      await events.next();
+
+      const response = await requestJson(url, '/__sandpaper/turn', request);
+      assert.equal(response.status, status);
+      await nextFrame(events, (frame) => frame.state === 'receiving');
+      assert.deepEqual(await nextFrame(events, (frame) => frame.state === 'idle'), {
+        type: 'status', state: 'idle', label: 'idle',
+      });
+    });
+  }
+
+  await t.test('aborted body', async (subtest) => {
+    const { url } = await fixture(subtest);
+    const events = await openEvents(url, { clientId: 'aborted-observer' });
+    subtest.after(() => events.close());
+    await events.next();
+    const receiving = startReceivingTurn(url);
+    receiving.response.catch(() => {});
+    await nextFrame(events, (frame) => frame.state === 'receiving');
+    receiving.req.destroy();
+    assert.deepEqual(await nextFrame(events, (frame) => frame.state === 'idle'), {
+      type: 'status', state: 'idle', label: 'idle',
+    });
+  });
+});
+
+test('turn runner startup failure broadcasts one terminal error and ignores its late callback', async (t) => {
+  let calls = 0;
+  let lateCallbackRan = false;
+  const runner = ({ onFrame }) => {
+    calls += 1;
+    if (calls === 1) {
+      onFrame({ type: 'status', state: 'thinking', label: 'thinking…' });
+      queueMicrotask(() => {
+        lateCallbackRan = true;
+        onFrame({ type: 'status', state: 'done', label: 'late done', done: true });
+      });
+      throw new Error('startup exploded');
+    }
+    return { killed: false, kill() { this.killed = true; } };
+  };
+  const { url } = await fixture(t, { runner });
+  const events = await openEvents(url, { clientId: 'startup-observer' });
+  t.after(() => events.close());
+  await events.next();
+
+  const failed = await requestJson(url, '/__sandpaper/turn', { body: { page: '/', prompt: 'fail startup' } });
+  assert.equal(failed.status, 500);
+  assert.equal(failed.json.error.code, 'runner_start_failed');
+  const terminal = await nextFrame(events, (frame) => frame.state === 'error');
+  assert.equal(terminal.phase, 'error');
+  assert.equal(terminal.changed, false);
+  assert.equal(terminal.undoable, false);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(lateCallbackRan, true);
+
+  const replay = await openEvents(url, { clientId: 'startup-late-observer' });
+  t.after(() => replay.close());
+  assert.deepEqual(await replay.next(), terminal);
+  const accepted = await requestJson(url, '/__sandpaper/turn', { body: { page: '/', prompt: 'next turn' } });
+  assert.equal(accepted.status, 202);
+});
+
 test('turn reservation accepts exactly one request while the first body is receiving', async (t) => {
   const { url, fakeRunner } = await fixture(t);
   const first = startReceivingTurn(url);
@@ -333,6 +471,44 @@ test('turn controller close terminates a request whose body is still receiving',
   assert.equal(outcome, 'closed');
 });
 
+test('listen close owns pending EADDRINUSE retry and prevents reopen', async (t) => {
+  const blocker = createHttpServer((_req, res) => res.end());
+  await new Promise((resolve, reject) => {
+    blocker.once('error', reject);
+    blocker.listen(0, '127.0.0.1', resolve);
+  });
+  t.after(() => new Promise((resolve) => blocker.close(() => resolve())));
+
+  const repo = makeRepo();
+  t.after(() => repo.cleanup());
+  const watched = controlledWatch();
+  const timers = controlledTimers();
+  const controller = createSandpaperServer(repo.pageFile, {}, {
+    runner: createFakeRunner(),
+    tokenFactory: () => 'test-token',
+    watch: watched.watch,
+    setTimeout: timers.setTimeout,
+    clearTimeout: timers.clearTimeout,
+  });
+  t.after(() => controller.close());
+
+  const occupiedPort = blocker.address().port;
+  const pending = controller.listen(occupiedPort);
+  const observed = pending.then(() => 'resolved', () => 'rejected');
+  await waitUntil(() => timers.size > 0);
+  await controller.close();
+  timers.runAll(); // deliberately invoke even cleared callbacks to prove the closed guard
+  await new Promise((resolve) => setImmediate(resolve));
+  const outcome = await Promise.race([
+    observed,
+    new Promise((resolve) => setTimeout(() => resolve('timed-out'), 100)),
+  ]);
+  const reopened = controller.server.listening;
+  if (reopened) await new Promise((resolve) => controller.server.close(() => resolve()));
+  assert.equal(outcome, 'rejected');
+  assert.equal(reopened, false);
+});
+
 test('turn runner close after result stays terminal, while close without result emits one error', async (t) => {
   assert.equal(runTurn.length, 4, 'runTurn needs a controllable fourth dependency argument');
 
@@ -370,6 +546,50 @@ test('same-page AI and direct undo return 409 during a turn', async (t) => {
   const directUndo = await requestJson(url, '/__sandpaper/undo-direct', { body: { page: '/' } });
   assert.equal(aiUndo.status, 409);
   assert.equal(directUndo.status, 409);
+});
+
+test('direct write restores exact disk bytes when persistence corrupts then throws', async (t) => {
+  const writeFile = (file) => {
+    writeFileSync(file, '<!doctype html><html><body>CORRUPTED</body></html>');
+    throw new Error('disk write failed');
+  };
+  const { url, pageFile } = await fixture(t, { writeFile });
+  const original = readFileSync(pageFile, 'utf8');
+
+  const response = await requestJson(url, '/__sandpaper/write', {
+    body: { page: '/', cid: 'main', html: 'Changed' },
+  });
+  assert.equal(response.status, 500);
+  assert.equal(response.json.error.code, 'write_failed');
+  assert.equal(readFileSync(pageFile, 'utf8'), original);
+
+  const undo = await requestJson(url, '/__sandpaper/undo-direct', { body: { page: '/' } });
+  assert.equal(undo.status, 404);
+});
+
+test('direct write retains its snapshot when immediate restoration also fails', async (t) => {
+  let restorationFails = true;
+  const writeFile = (file) => {
+    writeFileSync(file, '<!doctype html><html><body>CORRUPTED</body></html>');
+    throw new Error('disk write failed');
+  };
+  const restoreFile = (snapshot, pageFile) => {
+    if (restorationFails) throw new Error('restore failed');
+    copyFileSync(snapshot, pageFile);
+  };
+  const { url, pageFile } = await fixture(t, { writeFile, restoreFile });
+  const original = readFileSync(pageFile, 'utf8');
+
+  const response = await requestJson(url, '/__sandpaper/write', {
+    body: { page: '/', cid: 'main', html: 'Changed' },
+  });
+  assert.equal(response.status, 500);
+  assert.notEqual(readFileSync(pageFile, 'utf8'), original);
+
+  restorationFails = false;
+  const recovered = await requestJson(url, '/__sandpaper/undo-direct', { body: { page: '/' } });
+  assert.equal(recovered.status, 200);
+  assert.equal(readFileSync(pageFile, 'utf8'), original);
 });
 
 test('undo consumes its snapshot and restores the original bytes', async (t) => {

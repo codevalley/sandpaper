@@ -50,15 +50,19 @@ export function requestJson(baseUrl, path, {
 }
 
 export function openEvents(baseUrl, {
-  token = 'test-token', clientId = 'client-a', page = '/', headers = {}, timeout = 1_000,
+  token = 'test-token', clientId = 'client-a', page = '/', headers = {},
+  origin = baseUrl.replace(/\/$/, ''), timeout = 1_000,
 } = {}) {
   const url = new URL('/__sandpaper/events', baseUrl);
   if (token !== null) url.searchParams.set('token', token);
   if (clientId !== null) url.searchParams.set('clientId', clientId);
   if (page !== null) url.searchParams.set('page', page);
 
+  const requestHeaders = { ...headers };
+  if (origin !== null) requestHeaders.Origin = origin;
+
   return new Promise((resolve, reject) => {
-    const req = httpRequest(url, { headers }, (res) => {
+    const req = httpRequest(url, { headers: requestHeaders }, (res) => {
       if (res.statusCode !== 200) {
         const chunks = [];
         res.on('data', (chunk) => chunks.push(chunk));

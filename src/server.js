@@ -80,11 +80,18 @@ export function readJson(req, limit) {
         reject(new RequestError(413, 'payload_too_large', `JSON body exceeds ${limit} bytes`));
         return;
       }
+      let payload;
       try {
-        resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')));
+        payload = JSON.parse(Buffer.concat(chunks).toString('utf8'));
       } catch {
         reject(new RequestError(400, 'malformed_json', 'Request body is not valid JSON'));
+        return;
       }
+      if (payload == null || typeof payload !== 'object' || Array.isArray(payload)) {
+        reject(new RequestError(400, 'invalid_body', 'JSON body must be an object'));
+        return;
+      }
+      resolve(payload);
     });
   });
 }
@@ -105,18 +112,8 @@ function loopbackHost(host) {
   }
 }
 
-export function validBrowserRequest(req, token) {
+function invalidBrowserOrigin(req) {
   const host = req.headers.host;
-  if (!loopbackHost(host)) {
-    return new RequestError(403, 'invalid_host', 'Request host must be loopback');
-  }
-  if (!secureEqual(req.headers['x-sandpaper-token'], token)) {
-    return new RequestError(403, 'invalid_token', 'Invalid Sandpaper token');
-  }
-  const clientId = req.headers['x-sandpaper-client'];
-  if (!CLIENT_ID.test(clientId || '')) {
-    return new RequestError(403, 'invalid_client', 'Missing or invalid Sandpaper client ID');
-  }
   const origin = req.headers.origin;
   try {
     const parsed = new URL(origin);
@@ -129,7 +126,23 @@ export function validBrowserRequest(req, token) {
   return null;
 }
 
+export function validBrowserRequest(req, token) {
+  const host = req.headers.host;
+  if (!loopbackHost(host)) {
+    return new RequestError(403, 'invalid_host', 'Request host must be loopback');
+  }
+  if (!secureEqual(req.headers['x-sandpaper-token'], token)) {
+    return new RequestError(403, 'invalid_token', 'Invalid Sandpaper token');
+  }
+  const clientId = req.headers['x-sandpaper-client'];
+  if (!CLIENT_ID.test(clientId || '')) {
+    return new RequestError(403, 'invalid_client', 'Missing or invalid Sandpaper client ID');
+  }
+  return invalidBrowserOrigin(req);
+}
+
 function apiFailure(res, error) {
+  if (res.destroyed || res.writableEnded) return;
   const status = error instanceof RequestError ? error.status : 500;
   const code = error instanceof RequestError ? error.code : 'internal_error';
   const message = error instanceof RequestError ? error.message : 'Internal server error';
@@ -179,6 +192,10 @@ export function createSandpaperServer(target, opts = {}, deps = {}) {
   const snapshotLimit = opts.snapshotLimit || 20;
   const runner = deps.runner || (({ pageFile, prompt, onFrame }) => runTurn(pageFile, prompt, onFrame));
   const watch = deps.watch || watchFiles;
+  const writePage = deps.writeFile || writeFileSync;
+  const restoreFile = deps.restoreFile || copyFileSync;
+  const scheduleRetry = deps.setTimeout || setTimeout;
+  const cancelRetry = deps.clearTimeout || clearTimeout;
 
   const clients = new Map(); // clientId -> Set<ServerResponse>
   const clientMeta = new WeakMap(); // response -> { page }
@@ -186,6 +203,7 @@ export function createSandpaperServer(target, opts = {}, deps = {}) {
   const directSnaps = new Map();
   const expectedWatcherEchoes = new Map(); // page -> { hash, sourceClientId, expiresAt }
   const reloadTimers = new Map(); // page -> debounce timer
+  const listenRetryTimers = new Set();
   const directSnapDir = join(root, '.sandpaper', 'snapshots', 'direct');
   let activeTurn = null;
   let currentStatus = { type: 'status', state: 'idle', label: 'idle' };
@@ -246,8 +264,9 @@ export function createSandpaperServer(target, opts = {}, deps = {}) {
 
   const releaseReceivingTurn = (record) => {
     if (activeTurn !== record || record.phase !== 'receiving') return;
+    record.terminal = true;
     activeTurn = null;
-    currentStatus = { type: 'status', state: 'idle', label: 'idle' };
+    setStatus({ type: 'status', state: 'idle', label: 'idle' });
   };
 
   const takeDirectSnap = (pageFile) => {
@@ -273,9 +292,21 @@ export function createSandpaperServer(target, opts = {}, deps = {}) {
     if (out == null) throw new RequestError(409, 'element_not_found', 'Element was not found');
     if (out === src) return { ok: true, noop: true };
     const snap = takeDirectSnap(pageFile);
-    try { writeFileSync(pageFile, out); }
+    try { writePage(pageFile, out); }
     catch {
-      removeSnapshot(snap);
+      let restored = false;
+      if (snap) {
+        try {
+          restoreFile(snap, pageFile);
+          restored = true;
+        } catch { /* preserve the snapshot below for explicit recovery */ }
+      }
+      if (restored) {
+        directSnaps.delete(pageFile);
+        removeSnapshot(snap);
+      } else if (snap) {
+        directSnaps.set(pageFile, snap);
+      }
       throw new RequestError(500, 'write_failed', 'Page could not be written');
     }
     if (snap) directSnaps.set(pageFile, snap);
@@ -386,10 +417,24 @@ export function createSandpaperServer(target, opts = {}, deps = {}) {
         },
       });
       record.runnerHandle = handle || null;
-    } catch {
+    } catch (error) {
+      if (record.runnerHandle && typeof record.runnerHandle.kill === 'function') {
+        try { record.runnerHandle.kill(); } catch { /* best-effort startup cleanup */ }
+      }
       removeSnapshot(record.snapshot);
       turnSnapshots.delete(record.id);
-      activeTurn = null;
+      record.snapshot = null;
+      record.phase = 'error';
+      record.terminal = true;
+      if (activeTurn === record) activeTurn = null;
+      const terminal = {
+        type: 'status', state: 'error', label: 'runner failed to start',
+        detail: String(error?.message || '').slice(0, 300),
+        turnId: record.id, page: record.page, phase: record.phase,
+        changed: record.beforeHash !== fileHash(record.pageFile), undoable: false,
+      };
+      record.status = terminal;
+      setStatus(terminal);
       throw new RequestError(500, 'runner_start_failed', 'Runner could not be started');
     }
 
@@ -404,7 +449,7 @@ export function createSandpaperServer(target, opts = {}, deps = {}) {
     if (sameActivePage(record.pageFile)) {
       throw new RequestError(409, 'turn_in_progress', 'An AI turn is editing this page');
     }
-    try { copyFileSync(record.snapshot, record.pageFile); }
+    try { restoreFile(record.snapshot, record.pageFile); }
     catch { throw new RequestError(500, 'undo_failed', 'Snapshot could not be restored'); }
     turnSnapshots.delete(record.id);
     removeSnapshot(record.snapshot);
@@ -450,7 +495,7 @@ export function createSandpaperServer(target, opts = {}, deps = {}) {
         }
         const snap = directSnaps.get(pageFile);
         if (!snap || !existsSync(snap)) throw new RequestError(404, 'snapshot_not_found', 'Nothing to undo');
-        try { copyFileSync(snap, pageFile); }
+        try { restoreFile(snap, pageFile); }
         catch { throw new RequestError(500, 'undo_failed', 'Snapshot could not be restored'); }
         directSnaps.delete(pageFile);
         removeSnapshot(snap);
@@ -495,6 +540,11 @@ export function createSandpaperServer(target, opts = {}, deps = {}) {
       const clientId = url.searchParams.get('clientId');
       if (!CLIENT_ID.test(clientId || '')) {
         apiFailure(res, new RequestError(403, 'invalid_client', 'Missing or invalid Sandpaper client ID'));
+        return;
+      }
+      const invalidOrigin = invalidBrowserOrigin(req);
+      if (invalidOrigin) {
+        apiFailure(res, invalidOrigin);
         return;
       }
       const pageFile = resolveUnder(url.searchParams.get('page') || '/', { mutable: true });
@@ -581,23 +631,56 @@ export function createSandpaperServer(target, opts = {}, deps = {}) {
   });
 
   let listeningPromise = null;
+  let rejectPendingListen = null;
+  let listenSettled = false;
+  const closedListenError = () => Object.assign(new Error('Sandpaper server closed before listening'), { code: 'SERVER_CLOSED' });
   const listen = (port = 0) => {
     if (listeningPromise) return listeningPromise;
+    if (closed) return Promise.reject(closedListenError());
     listeningPromise = new Promise((resolve, reject) => {
+      rejectPendingListen = reject;
       let requestedPort = port;
       let attempts = 0;
+      const settleResolve = (value) => {
+        if (listenSettled) return;
+        listenSettled = true;
+        resolve(value);
+      };
+      const settleReject = (error) => {
+        if (listenSettled) return;
+        listenSettled = true;
+        reject(error);
+      };
       const onError = (error) => {
-        if (error.code === 'EADDRINUSE' && requestedPort !== 0 && attempts++ < 50) {
-          requestedPort += 1;
-          setTimeout(() => server.listen(requestedPort, '127.0.0.1'), 0);
+        if (closed) {
+          settleReject(closedListenError());
           return;
         }
-        reject(error);
+        if (error.code === 'EADDRINUSE' && requestedPort !== 0 && attempts++ < 50) {
+          requestedPort += 1;
+          let timer;
+          timer = scheduleRetry(() => {
+            listenRetryTimers.delete(timer);
+            if (closed) {
+              settleReject(closedListenError());
+              return;
+            }
+            server.listen(requestedPort, '127.0.0.1');
+          }, 0);
+          listenRetryTimers.add(timer);
+          return;
+        }
+        settleReject(error);
       };
       server.on('error', onError);
       server.on('listening', () => {
+        if (closed) {
+          server.close(() => {});
+          settleReject(closedListenError());
+          return;
+        }
         const address = server.address();
-        resolve(`http://127.0.0.1:${address.port}/`);
+        settleResolve(`http://127.0.0.1:${address.port}/`);
       });
       server.listen(requestedPort, '127.0.0.1');
     });
@@ -609,6 +692,12 @@ export function createSandpaperServer(target, opts = {}, deps = {}) {
     closed = true;
     if (activeTurn?.runnerHandle && typeof activeTurn.runnerHandle.kill === 'function') {
       try { activeTurn.runnerHandle.kill(); } catch { /* best-effort */ }
+    }
+    for (const timer of listenRetryTimers) cancelRetry(timer);
+    listenRetryTimers.clear();
+    if (!listenSettled && rejectPendingListen) {
+      listenSettled = true;
+      rejectPendingListen(closedListenError());
     }
     try { watcher?.close(); } catch { /* best-effort */ }
     for (const timer of reloadTimers.values()) clearTimeout(timer);
