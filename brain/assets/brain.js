@@ -155,11 +155,21 @@
     })).then(function (sources) {
       var parser = new DOMParser();
       var docs = sources.map(function (source) {
+        if (!source.trim()) throw new Error('brain fact source is empty');
         var parsed = parser.parseFromString(source, 'text/html');
         if (!parsed || !parsed.documentElement) throw new Error('brain fact source did not parse');
         return parsed;
       });
       var planDoc = docs[0], decisionsDoc = docs[1], mapDoc = docs[2], learningsDoc = docs[3];
+      // An HTTP 200 is not enough: error shells and truncated pages parse as HTML too. Require
+      // each canonical source to carry at least one entry of its own kind before deriving any
+      // fact. A legitimately empty/fresh book therefore keeps its stamped zero fallback.
+      if (!planDoc.querySelector('.entry--initiative[data-phase]') || !planDoc.querySelector('.task[data-status]')
+        || !decisionsDoc.querySelector('[data-kind="decision"], [data-kind="question"], .entry--decision, .entry--question')
+        || !mapDoc.querySelector('[data-kind="component"], .entry--component')
+        || !learningsDoc.querySelector('[data-kind="learning"], .entry--learning')) {
+        throw new Error('brain fact source has invalid canonical structure');
+      }
       var taskNodes = Array.prototype.slice.call(planDoc.querySelectorAll('.task[data-status]'));
       var taskDone = taskNodes.filter(function (task) { return task.getAttribute('data-status') === 'done'; }).length;
       var phaseFacts = {};

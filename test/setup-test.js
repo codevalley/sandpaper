@@ -102,6 +102,26 @@ test('inspectBrain accepts a correct populated brain', (t) => {
   assert.deepEqual(result.problems, []);
 });
 
+test('a populated brain without #brain-state is unhealthy', (t) => {
+  const target = populatedBrain(t);
+  const cover = join(target, 'brain/index.html');
+  writeFileSync(cover, readFileSync(cover, 'utf8')
+    .replace(/<script type="application\/json" id="brain-state">[\s\S]*?<\/script>/, ''));
+
+  assert.ok(problemCodes(inspect(target)).includes('missing-digest'));
+
+  const previousExitCode = process.exitCode;
+  const log = console.log;
+  console.log = () => {};
+  try {
+    setup.doctor(target);
+    assert.equal(process.exitCode, 1);
+  } finally {
+    console.log = log;
+    process.exitCode = previousExitCode;
+  }
+});
+
 test('inspectBrain accepts a fresh scaffold as a healthy empty editorial state', (t) => {
   const target = mkdtempSync(join(tmpdir(), 'sandpaper-scaffold-'));
   t.after(() => rmSync(target, { recursive: true, force: true }));
@@ -211,6 +231,17 @@ test('doctor anchor checks require an actual id or name attribute', (t) => {
   write(target, 'docs/spec.html', '<article data-cid="s-real"></article>');
   const cover = join(target, 'brain/index.html');
   writeFileSync(cover, readFileSync(cover, 'utf8').replace('</body>', '<a href="../docs/spec.html#s-real">spec</a></body>'));
+  const problems = setup.checkBrainLinks(target, join(target, 'brain'));
+  assert.ok(problems.some((problem) => problem.reason === 'missing-anchor'));
+});
+
+test('doctor anchor checks ignore id and name attributes inside HTML comments', (t) => {
+  const target = populatedBrain(t);
+  write(target, 'docs/spec.html', '<!-- <article id="comment-only"></article> -->');
+  const cover = join(target, 'brain/index.html');
+  writeFileSync(cover, readFileSync(cover, 'utf8')
+    .replace('</body>', '<a href="../docs/spec.html#comment-only">spec</a></body>'));
+
   const problems = setup.checkBrainLinks(target, join(target, 'brain'));
   assert.ok(problems.some((problem) => problem.reason === 'missing-anchor'));
 });

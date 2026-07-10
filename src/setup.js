@@ -362,10 +362,16 @@ export function inspectBrain(target) {
   if (css && !/@import\s+["']theme\.css/.test(css)) warning('theme-import', 'brain.css does not @import theme.css — re-skins may not propagate');
 
   const cover = readOptional(join(brain, 'index.html'));
+  const logBook = readOptional(join(brain, 'log.html'));
+  const populated = facts.tasks.total || facts.decisions || facts.openQuestions.length
+    || facts.learnings || facts.components.total || entriesByKind(logBook, 'worklog').length;
   if (!cover) problem('missing-cover', 'brain/index.html unreadable');
   const digest = digestFromCover(cover);
   if (digest.error) problem('digest-json', '#brain-state digest is invalid JSON');
-  else if (!digest.value) warning('missing-digest', 'cover has no #brain-state digest');
+  else if (!digest.value) {
+    if (populated) problem('missing-digest', 'populated brain has no #brain-state digest');
+    else warning('missing-digest', 'cover has no #brain-state digest');
+  }
 
   for (const broken of checkBrainLinks(target, brain)) {
     problem('brain-link', `${broken.page}: ${broken.reference} — ${broken.message}`, broken);
@@ -391,11 +397,9 @@ export function inspectBrain(target) {
     warning('missing-source', 'no sandpaper:source meta — detached deploys will dim repository links');
   }
 
-  const populated = facts.tasks.total || facts.decisions || facts.openQuestions.length
-    || facts.learnings || facts.components.total || entriesByKind(readOptional(join(brain, 'log.html')), 'worklog').length;
   if (populated && digest.value) {
     const now = nowFromCover(cover);
-    const latest = newestWorklog(readOptional(join(brain, 'log.html')));
+    const latest = newestWorklog(logBook);
     if (!now) problem('digest-focus', 'populated brain has no stamped NOW entry');
     else {
       if (digest.value.updated !== now.date) problem('digest-updated', 'digest updated date must match NOW date');
@@ -625,7 +629,7 @@ export function checkBrainLinks(target, brain) {
       }
       if (!anchor) continue;
       try {
-        const x = readFileSync(result.file, 'utf8');
+        const x = readFileSync(result.file, 'utf8').replace(/<!--[\s\S]*?(?:-->|$)/g, '');
         const hasAnchor = openingTags(x, (tag) => attr(tag, 'id') === anchor || attr(tag, 'name') === anchor).length > 0;
         if (!hasAnchor) {
           problems.push({ page, reference: hr, reason: 'missing-anchor', message: `anchor #${anchor} not found` });

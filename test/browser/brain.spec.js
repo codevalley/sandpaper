@@ -21,6 +21,19 @@ function shell(body, script = './assets/brain.js') {
   return `<!doctype html><html><body>${body}<script src="${script}" defer></script></body></html>`;
 }
 
+async function expectStampedFallbacks(page) {
+  await expect(page.locator('[data-count="question:open"]')).toHaveText('9');
+  await expect(page.locator('[data-count="decision"]')).toHaveText('9');
+  await expect(page.locator('[data-count="learning"]')).toHaveText('9');
+  await expect(page.locator('[data-count="component:built"]')).toHaveText('9');
+  await expect(page.locator('[data-count="component:total"]')).toHaveText('9');
+  await expect(page.locator('#plan-overall')).toHaveText('9/9 · 100%');
+  await expect(page.locator('[data-phase-label="0"]')).toHaveText('9/9 · 100%');
+  await expect(page.locator('[data-phase-label="2"]')).toHaveText('9/9 · 100%');
+  await expect(page.locator('#row-open')).toBeVisible();
+  await expect(page.locator('#row-resolved')).toBeVisible();
+}
+
 test.beforeEach(async () => {
   repo = mkdtempSync(join(tmpdir(), 'sandpaper-brain-browser-'));
   mkdirSync(join(repo, 'brain/assets'), { recursive: true });
@@ -98,13 +111,7 @@ test('a blocked source fetch leaves every stamped fallback untouched', async ({ 
   await page.route('**/brain/{project/index.html,decisions.html,map.html,learnings.html}', (route) => route.abort('blockedbyclient'));
   await page.goto(new URL('/brain/index.html', baseUrl).href);
 
-  await expect(page.locator('[data-count="question:open"]')).toHaveText('9');
-  await expect(page.locator('[data-count="decision"]')).toHaveText('9');
-  await expect(page.locator('[data-count="learning"]')).toHaveText('9');
-  await expect(page.locator('[data-count="component:built"]')).toHaveText('9');
-  await expect(page.locator('#plan-overall')).toHaveText('9/9 · 100%');
-  await expect(page.locator('[data-phase-label="2"]')).toHaveText('9/9 · 100%');
-  await expect(page.locator('#row-resolved')).toBeVisible();
+  await expectStampedFallbacks(page);
 });
 
 test('a parse failure leaves stamped fallbacks untouched', async ({ page }) => {
@@ -115,9 +122,29 @@ test('a parse failure leaves stamped fallbacks untouched', async ({ page }) => {
   });
   await page.goto(new URL('/brain/index.html', baseUrl).href);
 
-  await expect(page.locator('[data-count="question:open"]')).toHaveText('9');
-  await expect(page.locator('#plan-overall')).toHaveText('9/9 · 100%');
-  await expect(page.locator('#row-resolved')).toBeVisible();
+  await expectStampedFallbacks(page);
+});
+
+test('a blank HTTP-200 decisions page leaves every stamped fallback untouched', async ({ page }) => {
+  await page.route('**/brain/decisions.html', (route) => route.fulfill({
+    status: 200,
+    contentType: 'text/html',
+    body: '',
+  }));
+  await page.goto(new URL('/brain/index.html', baseUrl).href);
+
+  await expectStampedFallbacks(page);
+});
+
+test('an HTTP-200 page with the wrong canonical structure leaves every fallback untouched', async ({ page }) => {
+  await page.route('**/brain/map.html', (route) => route.fulfill({
+    status: 200,
+    contentType: 'text/html',
+    body: '<!doctype html><html><body><article data-kind="decision" data-status="accepted"></article></body></html>',
+  }));
+  await page.goto(new URL('/brain/index.html', baseUrl).href);
+
+  await expectStampedFallbacks(page);
 });
 
 test('plan derivation handles every distinct data-phase', async ({ page }) => {
