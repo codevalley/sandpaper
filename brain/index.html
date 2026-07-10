@@ -14,13 +14,13 @@
 <link rel="stylesheet" href="./assets/brain.css" />
 <!-- BRAIN:DIGEST — machine context for a fresh `claude`: read THIS first (~1KB) to rehydrate. -->
 <script type="application/json" id="brain-state">
-{ "v":1, "project":"Sandpaper", "phase":"Phase 1 · packaging", "updated":"2026-06-30",
-  "session":"S28",
-  "focus":{ "one":"THE RELEASE PIPELINE WORKS — verified end to end. v0.2.0 tag pushed → release.yml ran green FIRST TRY with the owner's new NPM_TOKEN → @nynb/sandpaper@0.2.0 is on npm WITH a verified SLSA provenance attestation → a GitHub Release was cut automatically (which reports immutable:true already). Push needed a MERGE not a rebase — main had drifted via 2 Dependabot squash-merges, and rebasing would have orphaned the already-pushed v0.2.0 tag's commit; merged twice cleanly instead, no conflicts (different files). Found + fixed one real bug live: the changelog-extraction awk step used $0 ~ ver with a hand-escaped bracket pattern through -v, which silently loses backslashes (\\[ isn't a real C-style escape, awk drops it) — v0.2.0's first release notes shipped as a placeholder. Fixed release.yml to use index($0,ver)==1 (literal substring match, no escaping possible) and retroactively corrected the LIVE release via `gh release edit`. Recorded as l-awk-v-escaping. Both Dependabot PRs merged (asked+confirmed first — an earlier unprompted merge attempt was correctly blocked by the permission layer). t-0041 credited. Everything from here forward: /sandpaper:release is a real, working, dogfooded feature.", "ref":"https://github.com/codevalley/sandpaper/releases/tag/v0.2.0" },
-  "worklog":[ {"date":"2026-07-03","one":"THE PIPELINE WORKS: v0.2.0 published for real, provenance verified, GitHub Release cut. Found+fixed an awk changelog-extraction bug (-v backslash-escaping pitfall) and retroactively corrected the live release notes. Both Dependabot PRs merged. t-0041","cid":"w-0209"},
-              {"date":"2026-07-03","one":"Merged both Dependabot PRs (confirmed); cutting v0.2.0 for real via /sandpaper:release (confirmed MINOR bump) to test whether release.yml can now publish with the fresh NPM_TOKEN","cid":"w-0208"},
-              {"date":"2026-07-03","one":"Guided the owner through npm's redesigned token UI (Bypass-2FA checkbox = the old Automation token) for D-018's NPM_TOKEN. Added Vercel Web Analytics to site/ only (script tag, no bundler needed) — deliberately not brain/","cid":"w-0207"} ],
-  "open":["decisions.html#q-anchoring","decisions.html#q-undo","decisions.html#q-billing"],
+{ "v":1, "project":"Sandpaper", "phase":"Phase 1 · packaging", "updated":"2026-07-10",
+  "session":"S30",
+  "focus":{ "one":"v0.2.1 implementation is in t-0043; server safety and lifecycle hardening are first.", "ref":"project/index.html#t-0043" },
+  "worklog":[ {"date":"2026-07-10","one":"Captured the approved stabilization specification and began implementation.","cid":"w-0216"},
+              {"date":"2026-07-10","one":"Approved layered regression tests with a deterministic fake runner.","cid":"w-0215"},
+              {"date":"2026-07-10","one":"Defined the hardened browser and client contract.","cid":"w-0214"} ],
+  "open":["decisions.html#q-anchoring","decisions.html#q-undo","decisions.html#q-billing","decisions.html#q-privacy"],
   "docs":["../sandpaper.html","../engg-spec.html"] }
 </script>
 </head>
@@ -34,7 +34,7 @@
       <div class="shell-state">
         <a href="./log.html">Edition 0.5</a>
         <a class="shell-health" href="../engg-spec.html#s-build" data-cid="health" data-status="green"><span class="dot"></span>Build · Green</a>
-        <a href="./log.html">stamped 07-02</a>
+        <a href="./log.html">stamped 07-10</a>
       </div>
     </div>
     <nav class="shell-rail" aria-label="Lenses">
@@ -49,13 +49,9 @@
   <!-- ZONE A — PLATE: the compact dark NOW "dateline" (where we are) -->
   <!-- BRAIN:EDITION -->
   <header class="plate" data-cid="cover">
-    <div class="pl-meta"><span class="now-tag">Now</span> the build stands at <a href="./project/index.html#i-package">Phase 1 — packaging</a></div>
+    <div class="pl-meta"><span class="now-tag">Now</span> the build stands at <a href="./project/index.html#i-stability">Phase 1 — hardening</a></div>
     <!-- BRAIN:NOW -->
-    <p class="now-line" data-cid="now" data-kind="now" data-ref="https://github.com/codevalley/sandpaper/releases/tag/v0.2.0">
-      <strong>The pipeline works.</strong> <code>v0.2.0</code> published for real, with a verified
-      provenance attestation. <code>/sandpaper:release</code> is now dogfooded, not just built.
-      <a class="ref" href="https://github.com/codevalley/sandpaper/releases/tag/v0.2.0">v0.2.0 →</a>
-    </p>
+    <p class="now-line" id="now" data-cid="now" data-kind="now" data-status="active" data-date="2026-07-10" data-ref="./project/index.html#t-0043"><code>v0.2.1</code> implementation is in <code>t-0043</code>; server safety and lifecycle hardening are first. <a class="ref" href="./project/index.html#t-0043">task →</a></p>
     <!-- /BRAIN:NOW -->
   </header>
   <!-- /BRAIN:EDITION -->
@@ -69,12 +65,71 @@
     <!-- BRAIN:CANVAS — boards prepend here, newest first; .canvas-empty shows when there are none -->
     <!-- the whiteboard: a white container whose CONTENT scrolls inside it; the page scrolls everything else -->
     <div class="whiteboard" data-cid="whiteboard">
-      <article class="board board--live" data-cid="board-0010" data-kind="board" data-date="2026-07-03" data-ref="./decisions.html#d-release-process">
+      <article class="board board--live" id="board-0011" data-cid="board-0011" data-kind="board" data-status="current" data-date="2026-07-10" data-ref="../src/server.js">
         <header class="board-head">
           <span class="board-dot" aria-hidden="true"></span>
-          <h3 class="board-title">Versioning becomes a Sandpaper feature, not a side process</h3>
-          <span class="board-when">07-03 · board 010</span>
+          <h3 class="board-title">Sandpaper as built — two writing loops, one source of truth</h3>
+          <span class="board-when">07-10 · board 011</span>
         </header>
+        <div class="board-body">
+          <p><strong>The repo is a small local runtime wrapped in a much larger product-memory system.</strong>
+            The runtime is real and shipped at <code>v0.2.0</code>; the brain is useful as history and intent,
+            but several of its status surfaces are now behind the code. For current truth, read the source and
+            tests first, then use the brain to recover why the choices were made.</p>
+
+          <div class="pipeline">
+            <div class="pl-node pl-brain"><span class="pl-k">Living brain</span><span class="pl-d">static HTML · 13 agent commands · SessionStart + Stop hooks</span></div>
+            <span class="pl-arrow">+</span>
+            <div class="pl-node pl-canvas"><span class="pl-k">Refine surface</span><span class="pl-d">Sand · Hands · Sling injected into any served HTML page</span></div>
+            <span class="pl-arrow">=</span>
+            <div class="pl-node pl-term"><span class="pl-k">One artifact</span><span class="pl-d">the file on disk remains authoritative throughout</span></div>
+          </div>
+
+          <div class="split">
+            <div class="split-col hot"><span class="split-k">AI writing loop · Sand</span><span class="split-d">toolbar → <code>POST /turn</code> → server snapshots → <code>claude -p --resume</code> → Claude's file tools edit disk → <code>fs.watch</code> → page-scoped SSE reload. Model stdout supplies status, streamed prose and edit cards; it never becomes the document.</span></div>
+            <div class="split-col"><span class="split-k">Direct writing loop · Hands</span><span class="split-d">leaf <code>data-cid</code> contenteditable / sibling drag / delete → <code>/write</code> or <code>/dom</code> → lexical splice in <code>edit.js</code> → disk. No model call; one pre-edit snapshot powers direct undo.</span></div>
+          </div>
+
+          <table class="tbl">
+            <tr><th>State</th><th>What the code actually supports</th></tr>
+            <tr><td class="m"><span class="badge done">shipped</span></td><td>File/folder serving; toolbar injection; resumed on-page Claude conversation; streamed text/thinking/cost/edit cards; click scope; AI undo; text/move/delete direct edits + direct undo; Sling; brain scaffold/install/upgrade/rebuild/doctor/open; detached-link resolver; canvas; CI and tag-triggered npm release.</td></tr>
+            <tr><td class="m"><span class="badge wip">partial</span></td><td><code>waiting</code> exists only as a reserved UI state; durable anchoring is still a prompt contract; direct manipulation is pointer-first; <code>doctor</code> checks structure but not publish privacy or source-package correctness.</td></tr>
+            <tr><td class="m"><span class="badge stub">not built</span></td><td>Screenshot paste, one-click refine presets, branch-and-compare, threaded annotations, a long-lived model process, Next/React-project editing, keyboard/touch reorder-delete, and stats.</td></tr>
+            <tr><td class="m"><span class="badge verified">verified now</span></td><td><code>npm test</code>, shipped-script syntax checks, <code>verify-publish</code> (33 files · 222 KB), <code>doctor</code>, a fresh scaffold/install smoke test, and live HTTP checks for injection, SSE idle, and traversal rejection all passed. No live billable Claude turn was run.</td></tr>
+          </table>
+
+          <div class="callout warn" style="margin-top:13px">
+            <div class="eyebrow">The brain is not current state today</div>
+            <p>Before this roadmap extension the plan derived to <strong>39/45 tasks done (87%)</strong>; it now also tracks the stabilization and provider releases. The cover still says Phase 1 is 50%, 3 open questions and 13 decisions; the ledgers contain 4 and 19. It still calls undo open and drag/delete “next,” although both ship. All 13 pages also carry <code>data-pkg="sandpaper"</code> while <code>package.json</code> is <code>@nynb/sandpaper</code>, so the resolver falsely treats a whole-repo serve as detached; <code>doctor</code> misses that mismatch. The live board this one demotes also says CI cannot publish, even though <code>v0.2.0</code> did.</p>
+          </div>
+
+          <div class="split">
+            <div class="split-col"><span class="split-k">Trustworthy boundaries</span><span class="split-d">Loopback bind, lexical + symlink traversal guards, explicit <code>.git</code> denial, constrained Claude tool types, XSS-safe model Markdown, server-owned undo mapping, synchronous direct edits, and a package-content/secret envelope in CI.</span></div>
+            <div class="split-col hot"><span class="split-k">Watch before extending</span><span class="split-d">The local server serves every non-<code>.git</code> file under its root — including dotfiles — and mutation routes have no Origin/auth check. The single-turn guard has a request-body race. A <code>409</code> turn rejection is dropped by the toolbar and can leave “Sending…” stuck. Current tests are pure/unit-level: no HTTP, watcher, multi-window, browser/a11y, setup, hook, or live-model coverage.</span></div>
+          </div>
+
+          <p><strong>Small verified UI defects:</strong> <code>.sp-del</code> styles both deleted diff rows and the Hands delete button; brain search adds <code>.hidden</code> to timeline rows but CSS hides only <code>.entry.hidden</code>; and Pick can be enabled while Hands remains active. These are local fixes. The architectural choices to preserve are the disk invariant, the plumbing/intelligence split, and <code>data-cid</code> as the cross-layer address.</p>
+
+          <div class="handoff">
+            <div class="ho-step"><span class="ho-n">1</span><div><b>Read first</b><span><code>README.md</code> for the shipped product; then <code>bin/cli.js → src/server.js → src/claude.js</code>; then <code>public/toolbar.js + src/edit.js</code>; finally <code>src/setup.js</code> and the agent commands.</span></div></div>
+            <div class="ho-step"><span class="ho-n">2</span><div><b>Treat as historical</b><span><code>sandpaper.html</code> and <code>engg-spec.html</code> are valuable P0 design records, not accurate build sheets. The wiki mirrors much of that snapshot.</span></div></div>
+            <div class="ho-step"><span class="ho-n">3</span><div><b>Highest-leverage follow-up</b><span>Run a real brain sync: refresh digest/counts/map/wiki, resolve undo/Hands drift, mark screenshot honestly, refresh all source meta, and add tests around the HTTP/concurrency boundary before widening the feature set.</span></div></div>
+          </div>
+        </div>
+        <footer class="board-foot">
+          <span class="board-tag">codebase audit · board 011 · source reconciled</span>
+          <span><a class="ref" href="../src/server.js">runtime →</a> · <a class="ref" href="./project/index.html">plan →</a> · <a class="ref" href="../README.md">shipped surface →</a></span>
+        </footer>
+      </article>
+
+    </div>
+
+    <!-- Earlier: below the whiteboard, in normal page flow; the stack caps at 5, oldest falls away -->
+    <div class="canvas-earlier" data-cid="canvas-earlier">
+      <div class="earlier-label">Earlier <span class="n">· 4</span></div>
+
+      <details class="board board--past" id="board-0010" data-cid="board-0010" data-kind="board" data-status="past" data-date="2026-07-03" data-ref="./decisions.html#d-release-process">
+        <summary class="board-row"><span class="board-row-dot" aria-hidden="true"></span><span class="board-row-when">07-03 · 010</span><span class="board-row-title">Versioning becomes a Sandpaper feature, not a side process</span><span class="board-row-chev" aria-hidden="true">›</span></summary>
         <div class="board-body">
           <p>Auto-deploy is confirmed (<a class="ref" href="./project/index.html#t-0034">t-0034</a> done — a
             plain push lit up both Vercel projects, no manual <code>vercel deploy</code>). With shipping now
@@ -97,13 +152,7 @@
           <span class="board-tag">dogfood · board 010 · release pipeline</span>
           <a class="ref" href="./decisions.html#d-release-process">D-018 →</a>
         </footer>
-      </article>
-
-    </div>
-
-    <!-- Earlier: below the whiteboard, in normal page flow; the stack caps at 5, oldest falls away -->
-    <div class="canvas-earlier" data-cid="canvas-earlier">
-      <div class="earlier-label">Earlier <span class="n">· 4</span></div>
+      </details>
 
       <details class="board board--past" data-cid="board-0009" data-kind="board" data-date="2026-07-02" data-ref="./log.html#w-0198">
         <summary class="board-row"><span class="board-row-dot" aria-hidden="true"></span><span class="board-row-when">07-02 · 009</span><span class="board-row-title">Shipped — sandpaper.sh is live, and so is this page</span><span class="board-row-chev" aria-hidden="true">›</span></summary>
@@ -153,24 +202,6 @@
           <a class="ref" href="./decisions.html#d-resolver">D-014 →</a>
         </footer>
       </details>
-
-      <details class="board board--past" data-cid="board-0006" data-kind="board" data-date="2026-07-01" data-ref="decisions.html#d-ssot">
-        <summary class="board-row"><span class="board-row-dot" aria-hidden="true"></span><span class="board-row-when">07-01 · 006</span><span class="board-row-title">The brain links outside itself — on purpose</span><span class="board-row-chev" aria-hidden="true">›</span></summary>
-        <div class="board-body">
-          <p>The out-links aren't sloppiness — they're the <strong>spine</strong>. Sandpaper's one rule is
-            <em>link, never copy</em>: the brain is a thin index <em>over</em> canonical truth (the spec, the
-            source), never a second copy of it. Copy the content in and it drifts the moment the code changes.</p>
-          <p>They only break when <code>brain/</code> is served <em>detached</em> from its repo (a
-            subfolder-only deploy). <em>Partly superseded by board 007:</em> the fix moved from a publish
-            <em>step</em> to a runtime resolver — the owner pushed back on “publishable only after a build,”
-            and the adversarial panel proved them right.</p>
-        </div>
-        <footer class="board-foot">
-          <span class="board-tag">dogfood · board 006 · link-never-copy</span>
-          <a class="ref" href="./decisions.html#d-ssot">d-ssot →</a>
-        </footer>
-      </details>
-
 
     </div><!-- /.canvas-earlier -->
     <!-- /BRAIN:CANVAS -->
@@ -234,6 +265,11 @@
   <section class="zone" data-cid="s-log">
     <div class="eyebrow">Latest <span id="brain-unseen" class="badge open" hidden></span></div>
     <ol class="timeline" data-cid="logfeed">
+      <li class="entry entry--worklog" data-kind="worklog" id="w-0216" data-cid="w-0216" data-status="active" data-date="2026-07-10" data-ref="../docs/superpowers/specs/2026-07-10-v0.2.1-stabilization-design.md"><span class="log-when">07-10</span><span class="log-what">Captured the approved stabilization specification and began implementation.</span><span class="log-link"><a class="ref" href="../docs/superpowers/specs/2026-07-10-v0.2.1-stabilization-design.md">spec →</a></span></li>
+      <li class="entry entry--worklog" data-kind="worklog" id="w-0215" data-cid="w-0215" data-status="active" data-date="2026-07-10" data-ref="./decisions.html#d-layered-test-architecture"><span class="log-when">07-10</span><span class="log-what">Approved layered regression tests with a deterministic fake runner.</span><span class="log-link"><a class="ref" href="./decisions.html#d-layered-test-architecture">D-024 →</a></span></li>
+      <li class="entry entry--worklog" data-kind="worklog" id="w-0214" data-cid="w-0214" data-status="active" data-date="2026-07-10" data-ref="./decisions.html#d-browser-contract"><span class="log-when">07-10</span><span class="log-what">Defined the hardened browser and client contract.</span><span class="log-link"><a class="ref" href="./decisions.html#d-browser-contract">D-023 →</a></span></li>
+      <li class="entry entry--worklog" data-kind="worklog" id="w-0211" data-cid="w-0211" data-status="active" data-date="2026-07-10" data-ref="./decisions.html#d-safe-repo-serving"><span class="log-when">07-10</span><span class="log-what">Preserved repo-root links while closing secret-path exposure.</span><span class="log-link"><a class="ref" href="./decisions.html#d-safe-repo-serving">D-020 →</a></span></li>
+      <li class="entry entry--worklog" data-kind="worklog" id="w-0210" data-cid="w-0210" data-status="active" data-date="2026-07-10" data-ref="./project/index.html#i-stability"><span class="log-when">07-10</span><span class="log-what">Scoped stabilization and first-class providers inside Phase 1.</span><span class="log-link"><a class="ref" href="./project/index.html#i-stability">plan →</a></span></li>
       <li data-kind="worklog" data-cid="w-0209"><div class="tl-row"><span class="tl-when">07-03</span><span class="tl-what"><strong>The pipeline works</strong> — <code>v0.2.0</code> published for real with a verified SLSA provenance attestation; a GitHub Release cut automatically. Found + fixed a changelog-extraction <code>awk</code> bug along the way, live.</span><span class="tl-link"><a class="ref" href="https://github.com/codevalley/sandpaper/releases/tag/v0.2.0">v0.2.0 →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0201"><div class="tl-row"><span class="tl-when">07-02</span><span class="tl-what">Plan <strong>audit</strong> — Phase 1 was underreporting shipped work (three stale todos + uncredited D-015): 55% → <strong>71%</strong>, overall 33/40 · 83%. Landing stats trued up.</span><span class="tl-link"><a class="ref" href="./project/index.html">the plan →</a></span></div></li>
       <li data-kind="worklog" data-cid="w-0197"><div class="tl-row"><span class="tl-when">07-02</span><span class="tl-what">Re-did the brain skin <strong>properly</strong> after the 2/10 verdict — <em>white sheet on a gridded drafting table</em>, condensed display voice, outlined badges, square nodes; 2-critic panel: <strong>7.5–8/10</strong>, punch list applied. Uncommitted, awaiting verdict.</span><span class="tl-link"><a class="ref" href="./assets/brain.css">brain.css →</a></span></div></li>

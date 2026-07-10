@@ -33,7 +33,7 @@
   </div>
 
   <section class="zone flush">
-    <div class="eyebrow">Project · the plan <span class="mono" style="font-size:11px">· session S09</span></div>
+    <div class="eyebrow">Project · the plan <span class="mono" style="font-size:11px">· session S29</span></div>
     <h1 style="font-size:30px;letter-spacing:-.02em;margin:6px 0 2px">Where the work stands</h1>
     <p class="muted" style="max-width:40em">Initiatives → tasks → done. Progress is computed from task status — never typed. This board tracks <strong>building Sandpaper, in Sandpaper</strong>.</p>
     <div class="plan-overall">Overall <span class="track"><i id="plan-overall-bar"></i></span> <span id="plan-overall">—</span></div>
@@ -141,6 +141,27 @@
       <div class="ini-head"><span class="entry-id">H</span><h3>Stats <span class="muted" style="font-weight:400;font-size:.8em">· low prio</span></h3><span class="ini-rung">reach</span><span class="badge" data-rollup>—</span><span class="ini-bar"><span class="track" data-progress><i></i></span><span data-progress-label>—</span></span></div>
       <ol class="tasks">
         <li class="task" data-kind="task" data-initiative="i-stats" data-status="todo" id="t-0022"><span class="sdot idle"></span><span class="t-what">A static stamped table (usage · tokens · commits) — no live analytics</span></li>
+      </ol>
+    </article>
+
+    <article class="entry entry--initiative" data-kind="initiative" data-lens="project" data-phase="1" id="i-stability" data-cid="i-stability" data-rung="reach" data-status="active" data-date="2026-07-10" data-ref="../decisions.html#d-stabilize-before-codex" data-tags="stabilization v0.2.1 audit hardening drift tests release">
+      <div class="ini-head"><span class="entry-id">I</span><h3><code>v0.2.1</code> — truth + safety sweep</h3><span class="ini-rung">reach</span><span class="badge" data-rollup>—</span><span class="ini-bar"><span class="track" data-progress><i></i></span><span data-progress-label>—</span></span></div>
+      <ol class="tasks">
+        <li class="task" data-kind="task" data-initiative="i-stability" data-status="done" data-session="S29" id="t-0042"><span class="sdot done"></span><span class="t-what">Design and approve the risk-based <code>v0.2.1</code> stabilization sweep</span><span class="t-sess">S29</span></li>
+        <li class="task" data-kind="task" data-initiative="i-stability" data-status="doing" data-session="S30" id="t-0043"><span class="sdot wip"></span><span class="t-what">Implement verified server, trust-boundary, concurrency, session, and reload hardening</span><span class="t-sess">S30</span></li>
+        <li class="task" data-kind="task" data-initiative="i-stability" data-status="todo" id="t-0044"><span class="sdot idle"></span><span class="t-what">Make toolbar/direct/undo state truthful and fix the verified UI regressions</span></li>
+        <li class="task" data-kind="task" data-initiative="i-stability" data-status="todo" id="t-0045"><span class="sdot idle"></span><span class="t-what">Reconcile brain/docs/resolver/doctor and complete self-derived cover state (<code>t-0028</code>)</span></li>
+        <li class="task" data-kind="task" data-initiative="i-stability" data-status="todo" id="t-0046"><span class="sdot idle"></span><span class="t-what">Add regression integration coverage for server, SSE, setup, undo, and fixed failure paths</span></li>
+        <li class="task" data-kind="task" data-initiative="i-stability" data-status="todo" id="t-0047"><span class="sdot idle"></span><span class="t-what">Verify, stamp, version, and release <code>v0.2.1</code></span></li>
+      </ol>
+    </article>
+
+    <article class="entry entry--initiative" data-kind="initiative" data-lens="project" data-phase="1" id="i-providers" data-cid="i-providers" data-rung="reach" data-status="planned" data-date="2026-07-10" data-ref="../decisions.html#d-stabilize-before-codex" data-tags="providers codex claude first-class v0.3.0 compatibility install toolbar docs release">
+      <div class="ini-head"><span class="entry-id">J</span><h3><code>v0.3.0</code> — Claude + Codex, first-class</h3><span class="ini-rung">reach</span><span class="badge" data-rollup>—</span><span class="ini-bar"><span class="track" data-progress><i></i></span><span data-progress-label>—</span></span></div>
+      <ol class="tasks">
+        <li class="task" data-kind="task" data-initiative="i-providers" data-status="todo" id="t-0048"><span class="sdot idle"></span><span class="t-what">Design and approve the provider-neutral Claude + Codex contract</span></li>
+        <li class="task" data-kind="task" data-initiative="i-providers" data-status="todo" id="t-0049"><span class="sdot idle"></span><span class="t-what">Implement provider choice, runners, install/hooks, toolbar identity, and documentation</span></li>
+        <li class="task" data-kind="task" data-initiative="i-providers" data-status="todo" id="t-0050"><span class="sdot idle"></span><span class="t-what">Verify both providers, stamp, version, and release <code>v0.3.0</code></span></li>
       </ol>
     </article>
 

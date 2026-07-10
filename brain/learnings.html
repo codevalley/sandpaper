@@ -44,6 +44,16 @@
   </section>
 
   <section class="zone flush col">
+    <aside class="entry entry--learning callout gotcha" data-kind="learning" data-lens="engineering" id="l-doctor-file-refs" data-cid="l-doctor-file-refs" data-status="active" data-date="2026-07-10" data-ref="../src/setup.js" data-area="brain" data-tags="doctor internal links directory refs index html canonical stamp">
+      <div class="eyebrow">▲ Gotcha · brain</div>
+      <p><strong>A trailing-slash brain reference means “this directory has an <code>index.html</code>,” not merely “this directory exists.”</strong> Point canonical citations at an existing file when a source folder has no index, or <code>doctor</code> correctly rejects both the <code>data-ref</code> and visible link. <a class="ref" href="../src/setup.js">link check →</a></p>
+    </aside>
+
+    <aside class="entry entry--learning callout gotcha" data-kind="learning" data-lens="engineering" id="l-hidden-serving-boundary" data-cid="l-hidden-serving-boundary" data-status="active" data-date="2026-07-10" data-ref="./decisions.html#d-safe-repo-serving" data-area="security" data-tags="dotfiles github repo-root serving secrets link-never-copy allowlist doctor">
+      <div class="eyebrow">▲ Gotcha · security</div>
+      <p><strong>“Block every dot-directory” breaks the brain’s legitimate link to <code>.github/workflows/release.yml</code>.</strong> Repo-root serving exists to preserve link-never-copy; protect it with explicit secret/runtime denies, narrow safe-hidden allowances, and a doctor check for future blocked refs. <a class="ref" href="./decisions.html#d-safe-repo-serving">D-020 →</a></p>
+    </aside>
+
     <aside class="entry entry--learning callout gotcha" data-kind="learning" data-lens="engineering" id="l-awk-v-escaping" data-cid="l-awk-v-escaping" data-status="active" data-date="2026-07-03" data-area="ci" data-tags="awk shell escaping regex github-actions release-notes bug index substring changelog">
       <div class="eyebrow">▲ Gotcha · ci</div>
       <p><strong><code>awk -v ver="\\[X\\]"</code> silently loses the backslashes — <code>-v</code> assignment applies its own C-style escape processing, and <code>\[</code> isn't a real escape, so awk just drops the backslash.</strong> <code>release.yml</code>'s changelog-extraction step used <code>$0 ~ ver</code> with a hand-escaped bracket pattern passed through <code>-v</code> — it silently never matched, and <code>v0.2.0</code>'s first GitHub Release shipped with a "no changelog entry found" placeholder instead of the real notes (caught after the fact, fixed retroactively via <code>gh release edit</code>). The robust fix: skip regex escaping entirely — <code>index($0, ver) == 1</code> does a literal substring match, no <code>-v</code> escaping pitfalls possible. <a class="ref" href="../.github/workflows/release.yml">release.yml →</a></p>
