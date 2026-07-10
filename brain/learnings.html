@@ -44,6 +44,11 @@
   </section>
 
   <section class="zone flush col">
+    <aside class="entry entry--learning callout gotcha" data-kind="learning" data-lens="engineering" id="l-page-boundary" data-cid="l-page-boundary" data-status="active" data-date="2026-07-10" data-ref="../engg-spec.html#s-protocol" data-area="security" data-tags="page binding undo lifecycle sse traversal encoded paths snapshots">
+      <div class="eyebrow">▲ Gotcha · page boundary</div>
+      <p><strong>A turn ID is not a page identity, and URL normalization is not a traversal policy.</strong> Bind undo and lifecycle frames to the canonical page before consuming snapshots or broadcasting status; inspect the raw path before URL parsing so encoded <code>/</code> and <code>\\</code> separators cannot hide <code>..</code> segments. <a class="ref" href="../engg-spec.html#s-protocol">protocol →</a></p>
+    </aside>
+
     <aside class="entry entry--learning callout gotcha" data-kind="learning" data-lens="engineering" id="l-eventsource-origin" data-cid="l-eventsource-origin" data-status="active" data-date="2026-07-10" data-ref="./decisions.html#d-browser-contract" data-area="browser" data-tags="eventsource origin sec-fetch-site referer same-origin chromium sse auth">
       <div class="eyebrow">▲ Gotcha · browser</div>
       <p><strong>Chromium omits <code>Origin</code> on a native same-origin <code>EventSource</code> request.</strong> Preserve SSE origin proof by accepting only <code>Sec-Fetch-Site: same-origin</code> with an exact matching loopback <code>Referer</code> when <code>Origin</code> is absent; foreign, malformed, incomplete, or host-mismatched metadata still fails. <a class="ref" href="./decisions.html#d-browser-contract">browser contract →</a></p>
