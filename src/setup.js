@@ -201,43 +201,292 @@ export function scaffold(target, pkg) {
   nextStep();
 }
 
-// ---- doctor: health-check a Sandpaper setup ----
+function readOptional(file) {
+  try { return readFileSync(file, 'utf8'); } catch { return ''; }
+}
+
+function attr(tag, name) {
+  const match = tag.match(new RegExp(`(?:^|\\s)${name}\\s*=\\s*(["'])(.*?)\\1`, 'i'));
+  return match ? match[2] : '';
+}
+
+function openingTags(html, predicate) {
+  return Array.from(html.matchAll(/<[a-z][^>]*>/gi), (match) => match[0]).filter(predicate);
+}
+
+function hasClass(tag, name) {
+  return (` ${attr(tag, 'class')} `).includes(` ${name} `);
+}
+
+function entriesByKind(html, kind) {
+  return openingTags(html, (tag) => attr(tag, 'data-kind') === kind
+    || hasClass(tag, `entry--${kind}`)
+    || (kind === 'component' && hasClass(tag, 'component')));
+}
+
+function decodeText(value) {
+  return String(value || '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function normalizeRef(ref) {
+  return String(ref || '').replace(/^\.\//, '').replace(/\/\.\//g, '/');
+}
+
+function progress(done, total) {
+  return `${done}/${total} · ${total ? Math.round(done / total * 100) : 0}%`;
+}
+
+// Mechanical brain facts come only from canonical entries. They deliberately do not read
+// cover counters or progress labels, so doctor can use them to detect stale fallbacks.
+export function deriveBrainFacts(target) {
+  const brain = join(target, 'brain');
+  const plan = readOptional(join(brain, 'project', 'index.html'));
+  const decisionBook = readOptional(join(brain, 'decisions.html'));
+  const learningBook = readOptional(join(brain, 'learnings.html'));
+  const map = readOptional(join(brain, 'map.html'));
+
+  const taskTags = openingTags(plan, (tag) => hasClass(tag, 'task') && !!attr(tag, 'data-status'));
+  const tasks = {
+    done: taskTags.filter((tag) => attr(tag, 'data-status') === 'done').length,
+    total: taskTags.length,
+  };
+  const phases = {};
+  for (const match of plan.matchAll(/<article\b([^>]*\bentry--initiative\b[^>]*)>([\s\S]*?)<\/article>/gi)) {
+    const phase = attr(`<article ${match[1]}>`, 'data-phase');
+    if (!phase) continue;
+    const phaseTasks = openingTags(match[2], (tag) => hasClass(tag, 'task') && !!attr(tag, 'data-status'));
+    const current = phases[phase] || { done: 0, total: 0 };
+    current.done += phaseTasks.filter((tag) => attr(tag, 'data-status') === 'done').length;
+    current.total += phaseTasks.length;
+    phases[phase] = current;
+  }
+
+  const decisions = entriesByKind(decisionBook, 'decision')
+    .filter((tag) => attr(tag, 'data-status') === 'accepted').length;
+  const openQuestions = entriesByKind(decisionBook, 'question')
+    .filter((tag) => attr(tag, 'data-status') === 'open')
+    .map((tag) => attr(tag, 'id') || attr(tag, 'data-cid'))
+    .filter(Boolean);
+  const learnings = entriesByKind(learningBook, 'learning').length;
+  const componentTags = entriesByKind(map, 'component');
+  const components = {
+    built: componentTags.filter((tag) => ['built', 'verified'].includes(attr(tag, 'data-status'))).length,
+    total: componentTags.length,
+  };
+  return { tasks, phases, decisions, openQuestions, learnings, components };
+}
+
+function sourceMeta(html) {
+  const tag = openingTags(html, (candidate) => attr(candidate, 'name') === 'sandpaper:source')[0];
+  return tag ? { url: attr(tag, 'content'), pkg: attr(tag, 'data-pkg') } : null;
+}
+
+function fallbackNumber(html, key) {
+  const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = html.match(new RegExp(`<[^>]*data-count=["']${escaped}["'][^>]*>\\s*(\\d+)`, 'i'));
+  return match ? Number(match[1]) : null;
+}
+
+function fallbackProgress(html, selector) {
+  const tag = openingTags(html, (candidate) => attr(candidate, 'id') === selector)[0];
+  if (!tag) return null;
+  const start = html.indexOf(tag) + tag.length;
+  const end = html.indexOf('</', start);
+  return decodeText(html.slice(start, end < 0 ? start : end));
+}
+
+function fallbackPhaseProgress(html, phase) {
+  const tag = openingTags(html, (candidate) => attr(candidate, 'data-phase-label') === phase)[0];
+  if (!tag) return null;
+  const start = html.indexOf(tag) + tag.length;
+  const end = html.indexOf('</', start);
+  return decodeText(html.slice(start, end < 0 ? start : end));
+}
+
+function digestFromCover(cover) {
+  const match = cover.match(/<script\b[^>]*\bid=["']brain-state["'][^>]*>([\s\S]*?)<\/script>/i);
+  if (!match) return { value: null, error: null };
+  try { return { value: JSON.parse(match[1]), error: null }; }
+  catch (error) { return { value: null, error }; }
+}
+
+function nowFromCover(cover) {
+  const match = cover.match(/<([a-z]+)\b([^>]*(?:\bclass=["'][^"']*\bnow-line\b[^"']*["']|\bid=["']now["'])[^>]*)>([\s\S]*?)<\/\1>/i);
+  if (!match) return null;
+  const tag = `<${match[1]} ${match[2]}>`;
+  const withoutLinks = match[3].replace(/<a\b[\s\S]*?<\/a>/gi, '');
+  return {
+    date: attr(tag, 'data-date'),
+    ref: attr(tag, 'data-ref'),
+    text: decodeText(withoutLinks),
+  };
+}
+
+function newestWorklog(logBook) {
+  const match = logBook.match(/<li\b([^>]*(?:\bentry--worklog\b|\bdata-kind=["']worklog["'])[^>]*)>([\s\S]*?)<\/li>/i);
+  if (!match) return null;
+  const tag = `<li ${match[1]}>`;
+  const summary = (match[2].match(/<[^>]*\bclass=["'][^"']*\blog-what\b[^"']*["'][^>]*>([\s\S]*?)<\//i) || [])[1];
+  return {
+    cid: attr(tag, 'data-cid') || attr(tag, 'id'),
+    date: attr(tag, 'data-date'),
+    text: decodeText(summary == null ? match[2] : summary),
+  };
+}
+
+export function inspectBrain(target) {
+  const brain = join(target, 'brain');
+  const problems = [];
+  const warnings = [];
+  const facts = deriveBrainFacts(target);
+  const problem = (code, message, details = {}) => problems.push({ code, message, ...details });
+  const warning = (code, message) => warnings.push({ code, message });
+
+  if (!existsSync(brain)) {
+    problem('missing-brain', 'no brain/ — run `npx sandpaper init` (then /sandpaper:init)');
+    return { problems, warnings, facts };
+  }
+  for (const asset of ['theme.css', 'brain.css', 'brain.js']) {
+    if (!existsSync(join(brain, 'assets', asset))) problem('missing-asset', `missing assets/${asset}`, { asset });
+  }
+  const css = readOptional(join(brain, 'assets', 'brain.css'));
+  if (css && !/@import\s+["']theme\.css/.test(css)) warning('theme-import', 'brain.css does not @import theme.css — re-skins may not propagate');
+
+  const cover = readOptional(join(brain, 'index.html'));
+  if (!cover) problem('missing-cover', 'brain/index.html unreadable');
+  const digest = digestFromCover(cover);
+  if (digest.error) problem('digest-json', '#brain-state digest is invalid JSON');
+  else if (!digest.value) warning('missing-digest', 'cover has no #brain-state digest');
+
+  for (const broken of checkBrainLinks(target, brain)) {
+    problem('brain-link', `${broken.page}: ${broken.reference} — ${broken.message}`, broken);
+  }
+
+  const expectedSource = repoSource(target);
+  const pages = htmlPages(brain);
+  for (const file of pages) {
+    const relativePage = relative(target, file).split(sep).join('/');
+    const actual = sourceMeta(readOptional(file));
+    if (!expectedSource) {
+      if (actual) problem('source-url', `${relativePage}: source metadata exists but the repository has no source URL`, { page: relativePage });
+      continue;
+    }
+    if (!actual || actual.url !== expectedSource.base) {
+      problem('source-url', `${relativePage}: sandpaper:source must match repoSource()`, { page: relativePage });
+    }
+    if (!actual || actual.pkg !== expectedSource.pkg) {
+      problem('source-package', `${relativePage}: data-pkg must match package.json`, { page: relativePage });
+    }
+  }
+  if (!expectedSource && pages.every((file) => !sourceMeta(readOptional(file)))) {
+    warning('missing-source', 'no sandpaper:source meta — detached deploys will dim repository links');
+  }
+
+  const populated = facts.tasks.total || facts.decisions || facts.openQuestions.length
+    || facts.learnings || facts.components.total || entriesByKind(readOptional(join(brain, 'log.html')), 'worklog').length;
+  if (populated && digest.value) {
+    const now = nowFromCover(cover);
+    const latest = newestWorklog(readOptional(join(brain, 'log.html')));
+    if (!now) problem('digest-focus', 'populated brain has no stamped NOW entry');
+    else {
+      if (digest.value.updated !== now.date) problem('digest-updated', 'digest updated date must match NOW date');
+      if (normalizeRef(digest.value.focus && digest.value.focus.ref) !== normalizeRef(now.ref)
+        || decodeText(digest.value.focus && digest.value.focus.one) !== now.text) {
+        problem('digest-focus', 'digest focus must match the stamped NOW sentence and reference');
+      }
+    }
+    if (latest) {
+      const stamped = Array.isArray(digest.value.worklog) ? digest.value.worklog[0] : null;
+      if (!stamped || stamped.cid !== latest.cid || stamped.date !== latest.date || decodeText(stamped.one) !== latest.text) {
+        problem('digest-worklog', 'digest newest worklog must match the ledger newest row');
+      }
+      if (digest.value.updated !== latest.date) problem('digest-updated', 'digest updated date must match the newest worklog date');
+    } else {
+      problem('digest-worklog', 'populated brain has no worklog ledger entry');
+    }
+    const digestOpen = (Array.isArray(digest.value.open) ? digest.value.open : [])
+      .map((ref) => String(ref).split('#')[1] || '')
+      .filter(Boolean)
+      .sort();
+    const actualOpen = [...facts.openQuestions].sort();
+    if (JSON.stringify(digestOpen) !== JSON.stringify(actualOpen)) {
+      problem('digest-open', 'digest open list must match open question status');
+    }
+  }
+
+  const countChecks = [
+    ['question:open', facts.openQuestions.length, 'fallback-question-count'],
+    ['decision', facts.decisions, 'fallback-decision-count'],
+    ['learning', facts.learnings, 'fallback-learning-count'],
+    ['component:built', facts.components.built, 'fallback-component-count'],
+    ['component:total', facts.components.total, 'fallback-component-total'],
+  ];
+  for (const [key, expected, code] of countChecks) {
+    const actual = fallbackNumber(cover, key);
+    if (actual != null && actual !== expected) problem(code, `${key} fallback is ${actual}; derived truth is ${expected}`);
+  }
+  const builtHook = openingTags(cover, (tag) => attr(tag, 'data-count') === 'component:built')[0];
+  if (builtHook) {
+    const after = cover.slice(cover.indexOf(builtHook) + builtHook.length);
+    const total = after.match(/<\/[^>]+>\s*\/\s*(\d+)\s+built/i);
+    if (total && Number(total[1]) !== facts.components.total) {
+      problem('fallback-component-count', `component total fallback is ${total[1]}; derived truth is ${facts.components.total}`);
+    }
+  }
+  const plan = readOptional(join(brain, 'project', 'index.html'));
+  const overall = fallbackProgress(plan, 'plan-overall');
+  if (overall != null && overall !== progress(facts.tasks.done, facts.tasks.total)) {
+    problem('fallback-plan-progress', `overall fallback is ${overall}; derived truth is ${progress(facts.tasks.done, facts.tasks.total)}`);
+  }
+  for (const [phase, value] of Object.entries(facts.phases)) {
+    const actual = fallbackPhaseProgress(plan, phase);
+    if (actual != null && actual !== progress(value.done, value.total)) {
+      problem('fallback-phase-progress', `phase ${phase} fallback is ${actual}; derived truth is ${progress(value.done, value.total)}`, { phase });
+    }
+  }
+
+  const openIds = new Set(facts.openQuestions);
+  const openList = cover.match(/<(?:ul|ol)\b[^>]*(?:data-open-list|class=["'][^"']*\bneeds\b)[^>]*>([\s\S]*?)<\/(?:ul|ol)>/i);
+  if (openList) {
+    for (const match of openList[1].matchAll(/<a\b[^>]*href=["'][^"']*#([^"']+)["'][^>]*>/gi)) {
+      if (!openIds.has(match[1])) problem('fallback-open-list', `curated open row ${match[1]} is no longer open`, { id: match[1] });
+    }
+  }
+
+  const manifest = join(target, '.sandpaper', 'manifest.json');
+  if (existsSync(manifest)) {
+    try { JSON.parse(readFileSync(manifest, 'utf8')); }
+    catch { problem('manifest-json', '.sandpaper/manifest.json is invalid JSON'); }
+  } else warning('missing-manifest', 'no .sandpaper/manifest.json — run `npx sandpaper init`');
+  if (!existsSync(join(target, '.sandpaper', 'hooks', 'brain-stamp-check.js'))) {
+    warning('missing-hooks', 'hooks not installed — run `npx sandpaper install-skill`');
+  }
+  return { problems, warnings, facts };
+}
+
+// ---- doctor: print the independently inspected health of a Sandpaper setup ----
 export function doctor(target) {
   console.log(`\n  🪵  Sandpaper doctor — ${target}\n`);
-  let problems = 0;
-  const brain = join(target, 'brain');
-  if (!existsSync(brain)) { bad('no brain/ — run `npx sandpaper init` (then /sandpaper:init)'); return finish(1); }
-  ok('brain/ exists');
-  for (const a of ['theme.css', 'brain.css', 'brain.js']) {
-    if (existsSync(join(brain, 'assets', a))) ok(`assets/${a}`); else { bad(`missing assets/${a}`); problems++; }
+  const result = inspectBrain(target);
+  if (!result.problems.some((entry) => entry.code === 'missing-brain')) ok('brain/ exists');
+  for (const problem of result.problems) bad(problem.message);
+  for (const entry of result.warnings) warn(entry.message);
+  if (!result.problems.length) {
+    const { tasks, decisions, openQuestions, learnings, components } = result.facts;
+    ok(`derived truth agrees (${tasks.done}/${tasks.total} tasks · ${openQuestions.length} open · ${decisions} decisions · ${learnings} learnings · ${components.built}/${components.total} built)`);
   }
-  try {
-    const css = readFileSync(join(brain, 'assets', 'brain.css'), 'utf8');
-    if (/@import\s+["']theme\.css/.test(css)) ok('brain.css @imports theme.css'); else warn('brain.css does not @import theme.css — re-skins may not propagate');
-  } catch {}
-  try {
-    const h = readFileSync(join(brain, 'index.html'), 'utf8');
-    const m = h.match(/id="brain-state">([\s\S]*?)<\/script>/);
-    if (m) { JSON.parse(m[1]); ok('#brain-state digest parses'); } else { warn('cover has no #brain-state digest'); }
-  } catch { bad('brain/index.html unreadable'); problems++; }
-  const broken = checkBrainLinks(target, brain);
-  if (broken.length === 0) ok('internal links resolve');
-  else {
-    for (const problem of broken) bad(`${problem.page}: ${problem.reference} — ${problem.message}`);
-    problems += broken.length;
-  }
-  // the out-link source meta: every page should carry the SAME base (or none at all)
-  const metas = htmlPages(brain).map((p) => (readFileSync(p, 'utf8').match(/name="sandpaper:source" content="([^"]*)"/) || [, null])[1]);
-  const distinct = [...new Set(metas)];
-  if (distinct.length === 1 && distinct[0]) ok(`sandpaper:source meta on all pages (${distinct[0].replace('https://', '').replace('/blob/HEAD/', '')})`);
-  else if (distinct.length === 1) warn('no sandpaper:source meta — a detached deploy dims its out-links; run `npx sandpaper upgrade` after adding a git remote');
-  else { bad(`sandpaper:source meta inconsistent across pages (${metas.filter(Boolean).length}/${metas.length} set) — run \`npx sandpaper upgrade\``); problems++; }
-  const man = join(target, '.sandpaper', 'manifest.json');
-  if (existsSync(man)) { try { JSON.parse(readFileSync(man, 'utf8')); ok('.sandpaper/manifest.json valid'); } catch { bad('manifest.json invalid JSON'); problems++; } }
-  else warn('no .sandpaper/manifest.json — run `npx sandpaper init`');
-  if (existsSync(join(target, '.sandpaper', 'hooks', 'brain-stamp-check.js'))) ok('hooks present (.sandpaper/hooks/)'); else warn('hooks not installed — run `npx sandpaper install-skill`');
-  finish(problems);
-  function finish(p) { console.log(`\n  ${p ? '✗ ' + p + ' problem(s).' : '✓ healthy.'}\n`); process.exitCode = p ? 1 : 0; }
+  console.log(`\n  ${result.problems.length ? '✗ ' + result.problems.length + ' problem(s).' : '✓ healthy.'}\n`);
+  process.exitCode = result.problems.length ? 1 : 0;
+  return result;
 }
 
 // ---- upgrade: bring an EXISTING brain up to the current package (assets · hooks · commands · the canvas) ----
@@ -377,7 +626,8 @@ export function checkBrainLinks(target, brain) {
       if (!anchor) continue;
       try {
         const x = readFileSync(result.file, 'utf8');
-        if (!x.includes(`id="${anchor}"`) && !x.includes(`name="${anchor}"`)) {
+        const hasAnchor = openingTags(x, (tag) => attr(tag, 'id') === anchor || attr(tag, 'name') === anchor).length > 0;
+        if (!hasAnchor) {
           problems.push({ page, reference: hr, reason: 'missing-anchor', message: `anchor #${anchor} not found` });
         }
       } catch {

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Sandpaper — Engineering Spec · P0 (the spine)</title>
+<title>Sandpaper — Engineering Spec · v0.2.1 stabilization</title>
 <!-- A Sandpaper document. Block elements carry data-cid anchors so this spec can be refined in Sandpaper itself. -->
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -109,315 +109,302 @@
 <div class="wrap">
 
   <!-- HERO -->
-  <header class="hero" data-cid="hero">
+  <header class="hero" id="hero" data-cid="hero">
     <div class="specstrip" data-cid="specstrip">
       <span>Sandpaper</span><span class="sep">·</span><span>Engineering Spec</span><span class="sep">·</span>
-      <span>P0 — the spine</span><span class="sep">·</span><span>2026-06-29</span><span class="sep">·</span>
-      <span class="green">Built · reviewed · 8 fixes applied</span>
+      <span>v0.2.1 stabilization</span><span class="sep">·</span><span>2026-07-10</span><span class="sep">·</span>
+      <span class="green">Runtime + browser + brain truth verified</span>
     </div>
     <h1 class="wordmark" data-cid="wordmark">Sand<span class="a">paper</span></h1>
-    <div class="subhead" data-cid="subhead">Engineering spec — P0, the spine.</div>
+    <div class="subhead" data-cid="subhead">Engineering spec — the current Claude-only runtime.</div>
     <p class="lead" data-cid="lead">
-      A local Node.js bridge — <strong>six files, zero runtime dependencies</strong> — that lets you refine a
-      Claude-generated HTML document in the browser without leaving the page. Point at an element, say what to
-      change, and the file updates in place. P0 delivers the spine: serve + inject, Claude round-trip, live
-      reload, status chip, click-to-scope.
+      A local zero-runtime-dependency Node.js bridge that lets you refine a Claude-generated HTML document in
+      the browser. The server owns authentication, lifecycle, snapshots, hashes, undo, and reload truth; Claude
+      remains the only production execution provider. The runner seam is provider-neutral internally so Codex
+      can arrive in <code>v0.3.0</code> without another server rewrite.
     </p>
-    <div class="callout" data-cid="invariant">
+    <div class="callout" id="invariant" data-cid="invariant">
       <div class="eyebrow">The invariant</div>
-      <p>The HTML file on disk <strong>is</strong> the document. The server serves it; Claude edits it; the
-        watcher reloads it. Nothing in between — no server-side document model, no HTML assembled from stdout,
-        no diffing. The page always reflects exactly what is on disk.</p>
+      <p>The HTML file on disk <strong>is</strong> the document. Claude and Hands mutate those bytes; the server
+        verifies before/after hashes and reloads from disk. Model stdout supplies frames, never document HTML.</p>
     </div>
   </header>
 
   <!-- 01 OVERVIEW -->
-  <section class="band" data-cid="s-overview">
+  <section class="band" id="s-overview" data-cid="s-overview">
     <div class="grid">
       <div class="num">01</div>
       <div class="col">
         <div class="eyebrow">Overview</div>
-        <h2>What P0 is, and the one rule that governs it</h2>
-        <p>Run it with <code>node bin/cli.js &lt;document.html&gt;</code>. The server binds to
-          <code>127.0.0.1:4848</code> (override with <code>SANDPAPER_PORT</code>). The document appears exactly
-          as it would opened from disk — plus a toolbar overlay in the lower-right.</p>
-        <p><strong>Single source of truth.</strong> Every read and every write — whether you edit the file in a
-          text editor or Claude applies an <code>Edit</code> tool call — targets the same file. The bridge is a
-          dumb pipe: Claude edits the file with its own tools; <code>fs.watch</code> detects the change and tells
-          the browser to reload. That invariant rules out "apply the diff from stdout", streaming partial HTML,
-          or any server-side document model.</p>
-        <p><strong>Scope.</strong> P0 = serve+inject, claude round-trip, live reload, status chip, click-to-scope.
-          P1 adds direct manipulation (drag/delete → file write) and screenshot paste. P2+ adds durable
-          <code>data-cid</code> anchoring, branching, and a long-lived watch session.</p>
+        <h2>What ships in the stabilized runtime</h2>
+        <p>Run <code>node bin/cli.js &lt;document.html|directory&gt;</code>. The server binds to
+          <code>127.0.0.1</code>, injects the toolbar at response time, and keeps the file on disk authoritative.</p>
+        <p><strong>Current behavior.</strong> Sand runs scoped Claude turns; Hands edits rich text, moves or
+          deletes sibling blocks, and provides one-level undo. The server reports <em>Saved</em> only after a
+          real byte change and otherwise reports <em>Replied</em>. Every rejected optimistic edit restores the
+          exact prior DOM.</p>
+        <p><strong>Honest scope.</strong> The production UI runs Claude Code only. Screenshot paste, branching,
+          durable regenerated-element anchoring, and first-class Codex execution are planned, not shipped.</p>
       </div>
       <aside class="side" data-cid="side-overview">
-        Node ≥18 built-ins only: <b>http, child_process, fs, path, url</b>. No npm install. ESM.
+        Node ≥18 built-ins only at runtime. Playwright is development-only and excluded from the package files.
       </aside>
     </div>
   </section>
 
   <!-- 02 ARCHITECTURE -->
-  <section class="band" data-cid="s-arch">
+  <section class="band" id="s-arch" data-cid="s-arch">
     <div class="grid">
       <div class="num">02</div>
       <div class="col">
         <div class="eyebrow">Architecture</div>
-        <h2>Six files, one direction of dependency</h2>
+        <h2>One server-owned lifecycle around a replaceable runner</h2>
         <div class="diagram" data-cid="diagram">
           <div class="row">
-            <span class="box">browser · toolbar.js</span><span class="ar">→&nbsp;<span style="color:var(--mute);font-weight:400;font-size:10.5px;letter-spacing:.04em">POST /turn</span>&nbsp;→</span>
-            <span class="box">server.js</span><span class="ar">→&nbsp;<span style="color:var(--mute);font-weight:400;font-size:10.5px;letter-spacing:.04em">spawn</span>&nbsp;→</span>
-            <span class="box">claude -p</span><span class="ar">→&nbsp;<span style="color:var(--mute);font-weight:400;font-size:10.5px;letter-spacing:.04em">Edit</span>&nbsp;→</span>
+            <span class="box">browser · sp-client</span><span class="ar">→&nbsp;<span style="color:var(--mute);font-weight:400;font-size:10.5px;letter-spacing:.04em">authenticated JSON</span>&nbsp;→</span>
+            <span class="box">server lifecycle</span><span class="ar">→&nbsp;<span style="color:var(--mute);font-weight:400;font-size:10.5px;letter-spacing:.04em">runner</span>&nbsp;→</span>
+            <span class="box">claude -p</span><span class="ar">→&nbsp;<span style="color:var(--mute);font-weight:400;font-size:10.5px;letter-spacing:.04em">file tools</span>&nbsp;→</span>
             <span class="box" style="border-color:var(--clay);color:var(--clay);font-weight:600">doc on disk</span>
           </div>
-          <div class="foundation">▤ &nbsp;fs.watch(doc) → server broadcasts {type:'reload'} → SSE → page reloads from disk</div>
-          <div class="lp">status rides the same SSE channel: stdout event → mapEvent() → broadcast() → chip</div>
+          <div class="foundation">▤ &nbsp;snapshot + before/after hash + fs.watch → page/client-scoped SSE → reload from disk</div>
+          <div class="lp">idle → receiving → running → done | error; terminal state is replayed to new tabs</div>
         </div>
         <table class="tbl" data-cid="modules">
           <tr><th class="m">module</th><th>responsibility</th></tr>
-          <tr><td class="m">bin/cli.js</td><td>Validate the arg, resolve docPath, read <code>SANDPAPER_PORT</code>, start the server, log the URL.</td></tr>
-          <tr><td class="m">src/server.js</td><td>One <code>http.Server</code>: serves the doc (toolbar injected), owns the SSE client set + the <code>fs.watch</code> debounce, delegates to <code>buildPrompt()</code> and <code>runTurn()</code>. Never touches document content except to serve it verbatim.</td></tr>
-          <tr><td class="m">src/claude.js</td><td>Spawns <code>claude</code> in stream-json mode, owns the NDJSON line buffer, exports the pure <code>mapEvent()</code> / <code>getSessionId()</code>, persists the session id.</td></tr>
-          <tr><td class="m">public/toolbar.js&nbsp;+&nbsp;.css</td><td>Injected page-side. Status chip, click-to-scope picker, POSTs the turn, handles live-reload. Talks to the server only over HTTP.</td></tr>
-          <tr><td class="m">test/*</td><td>Recorded NDJSON fixture + parser unit test; imports only the pure helpers from claude.js.</td></tr>
+          <tr><td class="m">bin/cli.js</td><td>Resolve the file or repository directory, choose a loopback port, and start the server.</td></tr>
+          <tr><td class="m">src/path-policy.js</td><td>Shared repository allow/deny policy for static serving, mutations, and doctor references.</td></tr>
+          <tr><td class="m">src/server.js</td><td>Authenticated HTTP/SSE boundary, lifecycle, snapshots, hashes, undo, watcher, and scoped reload routing.</td></tr>
+          <tr><td class="m">src/claude.js</td><td>The current production runner: spawn <code>claude -p</code>, normalize stream-json frames, and persist its session id.</td></tr>
+          <tr><td class="m">src/edit.js</td><td>Byte-preserving text, sibling-move, and delete operations keyed by <code>data-cid</code>.</td></tr>
+          <tr><td class="m">public/sp-client.js + toolbar.*</td><td>Authenticated transport, Sand/Hands modes, optimistic transactions, exact rollback, live regions, focus, and reload handling.</td></tr>
+          <tr><td class="m">test/*</td><td>Node integration and Chromium browser suites use the real server and a deterministic fake runner.</td></tr>
         </table>
       </div>
       <aside class="side" data-cid="side-arch">
-        Dependency flow is one-way: <b>cli → server → claude</b>. The toolbar imports nothing server-side; the
-        test imports only pure functions.
+        The runner interface is provider-neutral. The current package still exposes only the Claude runner and
+        Claude-labelled UI; a provider chooser would be <code>v0.3.0</code> work.
       </aside>
     </div>
   </section>
 
   <!-- 03 BRIDGE -->
-  <section class="band" data-cid="s-bridge">
+  <section class="band" id="s-bridge" data-cid="s-bridge">
     <div class="grid">
       <div class="num">03</div>
       <div class="col">
         <div class="eyebrow">The bridge</div>
-        <h2>Flags, the stream → status map, session persistence</h2>
-        <p>The exact invocation, spawned with <code>cwd = docDir</code> so <code>--resume</code>'s
-          directory-scoped session lookup stays reliable:</p>
+        <h2>Claude is the current runner; the server owns truth</h2>
+        <p>Production injects <code>runTurn()</code> into the server-owned lifecycle. It is spawned with
+          <code>cwd = docDir</code> so Claude's directory-scoped resume lookup remains reliable:</p>
         <pre class="code" data-cid="invocation">claude -p &lt;prompt&gt; \
   --output-format stream-json --verbose --include-partial-messages \
   --permission-mode acceptEdits \
   --allowedTools Read,Edit,Write,MultiEdit \
   --append-system-prompt &lt;CONTRACT&gt; \
   [--resume &lt;sessionId&gt;]</pre>
-        <p style="margin-top:14px"><strong>Verified against the docs:</strong> <code>--allowedTools</code> as a
-          single comma-separated arg is valid; <code>--append-system-prompt</code> appends to (doesn't replace)
-          the default system prompt; <code>acceptEdits</code> auto-approves file edits without granting shell
-          access; <code>--verbose</code> is recommended, not strictly required. Tools are restricted to
-          file access only — no Bash, no web, no MCP.</p>
+        <p style="margin-top:14px">The Claude runner maps NDJSON into normalized status, assistant-delta, and
+          edit-summary frames. It does not assign turn IDs, decide Saved/Replied, expose undo, or schedule
+          reloads; those are server decisions backed by actual bytes and snapshots.</p>
         <h3>Event → status mapping</h3>
-        <table class="tbl" data-cid="evtmap">
+        <table class="tbl" id="evtmap" data-cid="evtmap">
           <tr><th class="m">stream-json event</th><th>state</th><th>chip label</th></tr>
-          <tr><td class="m">system / init (carries session_id)</td><td class="m"><span class="dot" style="background:#8A8578"></span>init</td><td>Starting…</td></tr>
-          <tr><td class="m">stream_event · message_start</td><td class="m"><span class="dot" style="background:#C75B39"></span>thinking</td><td>Composing the change…</td></tr>
-          <tr><td class="m">content_block_start · tool_use Edit/Write/MultiEdit</td><td class="m"><span class="dot" style="background:#3F5247"></span>editing</td><td>Editing &lt;doc&gt;</td></tr>
-          <tr><td class="m">content_block_start · tool_use (other)</td><td class="m"><span class="dot" style="background:#3F5247"></span>tool_using</td><td>&lt;tool&gt;…</td></tr>
-          <tr><td class="m">result · success</td><td class="m"><span class="dot" style="background:#4E7C59"></span>done</td><td>Saved to &lt;doc&gt; · undo?</td></tr>
+          <tr><td class="m">system / init (carries session_id)</td><td class="m"><span class="dot" style="background:#8A8578"></span>init</td><td>starting…</td></tr>
+          <tr><td class="m">stream_event · message_start</td><td class="m"><span class="dot" style="background:#C75B39"></span>thinking</td><td>thinking…</td></tr>
+          <tr><td class="m">content_block_start · tool_use Edit/Write/MultiEdit</td><td class="m"><span class="dot" style="background:#3F5247"></span>editing</td><td>editing &lt;doc&gt;</td></tr>
+          <tr><td class="m">assistant deltas / complete edit blocks</td><td class="m">typed frames</td><td>reply, thinking, and edit cards</td></tr>
+          <tr><td class="m">result · success + changed hash</td><td class="m"><span class="dot" style="background:#4E7C59"></span>done</td><td>Saved · Undo</td></tr>
+          <tr><td class="m">result · success + unchanged hash</td><td class="m"><span class="dot" style="background:#8A8578"></span>done</td><td>Replied</td></tr>
           <tr><td class="m">result · is_error / non-success</td><td class="m"><span class="dot" style="background:#B23A2E"></span>error</td><td>Turn failed</td></tr>
           <tr><td class="m">child 'error' / non-zero 'close'</td><td class="m"><span class="dot" style="background:#B23A2E"></span>error</td><td>claude not found / exited (n)</td></tr>
         </table>
-        <p style="margin-top:14px"><strong>Session.</strong> The session id is captured from the init event and
-          written to <code>&lt;docDir&gt;/.sandpaper/session.json</code>; every later turn loads it and passes
-          <code>--resume</code>. Sessions are per-document-folder. Even if it's lost, the <em>file</em> is the
-          memory — a fresh session rebuilds context by reading the document.</p>
+        <p style="margin-top:14px"><strong>Session.</strong> Claude's session id is stored under
+          <code>.sandpaper/session.json</code>, which the shared path policy never serves. Losing it does not lose
+          the artifact: the file remains the source of truth.</p>
       </div>
       <aside class="side" data-cid="side-bridge">
-        <code>mapEvent()</code> and <code>getSessionId()</code> are pure functions, unit-tested against a
-        recorded 8-event fixture. The <b>waiting</b> state exists in the chip but isn't emitted yet — reserved
-        for an interactive-permission flow.
+        The deterministic fake runner covers reply-only, changed, unchanged, delayed, malformed, and failed
+        execution without invoking Claude in CI. <b>Waiting</b> remains a reserved UI state.
       </aside>
     </div>
   </section>
 
   <!-- 04 PROTOCOL -->
-  <section class="band" data-cid="s-protocol">
+  <section class="band" id="s-protocol" data-cid="s-protocol">
     <div class="grid">
       <div class="num">04</div>
       <div class="col">
         <div class="eyebrow">The page protocol</div>
-        <h2>HTTP surface, the turn, click-to-scope</h2>
+        <h2>Authenticated HTTP, replayable SSE, and serialized writes</h2>
         <table class="tbl" data-cid="httpapi">
           <tr><th class="m">method · path</th><th>purpose</th></tr>
-          <tr><td class="m">GET /</td><td>Serve the document with the toolbar injected before <code>&lt;/body&gt;</code> (verbatim read; the file is never modified to serve it).</td></tr>
-          <tr><td class="m">GET /__sandpaper/events</td><td>SSE. Sends an initial idle frame, then status objects <code>{state,label,detail?}</code> and reload signals <code>{type:'reload'}</code>.</td></tr>
-          <tr><td class="m">POST /__sandpaper/turn</td><td>Body JSON <code>{prompt, cid?, selector?, snippet?}</code> (≤1&nbsp;MB). Builds the prompt, runs the turn, returns <code>202</code> — or <code>409</code> if a turn is already in progress.</td></tr>
+          <tr><td class="m">GET /&lt;page&gt;</td><td>Serve an allowed repository HTML file with a fresh process token injected into the toolbar bootstrap; never write that token to disk.</td></tr>
+          <tr><td class="m">GET /__sandpaper/events</td><td>Authenticated SSE. Replays the current status, then page-scoped status/reload frames for the tab's client ID.</td></tr>
+          <tr><td class="m">POST /__sandpaper/turn</td><td>Reserve lifecycle before body read; validate authenticated JSON and scope; snapshot/hash; return <code>202 {turnId}</code> or a structured error.</td></tr>
+          <tr><td class="m">POST /__sandpaper/write · /dom</td><td>Apply direct rich-text, sibling move, or delete operations with a direct-undo snapshot; reject conflicts with an active turn.</td></tr>
+          <tr><td class="m">POST /__sandpaper/undo · /undo-direct</td><td>Restore an existing unconsumed snapshot only when no conflicting turn is active.</td></tr>
           <tr><td class="m">GET /__sandpaper/toolbar.{js,css}</td><td>Serve the overlay assets from the package's own <code>public/</code>.</td></tr>
-          <tr><td class="m">GET /&lt;path&gt;</td><td>Serve files under <code>docDir</code> (images, pasted screenshots), path-traversal guarded.</td></tr>
+          <tr><td class="m">GET /&lt;path&gt;</td><td>Serve only paths accepted by the shared lexical + canonical repository policy.</td></tr>
         </table>
         <h3>Anatomy of one turn</h3>
-        <ol class="flow" data-cid="turnseq">
-          <li>Optionally click <strong>⌖</strong> and click an element. The picker prefers its nearest <code>data-cid</code>; else it builds a CSS path (≤6 levels, <code>:nth-of-type</code>) + an 80-char text snippet.</li>
-          <li>Type an instruction and submit. The toolbar ignores the submit if a turn is already running (busy guard).</li>
-          <li>Chip → <em>Sending…</em>; the toolbar POSTs <code>{prompt, cid?, selector?, snippet?}</code> to <code>/turn</code>.</li>
-          <li>Server builds a scoped prompt ("edit ONLY the element with data-cid=X …") and calls <code>runTurn()</code>; responds <code>202</code> immediately.</li>
-          <li>claude.js loads the session id, emits <em>init</em>, and spawns <code>claude -p</code> from <code>docDir</code>.</li>
-          <li>stdout NDJSON → <code>mapEvent()</code> → <code>broadcast()</code> → SSE → chip moves <em>thinking → editing</em>.</li>
-          <li>Claude's <code>Edit</code> tool writes the change to the file on disk — the server is not involved in the write.</li>
-          <li><code>fs.watch</code> fires → 120&nbsp;ms debounce → <code>broadcast({type:'reload'})</code>.</li>
-          <li>The <code>result</code> event → chip <em>Saved to &lt;doc&gt; · undo?</em> with cost.</li>
-          <li>Toolbar saves scroll, reloads; the page re-serves from disk with the toolbar re-injected.</li>
+        <ol class="flow" id="turnseq" data-cid="turnseq">
+          <li>Pick optionally records a <code>data-cid</code>, selector, and text snippet; Sand and Hands remain mutually exclusive.</li>
+          <li>The client sends process token, stable per-tab client ID, same-origin JSON, prompt, page, and optional scope.</li>
+          <li>The server reserves <em>receiving</em> before body read, validates the request/page/scope, then snapshots and hashes the page.</li>
+          <li>The server enters <em>running</em> and invokes the current Claude runner; normalized frames stream over SSE.</li>
+          <li>Claude writes with file tools. The watcher records the page/client source and routes reloads without hiding other-tab changes.</li>
+          <li>A terminal runner frame triggers a new hash. Changed bytes plus a retained snapshot expose Saved/Undo; unchanged bytes expose Replied.</li>
+          <li>Errors remain terminal and visible. The next accepted turn starts a new lifecycle; every client path restores usable UI after rejection.</li>
         </ol>
       </div>
       <aside class="side" data-cid="side-protocol">
-        Status and reload share one SSE channel, distinguished by a <code>state</code> field vs a
-        <code>type:'reload'</code> field. The 202 is fire-and-forget; the chip is driven entirely by SSE.
+        Direct edits are optimistic in the initiating tab only. Server confirmation or exact rollback closes
+        the transaction; other relevant tabs receive page-scoped reloads from disk.
       </aside>
     </div>
   </section>
 
   <!-- 05 SECURITY -->
-  <section class="band" data-cid="s-security">
+  <section class="band" id="s-security" data-cid="s-security">
     <div class="grid">
       <div class="num">05</div>
       <div class="col">
         <div class="eyebrow">Security model</div>
-        <h2>A local-only tool, scoped tight</h2>
+        <h2>Local-process protection plus one shared repository boundary</h2>
         <table class="tbl" data-cid="sec">
           <tr><th>control</th><th>detail</th></tr>
           <tr><td><strong>Loopback bind</strong></td><td>Server listens on <code>127.0.0.1</code> only — never <code>0.0.0.0</code>. Not exposed to the network.</td></tr>
+          <tr><td><strong>Process token</strong></td><td>A cryptographically random in-memory token is injected at response time; mutation routes and SSE require it.</td></tr>
+          <tr><td><strong>Browser origin</strong></td><td>Mutation requests require valid loopback Host, same-origin evidence, a client ID, and the expected JSON content type.</td></tr>
           <tr><td><strong>Tool restriction</strong></td><td><code>--allowedTools Read,Edit,Write,MultiEdit</code> — no Bash, no web fetch, no MCP. Claude can't run shell or open connections during a turn.</td></tr>
-          <tr><td><strong>Permission mode</strong></td><td><code>acceptEdits</code> authorizes file writes in <code>docDir</code> without prompts; grants no broader access.</td></tr>
-          <tr><td><strong>Path-traversal guard</strong></td><td><code>normalize(join(docDir,path)).startsWith(docDir+sep)</code> → 404 on escape. Malformed percent-escapes return <code>400</code> (guarded decode).</td></tr>
-          <tr><td><strong>Body cap</strong></td><td><code>/turn</code> body capped at 1&nbsp;MB; the socket is destroyed past the limit.</td></tr>
+          <tr><td><strong>Repository policy</strong></td><td>Allow ordinary files and <code>.github/**</code>; deny <code>.git</code>, <code>.sandpaper</code>, unknown hidden namespaces, env/credential/key material, traversal, null bytes, and escaping symlinks.</td></tr>
+          <tr><td><strong>Mutation policy</strong></td><td>All hidden paths, invalid pages/CIDs/operations, conflicts, malformed JSON, and over-limit bodies fail with structured status/code/message JSON.</td></tr>
         </table>
-        <p style="margin-top:14px"><strong>Accepted residual:</strong> no request authentication — any local process running as you can POST a turn. Acceptable for a local-only tool whose worst case is still bounded by the file-only tool restriction.</p>
+        <p style="margin-top:14px"><strong>Boundary:</strong> this protects a single-user local process against
+          cross-origin browser requests, DNS-rebinding-style access, accidental secret serving, and unsafe
+          repository links. It is not hosted multi-user authentication.</p>
       </div>
       <aside class="side" data-cid="side-security">
-        Threat model is "your own machine." The interesting hardening later is scoping which directories a turn
-        may touch — today it's the doc's folder.
+        <code>doctor</code> evaluates <code>href</code>, <code>src</code>, and <code>data-ref</code> with this same
+        policy, so a blocked canonical link fails before publish instead of becoming an invisible runtime break.
       </aside>
     </div>
   </section>
 
   <!-- 06 BUILD STATUS -->
-  <section class="band" data-cid="s-build">
+  <section class="band" id="s-build" data-cid="s-build">
     <div class="grid">
       <div class="num">06</div>
       <div class="col">
         <div class="eyebrow">Build status</div>
-        <h2>Where P0 stands</h2>
+        <h2>Verified current state after the stabilization sweep</h2>
         <p><span class="badge verified">verified</span> done + covered by a test &nbsp;·&nbsp;
            <span class="badge done">done</span> implemented &nbsp;·&nbsp;
            <span class="badge fixed">fixed</span> bug found in review &amp; patched this pass &nbsp;·&nbsp;
            <span class="badge open">open</span> remaining</p>
 
         <div class="bgroup" data-cid="b-spine">
-          <h3>Core spine</h3>
-          <div class="bitem"><span class="badge verified">verified</span><div class="bd"><b>bin/cli.js</b> — arg validation, port env, startup log.</div></div>
-          <div class="bitem"><span class="badge done">done</span><div class="bd"><b>routing + toolbar injection + asset serving</b> with traversal guard.</div></div>
-          <div class="bitem"><span class="badge done">done</span><div class="bd"><b>SSE channel</b> — client set, initial frame, cleanup on close.</div></div>
-          <div class="bitem"><span class="badge fixed">fixed</span><div class="bd"><b>/turn concurrency guard</b> — <code>activeTurn</code> gate + <code>409</code>; toolbar busy-check.</div></div>
-          <div class="bitem"><span class="badge fixed">fixed</span><div class="bd"><b>fs.watch null-fname</b> — null now treated as a match so reloads aren't dropped.</div></div>
-          <div class="bitem"><span class="badge fixed">fixed</span><div class="bd"><b>broadcast()</b> wrapped in try/catch with dead-client eviction.</div></div>
-          <div class="bitem"><span class="badge fixed">fixed</span><div class="bd"><b>pathname decode</b> guarded against malformed escapes (<code>400</code>) instead of crashing.</div></div>
+          <h3>Server + repository boundary</h3>
+          <div class="bitem"><span class="badge verified">verified</span><div class="bd"><b>Shared path policy</b> — safe repository files and <code>.github</code> stay readable; secrets, runtime paths, traversal, and escaping aliases fail.</div></div>
+          <div class="bitem"><span class="badge verified">verified</span><div class="bd"><b>Authenticated lifecycle</b> — receiving reservation, current-state SSE replay, retained terminal errors, one active turn.</div></div>
+          <div class="bitem"><span class="badge verified">verified</span><div class="bd"><b>Byte truth</b> — hashes, bounded snapshots, consumed undo, and page/client-scoped reloads.</div></div>
         </div>
         <div class="bgroup" data-cid="b-bridge">
-          <h3>Claude bridge</h3>
-          <div class="bitem"><span class="badge done">done</span><div class="bd"><b>spawn + flags + CONTRACT</b> — all flags verified against docs.</div></div>
-          <div class="bitem"><span class="badge verified">verified</span><div class="bd"><b>mapEvent() / getSessionId()</b> — pure, covered by parse-test.</div></div>
-          <div class="bitem"><span class="badge done">done</span><div class="bd"><b>session persistence</b> — load/save <code>.sandpaper/session.json</code>.</div></div>
-          <div class="bitem"><span class="badge fixed">fixed</span><div class="bd"><b>errored flag</b> — spawn errors no longer overwritten with a false idle (was critical).</div></div>
-          <div class="bitem"><span class="badge fixed">fixed</span><div class="bd"><b>stdout 'end' flush</b> — a final newline-less <code>result</code> event is no longer lost.</div></div>
-          <div class="bitem"><span class="badge fixed">fixed</span><div class="bd"><b>stdin hygiene</b> — <code>stdio:['ignore','pipe','pipe']</code> so <code>-p</code> can't block on input.</div></div>
+          <h3>Claude runner</h3>
+          <div class="bitem"><span class="badge verified">verified</span><div class="bd"><b>Spawn + normalized frames</b> — stream parser, partial replies, edit cards, error/end handling, and session persistence.</div></div>
+          <div class="bitem"><span class="badge open">planned</span><div class="bd"><b>Codex runner/provider choice</b> — explicitly deferred to <code>v0.3.0</code>; no current UI claim.</div></div>
         </div>
         <div class="bgroup" data-cid="b-toolbar">
-          <h3>Toolbar</h3>
-          <div class="bitem"><span class="badge verified">verified</span><div class="bd"><b>toolbar.css</b> — palette matches the documents.</div></div>
-          <div class="bitem"><span class="badge done">done</span><div class="bd"><b>chip, SSE consumer, click-to-scope picker</b>.</div></div>
-          <div class="bitem"><span class="badge fixed">fixed</span><div class="bd"><b>scroll restore</b> deferred to the <code>load</code> event; submit <b>busy guard</b> added.</div></div>
+          <h3>Browser + brain truth</h3>
+          <div class="bitem"><span class="badge verified">verified</span><div class="bd"><b>Sand + Hands</b> — truthful Saved/Replied/undo, exact rollback, serialized direct operations, scoped styles, focus and ARIA recovery.</div></div>
+          <div class="bitem"><span class="badge verified">verified</span><div class="bd"><b>Derived brain</b> — canonical HTML books drive mechanical presentation; <code>doctor</code> independently validates fallbacks and editorial stamps.</div></div>
         </div>
       </div>
       <aside class="side" data-cid="side-build">
-        Every <span class="badge fixed">fixed</span> item was caught by the adversarial review and patched in the
-        same pass. The spine is syntax-clean, parser-tested, and live-smoke-tested.
+        Release verification still includes the packed-package/fresh-install gates and one disposable live
+        Claude edit. Automated CI never invokes a live provider.
       </aside>
     </div>
   </section>
 
   <!-- 07 FOUND & FIXED -->
-  <section class="band" data-cid="s-fixed">
+  <section class="band" id="s-fixed" data-cid="s-fixed">
     <div class="grid">
       <div class="num">07</div>
       <div class="col">
         <div class="eyebrow">Found &amp; fixed</div>
-        <h2>What the adversarial review caught</h2>
-        <p>A code-review agent read the real source; a Claude-Code-mechanics agent re-verified every flag against
-          the docs. Eight confirmed bugs — all fixed this pass. One item stays genuinely open.</p>
-        <div class="fix" data-cid="f1"><span class="sev critical">Critical</span><div class="bd"><span class="loc">claude.js · close handler</span> — a spawn failure (ENOENT, auth) fired <code>error</code> then <code>close(null)</code>; <code>if (code &amp;&amp; code!==0)</code> is falsy on null, so it broadcast <em>idle</em> and hid every error. <span class="res">Fixed</span> with an <code>errored</code> flag that short-circuits close.</div></div>
-        <div class="fix" data-cid="f2"><span class="sev high">High</span><div class="bd"><span class="loc">server.js · fs.watch</span> — <code>fname</code> can be null (Linux/inotify, macOS under load); the old guard dropped the reload. <span class="res">Fixed</span> — null is treated as a match.</div></div>
-        <div class="fix" data-cid="f3"><span class="sev high">High</span><div class="bd"><span class="loc">claude.js · stdout</span> — no <code>end</code> listener; a final line without a trailing newline lost the <code>result</code> event (cost + "Saved"). <span class="res">Fixed</span> — an end-flush drains the buffer.</div></div>
-        <div class="fix" data-cid="f4"><span class="sev high">High</span><div class="bd"><span class="loc">server.js + toolbar.js</span> — no concurrency guard; two turns could race-write the file. <span class="res">Fixed</span> — <code>activeTurn</code> gate + <code>409</code> + a toolbar busy-check.</div></div>
-        <div class="fix" data-cid="f5"><span class="sev medium">Medium</span><div class="bd"><span class="loc">server.js · broadcast()</span> — <code>res.write()</code> on a destroyed socket could crash the process mid-turn. <span class="res">Fixed</span> — try/catch + evict.</div></div>
-        <div class="fix" data-cid="f6"><span class="sev medium">Medium</span><div class="bd"><span class="loc">server.js · pathname</span> — the reviewer flagged a double-decode; on inspection the real risk was <code>decodeURIComponent</code> <em>throwing</em> on malformed input. <span class="res">Fixed</span> — guarded decode → <code>400</code> (kept decoding so filenames with spaces still work).</div></div>
-        <div class="fix" data-cid="f7"><span class="sev medium">Medium</span><div class="bd"><span class="loc">claude.js · spawn</span> — default stdio left stdin an open pipe (potential hang). <span class="res">Fixed</span> — <code>stdio:['ignore','pipe','pipe']</code>.</div></div>
-        <div class="fix" data-cid="f8"><span class="sev low">Low</span><div class="bd"><span class="loc">toolbar.js · scroll</span> — restore ran before layout settled, clamping scroll on image-heavy pages. <span class="res">Fixed</span> — deferred to the <code>load</code> event.</div></div>
-        <div class="fix" data-cid="f9"><span class="sev openq">Open ?</span><div class="bd"><span class="loc">claude.js · result event shape</span> — the exact <code>result</code> event fields aren't documented in the CLI reference (inferred from the Agent SDK + the fixture). <span style="color:var(--ochre);font-weight:600">To verify</span> against a live turn and update the fixture if needed.</div></div>
+        <h2>Verified failures now have regression contracts</h2>
+        <p>The stabilization pass kept the original fixes and added end-to-end contracts around the boundaries
+          that had been inferred rather than proven.</p>
+        <div class="fix" data-cid="f1"><span class="sev critical">Security</span><div class="bd"><span class="loc">path policy + local API</span> — secret/runtime paths, unknown hidden namespaces, traversal, symlink escapes, foreign origins, invalid tokens/hosts/clients/content types, malformed JSON, and body overruns are rejected.</div></div>
+        <div class="fix" data-cid="f2"><span class="sev high">Lifecycle</span><div class="bd"><span class="loc">server.js</span> — request-body races, false idle after errors, false Saved outcomes, stale undo, and conflicting direct writes now have one server-owned state machine.</div></div>
+        <div class="fix" data-cid="f3"><span class="sev high">Reload</span><div class="bd"><span class="loc">watch + SSE</span> — current status is replayed; page/client identity replaces global suppression; other tabs see confirmed disk changes.</div></div>
+        <div class="fix" data-cid="f4"><span class="sev high">Browser</span><div class="bd"><span class="loc">sp-client + toolbar</span> — 4xx/5xx/malformed/network/runner errors restore the composer; Sand/Hands, undo, optimistic edits, focus, ARIA, and CSS isolation are verified in Chromium.</div></div>
+        <div class="fix" data-cid="f5"><span class="sev medium">Brain</span><div class="bd"><span class="loc">setup.js + brain.js</span> — source/package drift, editorial mismatch, stale fallback counts, blocked references, and fake <code>data-cid</code>-only anchors are independently detected.</div></div>
       </div>
       <aside class="side" data-cid="side-fixed">
-        The reviewer's fix #6 was itself slightly wrong (it assumed <code>url.pathname</code> is fully decoded —
-        it isn't). Verifying findings, not blindly applying them, is the point.
+        Historical defect prose remains in the append-only brain log and decision ledger. This section states
+        the current regression boundary rather than replaying the original P0 audit.
       </aside>
     </div>
   </section>
 
   <!-- 08 TESTING -->
-  <section class="band" data-cid="s-test">
+  <section class="band" id="s-test" data-cid="s-test">
     <div class="grid">
       <div class="num">08</div>
       <div class="col">
         <div class="eyebrow">Testing &amp; how to run</div>
-        <h2>Run it, test it</h2>
-        <pre class="code" data-cid="run"># run the bridge (point it at any HTML document)
-node bin/cli.js sandpaper.html       # → http://127.0.0.1:4848
+        <h2>Layered verification without a live provider in CI</h2>
+        <pre class="code" data-cid="run"># focused brain inspection and derivation
+node --test test/setup-test.js
+npx playwright test test/browser/brain.spec.js --project=chromium
 
-# parser unit test — no live model call, &lt;100ms
-npm test                             # init → thinking → editing → done ✓</pre>
-        <p style="margin-top:14px"><strong>Covered:</strong> the stream-json → status mapping and session capture
-          (pure functions, recorded fixture). <strong>Live-smoke-tested:</strong> serve+inject (200), toolbar
-          assets (200), SSE idle frame, path-traversal (404), malformed-percent (400).</p>
-        <p><strong>Not yet covered:</strong> HTTP routing, the watch/reload integration, SSE set management,
-          toolbar behavior, and the error paths. <strong>To add:</strong> a unit test for the <code>errored</code>
-          flag (mock <code>error</code> then <code>close(null)</code>, assert no idle), an end-flush test, and a
-          <code>409</code> concurrency test.</p>
-        <p><strong>The one live step:</strong> firing a real <code>claude -p</code> turn from the page. It was
-          built with doc-verified flags but not auto-run (to avoid nesting a Claude inside a Claude) — it's the
-          first thing to exercise, and the moment to confirm the open <code>result</code>-shape question.</p>
+# full automated gates
+npm test
+npx playwright test --project=chromium
+node bin/cli.js doctor</pre>
+        <p style="margin-top:14px"><strong>Node coverage:</strong> repository path policy; HTTP auth and
+          structured errors; concurrency; current-state SSE; changed/unchanged/error outcomes; AI/direct undo;
+          write/move/delete; snapshot pruning; scoped reloads; parser/edit/client helpers; scaffold and doctor
+          truth checks.</p>
+        <p><strong>Chromium coverage:</strong> toolbar injection; Saved/Replied; rejection recovery; Sand/Hands;
+          direct transactions and rollback; undo; two-tab reload; timeline/shortcuts; focus/ARIA/reduced motion;
+          host CSS isolation; brain derivation with atomic fetch failure fallback.</p>
+        <p><strong>Release-only live step:</strong> run one disposable Claude edit and record it before the human
+          confirms the <code>v0.2.1</code> tag. Codex is not invoked because no Codex runner ships yet.</p>
       </div>
       <aside class="side" data-cid="side-test">
-        Fastest manual check: <code>node bin/cli.js sandpaper.html</code>, open the URL, click ⌖, click the hero
-        subtitle, type "tighten this", watch the chip and the change.
+        CI runs Node 18/20/22 and Chromium on Node 20. Playwright remains development-only; the published
+        package keeps zero runtime dependencies.
       </aside>
     </div>
   </section>
 
   <!-- 09 NEXT -->
-  <section class="band" data-cid="s-next">
+  <section class="band" id="s-next" data-cid="s-next">
     <div class="grid">
       <div class="num">09</div>
       <div class="col">
         <div class="eyebrow">Next</div>
-        <h2>From spine to P1</h2>
-        <p><strong>Close out P0:</strong> fire the first live turn, confirm the <code>result</code>-event shape,
-          and add the three hardening tests (errored flag, end-flush, 409).</p>
-        <p><strong>P1 — the two hard modes:</strong> direct manipulation (drag / delete written straight to the
-          file, no AI call) and paste-a-screenshot (saved into the project, referenced by path so Claude's
-          <code>Read</code> tool ingests it as an image). Both fall out of the single-source-of-truth invariant.</p>
+        <h2>Finish the patch, then add providers deliberately</h2>
+        <p><strong><code>v0.2.1</code> closeout:</strong> run syntax, Node, Chromium, doctor, publish-pack, and
+          fresh-install gates; record one disposable live Claude edit; populate the changelog; let a human
+          confirm version and push.</p>
+        <p><strong><code>v0.3.0</code>:</strong> design and implement first-class Claude + Codex choice across
+          runners, install/hooks, toolbar identity, docs, tests, and release. The neutral server seam is ready;
+          the current product does not invent the missing Codex behavior.</p>
         <p style="color:var(--pine); font-family:var(--serif); font-style:italic; font-size:17px; margin-top:18px">
           This spec is a Sandpaper document. Open it in the tool and sand it.</p>
       </div>
       <aside class="side" data-cid="side-next">
-        P2 then makes <code>data-cid</code> anchoring durable across regeneration — the thing that makes
-        annotations stick. See <code>sandpaper.html</code> §06.
+        Screenshot paste, durable regenerated-element anchoring, branch/compare, and keyboard/touch structural
+        editing remain separately tracked roadmap work. See <code>sandpaper.html</code> §06.
       </aside>
     </div>
   </section>
 
   <footer data-cid="footer">
-    Sandpaper · engineering spec · P0 · built + reviewed + 8 fixes in Claude Code · 2026-06-29 · a Sandpaper document
+    Sandpaper · engineering spec · v0.2.1 stabilization · Claude-only current UI · 2026-07-10 · a Sandpaper document
   </footer>
 </div>
 <script>/* mirror data-cid -> id so #anchors from the project brain scroll here */(function(){document.querySelectorAll("[data-cid]").forEach(function(e){if(!e.id)e.id=e.getAttribute("data-cid");});if(location.hash){var t=document.getElementById(location.hash.slice(1));if(t)t.scrollIntoView();}})();</script>

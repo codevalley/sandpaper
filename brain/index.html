@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%2212%2092%20576%20468%22%3E%3Cg%20transform%3D%22matrix(0.545861%2C0.545861%2C-0.545861%2C0.545861%2C300%2C-55.841103)%22%3E%3Cpath%20d%3D%22M40%2C560L560%2C560L560%2C40L240%2C40L40%2C240%22%20fill%3D%22%2318293D%22%2F%3E%3Cpath%20d%3D%22M100%2C300L100%2C500L500%2C500L500%2C100L300%2C100L300%2C300L100%2C300Z%22%20fill%3D%22%23C63B30%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E" />
-<meta name="sandpaper:source" content="https://github.com/codevalley/sandpaper/blob/HEAD/" data-pkg="sandpaper" />
+<meta name="sandpaper:source" content="https://github.com/codevalley/sandpaper/blob/HEAD/" data-pkg="@nynb/sandpaper" />
 <title>Sandpaper — Project Log Book</title>
 <!-- COVER PLATE of the Sandpaper project brain. Stamped after each substantive turn (CLAUDE.md → "The project brain").
      Marker-delimited regions; static, zero runtime; links into the canonical docs, never copies them. -->
@@ -14,13 +14,13 @@
 <link rel="stylesheet" href="./assets/brain.css" />
 <!-- BRAIN:DIGEST — machine context for a fresh `claude`: read THIS first (~1KB) to rehydrate. -->
 <script type="application/json" id="brain-state">
-{ "v":1, "project":"Sandpaper", "phase":"Phase 1 · packaging", "updated":"2026-07-10",
+{ "v":1, "project":"Sandpaper", "phase":"Phase 1 · stabilization", "updated":"2026-07-10",
   "session":"S32",
-  "focus":{ "one":"Browser hardening is accepted; t-0045 reconciles brain, doctor, and docs next.", "ref":"project/index.html#t-0045" },
-  "worklog":[ {"date":"2026-07-10","one":"Accepted hardened browser contract after independent Chromium review.","cid":"w-0221"},
-              {"date":"2026-07-10","one":"Hardened browser transactions and verified recovery across Chromium.","cid":"w-0220"},
-              {"date":"2026-07-10","one":"Accepted authenticated lifecycle hardening after independent review.","cid":"w-0219"} ],
-  "open":["decisions.html#q-anchoring","decisions.html#q-undo","decisions.html#q-billing","decisions.html#q-privacy"],
+  "focus":{ "one":"Task 4 is implemented and verified; t-0045 remains in review.", "ref":"project/index.html#t-0045" },
+  "worklog":[ {"date":"2026-07-10","one":"Reconciled doctor, derived brain truth, and current documentation.","cid":"w-0222"},
+              {"date":"2026-07-10","one":"Accepted hardened browser contract after independent Chromium review.","cid":"w-0221"},
+              {"date":"2026-07-10","one":"Hardened browser transactions and verified recovery across Chromium.","cid":"w-0220"} ],
+  "open":["decisions.html#q-anchoring","decisions.html#q-billing","decisions.html#q-privacy"],
   "docs":["../sandpaper.html","../engg-spec.html"] }
 </script>
 </head>
@@ -51,7 +51,7 @@
   <header class="plate" data-cid="cover">
     <div class="pl-meta"><span class="now-tag">Now</span> the build stands at <a href="./project/index.html#i-stability">Phase 1 — hardening</a></div>
     <!-- BRAIN:NOW -->
-    <p class="now-line" id="now" data-cid="now" data-kind="now" data-status="active" data-date="2026-07-10" data-ref="./project/index.html#t-0045">Browser hardening is accepted; <code>t-0045</code> reconciles brain, doctor, and docs next. <a class="ref" href="./project/index.html#t-0045">task →</a></p>
+    <p class="now-line" id="now" data-cid="now" data-kind="now" data-status="active" data-date="2026-07-10" data-ref="./project/index.html#t-0045">Task 4 is implemented and verified; <code>t-0045</code> remains in review. <a class="ref" href="./project/index.html#t-0045">task →</a></p>
     <!-- /BRAIN:NOW -->
   </header>
   <!-- /BRAIN:EDITION -->
@@ -242,8 +242,8 @@
         <span class="seg">✓ Spine</span><span class="seg">✓ Brain</span><span class="seg">✓ Hands</span><span class="seg on">Living</span><span class="seg">Reach</span>
       </a>
       <a class="vital" href="./decisions.html#open"><b data-count="question:open">3</b> open</a>
-      <a class="vital" href="./map.html"><b data-count="component:built">3</b>/5 built</a>
-      <a class="vital" href="./decisions.html"><b data-count="decision">13</b> decisions</a>
+      <a class="vital" href="./map.html"><b data-count="component:built">6</b>/<span data-count="component:total">6</span> built</a>
+      <a class="vital" href="./decisions.html"><b data-count="decision">24</b> decisions</a>
     </div>
   </section>
   <!-- /BRAIN:COUNTS -->
@@ -252,9 +252,8 @@
   <!-- BRAIN:OPEN -->
   <section class="zone" data-cid="s-open">
     <div class="eyebrow">Needs you</div>
-    <ul class="needs" data-cid="open">
+    <ul class="needs" data-cid="open" data-open-list>
       <li><span class="sdot blocked"></span><a class="q" href="./decisions.html#q-anchoring">Anchoring: how do annotations survive a full HTML regeneration?</a> <span class="badge blocked">blocking</span><span class="go" aria-hidden="true">→</span></li>
-      <li><span class="sdot open"></span><a class="q" href="./decisions.html#q-undo">Make “undo?” real — wire the pre-turn snapshot to the change card.</a> <span class="badge soon">soon</span><span class="go" aria-hidden="true">→</span></li>
     </ul>
     <div style="margin-top:6px"><a class="ref" href="./decisions.html#open">all open questions (3) →</a></div>
   </section>
@@ -265,6 +264,7 @@
   <section class="zone" data-cid="s-log">
     <div class="eyebrow">Latest <span id="brain-unseen" class="badge open" hidden></span></div>
     <ol class="timeline" data-cid="logfeed">
+      <li class="entry entry--worklog" data-kind="worklog" id="w-0222" data-cid="w-0222" data-status="active" data-date="2026-07-10" data-ref="../engg-spec.html#s-test"><span class="log-when">07-10</span><span class="log-what">Reconciled doctor, derived brain truth, and current documentation.</span><span class="log-link"><a class="ref" href="../engg-spec.html#s-test">verification →</a></span></li>
       <li class="entry entry--worklog" data-kind="worklog" id="w-0221" data-cid="w-0221" data-status="active" data-date="2026-07-10" data-ref="../public/toolbar.js"><span class="log-when">07-10</span><span class="log-what">Accepted hardened browser contract after independent Chromium review.</span><span class="log-link"><a class="ref" href="../public/toolbar.js">toolbar →</a></span></li>
       <li class="entry entry--worklog" data-kind="worklog" id="w-0220" data-cid="w-0220" data-status="active" data-date="2026-07-10" data-ref="./decisions.html#d-browser-contract"><span class="log-when">07-10</span><span class="log-what">Hardened browser transactions and verified recovery across Chromium.</span><span class="log-link"><a class="ref" href="./decisions.html#d-browser-contract">contract →</a></span></li>
       <li class="entry entry--worklog" data-kind="worklog" id="w-0219" data-cid="w-0219" data-status="active" data-date="2026-07-10" data-ref="../src/server.js"><span class="log-when">07-10</span><span class="log-what">Accepted authenticated lifecycle hardening after independent review.</span><span class="log-link"><a class="ref" href="../src/server.js">server →</a></span></li>

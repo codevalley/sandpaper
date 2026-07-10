@@ -109,14 +109,98 @@
     var op = allTotal ? Math.round(allDone / allTotal * 100) : 0;
     var ov = document.getElementById('plan-overall'); if (ov) ov.textContent = allDone + '/' + allTotal + ' · ' + op + '%';
     var ob = document.getElementById('plan-overall-bar'); if (ob) ob.style.width = op + '%';
-    // per-PHASE rollup — sum tasks across each phase's initiatives (by data-phase, not position)
-    ['0', '1'].forEach(function (ph) {
+    // per-PHASE rollup — discover every phase from initiatives (never assume a fixed roadmap)
+    var phaseIds = [];
+    inits.forEach(function (ini) {
+      var phase = ini.getAttribute('data-phase');
+      if (phase != null && phaseIds.indexOf(phase) < 0) phaseIds.push(phase);
+    });
+    phaseIds.forEach(function (ph) {
       var pt = Array.prototype.slice.call(document.querySelectorAll('.entry--initiative[data-phase="' + ph + '"] .task[data-status]'));
       var pd = pt.filter(function (t) { return t.getAttribute('data-status') === 'done'; }).length;
       var pp = pt.length ? Math.round(pd / pt.length * 100) : 0;
       var pbar = document.querySelector('[data-phase-progress="' + ph + '"] i'); if (pbar) pbar.style.width = pp + '%';
       var plab = document.querySelector('[data-phase-label="' + ph + '"]'); if (plab) plab.textContent = pd + '/' + pt.length + ' · ' + pp + '%';
     });
+  }
+
+  // ---- (3b) cover truth: atomically derive mechanical facts from the canonical books ----
+  // Stamped values are the readable file:// / no-JS fallback. Only replace them after every
+  // same-origin source page was fetched and parsed successfully; a partial truth is worse than
+  // a visibly stale fallback (doctor catches the latter independently).
+  var brainScript = document.querySelector('script[src*="assets/brain.js"]');
+  var brainDepth = brainScript ? ((brainScript.getAttribute('src') || '').match(/\.\.\//g) || []).length : 0;
+  var brainRoot = new Array(brainDepth + 1).join('../');
+
+  function countAny(doc, selector) {
+    return doc.querySelectorAll(selector).length;
+  }
+
+  function ratio(done, total) {
+    return done + '/' + total + ' · ' + (total ? Math.round(done / total * 100) : 0) + '%';
+  }
+
+  function setText(selector, value) {
+    var element = document.querySelector(selector);
+    if (element) element.textContent = String(value);
+  }
+
+  if (location.protocol === 'http:' || location.protocol === 'https:') {
+    var factPages = ['project/index.html', 'decisions.html', 'map.html', 'learnings.html'];
+    Promise.all(factPages.map(function (path) {
+      return fetch(brainRoot + path, { cache: 'no-store', mode: 'same-origin' }).then(function (response) {
+        if (!response.ok) throw new Error('brain fact source unavailable');
+        return response.text();
+      });
+    })).then(function (sources) {
+      var parser = new DOMParser();
+      var docs = sources.map(function (source) {
+        var parsed = parser.parseFromString(source, 'text/html');
+        if (!parsed || !parsed.documentElement) throw new Error('brain fact source did not parse');
+        return parsed;
+      });
+      var planDoc = docs[0], decisionsDoc = docs[1], mapDoc = docs[2], learningsDoc = docs[3];
+      var taskNodes = Array.prototype.slice.call(planDoc.querySelectorAll('.task[data-status]'));
+      var taskDone = taskNodes.filter(function (task) { return task.getAttribute('data-status') === 'done'; }).length;
+      var phaseFacts = {};
+      Array.prototype.slice.call(planDoc.querySelectorAll('.entry--initiative[data-phase]')).forEach(function (initiative) {
+        var phase = initiative.getAttribute('data-phase');
+        var phaseTasks = Array.prototype.slice.call(initiative.querySelectorAll('.task[data-status]'));
+        if (!phaseFacts[phase]) phaseFacts[phase] = { done: 0, total: 0 };
+        phaseFacts[phase].done += phaseTasks.filter(function (task) { return task.getAttribute('data-status') === 'done'; }).length;
+        phaseFacts[phase].total += phaseTasks.length;
+      });
+      var openNodes = Array.prototype.slice.call(decisionsDoc.querySelectorAll('[data-kind="question"][data-status="open"], .entry--question[data-status="open"]'));
+      var openIds = openNodes.map(function (entry) { return entry.id || entry.getAttribute('data-cid'); }).filter(Boolean);
+      var decisionCount = countAny(decisionsDoc, '[data-kind="decision"][data-status="accepted"], .entry--decision[data-status="accepted"]');
+      var learningCount = countAny(learningsDoc, '[data-kind="learning"], .entry--learning');
+      var componentNodes = Array.prototype.slice.call(mapDoc.querySelectorAll('[data-kind="component"], .entry--component'));
+      var componentBuilt = componentNodes.filter(function (entry) {
+        return entry.getAttribute('data-status') === 'built' || entry.getAttribute('data-status') === 'verified';
+      }).length;
+
+      // Mutation starts only after every source and every fact above succeeded.
+      setText('[data-count="question:open"]', openIds.length);
+      setText('[data-count="decision"]', decisionCount);
+      setText('[data-count="learning"]', learningCount);
+      setText('[data-count="component:built"]', componentBuilt);
+      setText('[data-count="component:total"]', componentNodes.length);
+      setText('#plan-overall', ratio(taskDone, taskNodes.length));
+      var overallBar = document.getElementById('plan-overall-bar');
+      if (overallBar) overallBar.style.width = (taskNodes.length ? Math.round(taskDone / taskNodes.length * 100) : 0) + '%';
+      Object.keys(phaseFacts).forEach(function (phase) {
+        var fact = phaseFacts[phase];
+        setText('[data-phase-label="' + phase + '"]', ratio(fact.done, fact.total));
+        var bar = document.querySelector('[data-phase-progress="' + phase + '"] i');
+        if (bar) bar.style.width = (fact.total ? Math.round(fact.done / fact.total * 100) : 0) + '%';
+      });
+      Array.prototype.slice.call(document.querySelectorAll('[data-open-list] li')).forEach(function (row) {
+        var link = row.querySelector('a[href*="#"]');
+        if (!link) return;
+        var id = (link.getAttribute('href') || '').split('#')[1];
+        if (id) row.hidden = openIds.indexOf(id) < 0;
+      });
+    }).catch(function () { /* enhancement only: preserve every stamped fallback */ });
   }
 
   // ---- (4) out-link resolver: brain/ stays publishable anywhere ----

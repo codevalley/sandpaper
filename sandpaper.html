@@ -203,13 +203,13 @@
 <div class="wrap">
 
   <!-- ============ HERO ============ -->
-  <header class="hero" data-cid="hero">
+  <header class="hero" id="hero" data-cid="hero">
     <div class="specstrip" data-cid="specstrip">
       <span>Sandpaper</span><span class="sep">·</span>
-      <span>v0.3</span><span class="sep">·</span>
-      <span>Approach + One-Page Spec</span><span class="sep">·</span>
-      <span>2026-06-29</span><span class="sep">·</span>
-      <span class="green">Feasibility ◉ Green</span>
+      <span>v0.2.1</span><span class="sep">·</span>
+      <span>Product Contract</span><span class="sep">·</span>
+      <span>2026-07-10</span><span class="sep">·</span>
+      <span class="green">Claude surface · stabilized</span>
     </div>
     <h1 class="wordmark" data-cid="wordmark">Sand<span class="a">paper</span></h1>
     <p class="tagline" data-cid="tagline">// Sand the rough draft into a finished spec.</p>
@@ -227,15 +227,15 @@
     <div class="callout" data-cid="meta-note">
       <div class="eyebrow">Read this as a demo</div>
       <p>
-        This page is a Sandpaper document. Right now, to change a line here you’d alt-tab to the terminal
-        and describe it. The whole point of Sandpaper is to point at <em>this sentence</em>, say “tighten
-        this,” and sand it smooth in place — then keep going, non-linearly, without ever leaving the page.
+        This page is a Sandpaper document. Serve it locally and the current Claude-only toolbar can scope
+        a Sand turn to <em>this sentence</em>; Hands can edit, move, delete, and undo directly. Screenshot
+        paste, branching, durable regenerated anchors, and first-class Codex execution remain planned.
       </p>
     </div>
   </header>
 
   <!-- ============ 01 THE LOOP ============ -->
-  <section class="band" data-cid="s-loop">
+  <section class="band" id="s-loop" data-cid="s-loop">
     <div class="grid">
       <div class="num">01</div>
       <div class="col">
@@ -257,7 +257,7 @@
             <ul>
               <li>Read the rich document exactly as you do now.</li>
               <li>Point at the paragraph, table, or mockup and say the change — or edit it directly, in place.</li>
-              <li>It updates live. Branch a section, annotate it, paste a reference — explore non-linearly.</li>
+              <li>It updates live. Direct text, move, delete, and undo ship today; richer non-linear tools remain on the roadmap.</li>
               <li>It stays one durable file — the canonical spec your developers build from.</li>
             </ul>
           </div>
@@ -271,7 +271,7 @@
   </section>
 
   <!-- ============ 02 HOW IT WORKS ============ -->
-  <section class="band" data-cid="s-how">
+  <section class="band" id="s-how" data-cid="s-how">
     <div class="grid">
       <div class="num">02</div>
       <div class="col">
@@ -306,9 +306,10 @@
           spec to be real.
         </p>
         <p>
-          Today that document is a single self-contained HTML file. When a spec graduates into a
-          <em>behaving</em> prototype, the same bridge points at a local Next.js/React project instead —
-          it’s just a directory. Start light; graduate on purpose.
+          Today the supported editing surface is HTML served from a file or repository directory. The
+          current UI and runner execute Claude Code only. The server's injected runner contract is
+          provider-neutral internally so first-class Codex support can land in <code>v0.3.0</code> without
+          rewriting lifecycle, snapshots, or reload behavior.
         </p>
       </div>
       <aside class="side" data-cid="side-how">
@@ -319,7 +320,7 @@
   </section>
 
   <!-- ============ 03 INTERACTIONS ============ -->
-  <section class="band" data-cid="s-modes">
+  <section class="band" id="s-modes" data-cid="s-modes">
     <div class="grid">
       <div class="num">03</div>
       <div class="col">
@@ -327,40 +328,40 @@
         <h2>What you can do on the document</h2>
         <div class="cards" data-cid="cards">
           <div class="card"><div class="gl">⌖</div><div>
-            <h3>Point &amp; say</h3>
-            <p>Click an element or lasso a region, then say the change: “tighten this heading, use our brand clay.”</p>
+            <h3>Point &amp; say · shipped</h3>
+            <p>Enter Pick, click an element, then say the change: “tighten this heading, use our brand clay.”</p>
           </div></div>
           <div class="card"><div class="gl">❝</div><div>
-            <h3>Chat on the page</h3>
-            <p>An embedded chat for free-form, multi-turn steering — with full memory, so “now make that warmer too” just resolves.</p>
+            <h3>Conversation · shipped</h3>
+            <p>Claude's streamed reply, thinking, and edit summaries stay on the page across the current tab's turn history.</p>
           </div></div>
           <div class="card"><div class="gl">⟳</div><div>
-            <h3>One-click refine</h3>
-            <p>Regenerate, expand, simplify, shorten, or shift the tone of any block — no typing required.</p>
+            <h3>One-click refine · planned</h3>
+            <p>Preset regenerate, expand, simplify, shorten, and tone actions remain future product surface.</p>
           </div></div>
           <div class="card"><div class="gl">✥</div><div>
-            <h3>Direct manipulation</h3>
-            <p>Drag to reorder, delete, or edit text in place like a design tool. Written straight to the file — no AI round-trip, zero latency.</p>
+            <h3>Direct manipulation · shipped</h3>
+            <p>Edit rich text, move a sibling block, delete it, or undo. Each operation writes straight to the file with exact rollback on rejection.</p>
           </div></div>
           <div class="card"><div class="gl">⌷</div><div>
-            <h3>Paste a screenshot</h3>
-            <p>Drop a Figma frame or a reference shot; Sandpaper saves it into your project so Claude’s Read tool sees it as a real image. “Match this.”</p>
+            <h3>Paste a screenshot · planned</h3>
+            <p>Saving a dropped reference into the project as visual context remains planned.</p>
           </div></div>
           <div class="card"><div class="gl">⑃</div><div>
-            <h3>Branch &amp; compare</h3>
+            <h3>Branch &amp; compare · planned</h3>
             <p>Fork a section into variants and view them side by side — explore directions in parallel instead of one linear thread.</p>
           </div></div>
         </div>
       </div>
       <aside class="side" data-cid="side-modes">
-        The two hard ones fall out of the invariant: <b>direct manipulation</b> is just a local file write,
-        and a <b>pasted screenshot</b> is just a file path Claude can Read — no undocumented APIs.
+        Direct text, move, delete, and undo are verified current behavior. Screenshot paste, branching,
+        durable regenerated anchors, and keyboard/touch structural editing are explicit later work.
       </aside>
     </div>
   </section>
 
   <!-- ============ 04 STATUS ============ -->
-  <section class="band" data-cid="s-status">
+  <section class="band" id="s-status" data-cid="s-status">
     <div class="grid">
       <div class="num">04</div>
       <div class="col">
@@ -388,22 +389,21 @@
         </div>
 
         <p style="margin-top:22px">
-          <strong>stream-json is the heartbeat.</strong> <code>message_start</code> flips the chip to
-          <em>Thinking</em>; a <code>tool_use</code> block names the file being edited;
-          <code>message_stop</code> settles it to <em>Done</em>. <strong>statusLine</strong> adds model,
-          context %, and cost. <strong>Hooks</strong> surface the one thing the stream can’t — a permission
-          prompt — so a blocked edit shows “Action required” instead of silently hanging.
+          <strong>stream-json supplies normalized frames; the server supplies truth.</strong>
+          <code>message_start</code> and <code>tool_use</code> drive Thinking and Editing, while the server
+          hashes the page before and after the runner finishes. Changed bytes produce <em>Saved</em> and an
+          undo affordance; reply-only or no-op turns produce <em>Replied</em>. Waiting remains reserved.
         </p>
       </div>
       <aside class="side" data-cid="side-status">
-        Every state change reaches the page within <b>~500ms</b> of the underlying event. The chip never
-        lies and never stalls — that’s the whole trust contract.
+        Terminal errors remain visible, rejected requests restore the composer, and undo is shown only
+        for a real unconsumed snapshot. The server, not a requested tool call, decides what saved.
       </aside>
     </div>
   </section>
 
   <!-- ============ 05 PRODUCT SPEC ============ -->
-  <section class="band" data-cid="s-spec">
+  <section class="band" id="s-spec" data-cid="s-spec">
     <div class="grid">
       <div class="num">05</div>
       <div class="col">
@@ -431,9 +431,9 @@
             <p>You open the spec Claude made — diagrams, tables, a mockup. You hover; a section highlights.
               You click, say “make this a three-column comparison and warm the intro,” and hit enter. The
               chip flips to Thinking, then “Editing spec.html,” the page updates in place, and the chip
-              settles on Done with a one-line undo. Branch a section to compare directions; paste a
-              screenshot as reference; when Claude needs permission the chip asks. No terminal, no
-              re-describing, no lost context — and the file you finish with is the one your team builds from.</p>
+              settles on Saved with Undo only when bytes changed, otherwise Replied. Hands edits, moves,
+              deletes, and restores blocks directly. Branching and screenshot paste remain roadmap work;
+              the file you finish with is still the one your team builds from.</p>
           </div>
           <div class="spec-row">
             <div class="lbl">Acceptance criteria</div>
@@ -441,11 +441,11 @@
               <li>I can select any visible element and Sandpaper resolves it to the exact spot in the HTML file.</li>
               <li>When I describe a change, the edit lands in the file on disk and updates the document in under ~10 seconds.</li>
               <li>A direct-manipulation gesture (reorder, delete a block, edit text) is written to the file immediately, with no AI call and no flicker.</li>
-              <li>I can paste a screenshot and Claude references it as real visual context, not a vague description.</li>
-              <li>The status chip reflects Claude’s true state within ~500ms of each event — thinking, editing, waiting, done.</li>
+              <li class="edge">Planned: paste a screenshot and let Claude reference it as real visual context.</li>
+              <li>The status chip reflects server-confirmed thinking, editing, error, Saved, or Replied state and always recovers after rejection.</li>
               <li>The finished document is valid, shareable HTML that opens and reads correctly even with Sandpaper not running.</li>
-              <li class="edge">Edge: on a permission prompt or rate limit, the page shows a clear “Action required” / “retrying” state and never silently hangs.</li>
-              <li class="edge">Edge: if Claude regenerates the document, my open annotations re-anchor to their elements — or tell me honestly that one couldn’t be found.</li>
+              <li class="edge">Edge: malformed, network, authentication, runner, or conflict failures leave the composer usable and show the real error.</li>
+              <li class="edge">Planned: if Claude regenerates the document, open annotations re-anchor or report that they could not.</li>
             </ul>
           </div>
           <div class="spec-row">
@@ -464,19 +464,19 @@
   </section>
 
   <!-- ============ 06 ROADMAP ============ -->
-  <section class="band" data-cid="s-road">
+  <section class="band" id="s-road" data-cid="s-road">
     <div class="grid">
       <div class="num">06</div>
       <div class="col">
         <div class="eyebrow">Path</div>
         <h2>Roadmap — thin spine first</h2>
         <div class="road" data-cid="road">
-          <div class="phase committed"><div><div class="pk">P0</div><span class="here">you are here</span></div>
+          <div class="phase committed"><div><div class="pk">P0</div><span class="here">shipped</span></div>
             <div><h3>The spine</h3><p>Bridge spawns Claude in stream-json, parses the seven states, renders the live status chip. Point-and-say refine on one HTML document, live update. One working loop, zero terminal.</p></div></div>
           <div class="phase committed"><div class="pk">P1</div>
-            <div><h3>The two hard modes</h3><p>Direct manipulation (drag / delete written straight to the file) and paste-a-screenshot (saved to the project, read as an image). Proves the single-source-of-truth invariant under both human and AI edits.</p></div></div>
+            <div><h3>Hands shipped; screenshot open</h3><p>Direct rich-text, sibling move/delete, and undo write straight to the file and roll back exactly on rejection. Paste-a-screenshot remains planned.</p></div></div>
           <div class="phase"><div class="pk">P2</div>
-            <div><h3>Durable canvas</h3><p>Stable <code>data-cid</code> anchoring that survives regeneration, undo / last-good restore, and the decisions-log sidecar that makes the file self-sufficient memory.</p></div></div>
+            <div><h3>Durable canvas</h3><p>Stable <code>data-cid</code> anchoring that survives regeneration. One-level AI/direct undo and the decisions-log sidecar already ship.</p></div></div>
           <div class="phase"><div class="pk">P3</div>
             <div><h3>Non-linear</h3><p>Branch &amp; compare variants side by side; threaded annotations and on-page chat as first-class.</p></div></div>
           <div class="phase"><div class="pk">P4</div>
@@ -484,14 +484,14 @@
         </div>
       </div>
       <aside class="side" data-cid="side-road">
-        P0–P1 are committed and small; P2–P4 are planned. Head start: <b>agentation</b> is already on your
-        machine (MCP on :4747, blocking watch tool) — held as the P4 latency escalation.
+        Current execution is Claude-only. First-class Codex is sequenced for <code>v0.3.0</code>; screenshot,
+        anchoring, branching, and the long-lived watch session remain planned rather than implied current.
       </aside>
     </div>
   </section>
 
   <!-- ============ 07 RISKS ============ -->
-  <section class="band" data-cid="s-risks">
+  <section class="band" id="s-risks" data-cid="s-risks">
     <div class="grid">
       <div class="num">07</div>
       <div class="col">
@@ -501,7 +501,7 @@
           <li><span class="tag">Continuity</span><span class="body good"><b>Largely dissolved.</b> One document = one folder = one session, and the file itself is the durable memory — so <code>--resume</code> is an accelerator, not a dependency. A fresh session rebuilds context from the file.</span></li>
           <li><span class="tag">Anchoring</span><span class="body">Keeping annotations attached when Claude regenerates the HTML. <b>Mitigation:</b> a CLAUDE.md contract to never strip <code>data-cid</code>, plus text/selector fallback.</span></li>
           <li><span class="tag">Latency</span><span class="body">~1–2s cold start per semantic turn. <b>Mitigation:</b> optimistic local edits feel instant; a P4 watch session removes the cold start.</span></li>
-          <li><span class="tag">Security</span><span class="body">The bridge runs Claude with file-write on localhost. <b>Mitigation:</b> bind to loopback only, scope the working directory, never expose the port.</span></li>
+          <li><span class="tag">Security</span><span class="body">The bridge runs Claude with file-write on localhost. <b>Mitigation:</b> loopback bind, per-process token, same-origin checks, shared path policy, body caps, and file-only Claude tools.</span></li>
           <li><span class="tag">Scope</span><span class="body">This is a refinement loop for documents, not an IDE or a Figma. The discipline is knowing where Sandpaper stops.</span></li>
           <li><span class="tag">Billing</span><span class="body">Subscription reuse holds today (verified), but the paused change could return. <b>Mitigation:</b> keep the brain swappable.</span></li>
           <li><span class="tag">Subtractive</span><span class="body">The name leans toward “smooth / remove,” but the tool also <em>adds</em> richness. <b>Mitigation:</b> keep one-click expand/branch first-class so Sandpaper earns the generative half, not just polish.</span></li>
@@ -515,7 +515,7 @@
   </section>
 
   <!-- ============ 08 NAME ============ -->
-  <section class="band" data-cid="s-name">
+  <section class="band" id="s-name" data-cid="s-name">
     <div class="grid">
       <div class="num">08</div>
       <div class="col">
@@ -540,7 +540,7 @@
   </section>
 
   <!-- ============ 09 DOGFOOD ============ -->
-  <section class="band" data-cid="s-dogfood">
+  <section class="band" id="s-dogfood" data-cid="s-dogfood">
     <div class="grid">
       <div class="num">09</div>
       <div class="col">
@@ -549,7 +549,7 @@
         <div class="signoff" data-cid="signoff">
           <ul>
             <li>We build Sandpaper with Sandpaper — it sands its own spec, this very page.</li>
-            <li>From P0 on, every change to this document goes through point-and-say, so we feel each rough edge before you do.</li>
+            <li>Use this document as a disposable live-edit fixture before release; record one real Claude turn without pretending every repository change happens on the page.</li>
             <li>The status chip gets debugged against the very stream it reports on.</li>
             <li>If we won’t ship a change through Sandpaper, it isn’t ready to ship to you.</li>
           </ul>

@@ -44,8 +44,11 @@ npx @nynb/sandpaper open      # serves the repo + opens brain/index.html
   (last 5 kept, older ones fold away).
 - **The refine toolbar** — serve the brain (or any HTML doc) locally and get an on-page
   overlay: **Sand** (a scoped AI edit of the element you click), **Hands** (direct edit,
-  no AI), **Sling** (copies a terminal-ready instruction for bigger work). The file on
-  disk stays the single source of truth; the page live-reloads from it.
+  move, delete, and undo with no AI), **Sling** (copies a terminal-ready instruction for
+  bigger work). The current toolbar runs Claude Code only; first-class Codex execution is
+  planned for `v0.3.0`. Internally the server accepts a provider-neutral runner so adding
+  that provider does not require another lifecycle rewrite. The file on disk stays the
+  single source of truth; the page live-reloads from it.
 
 ## The CLI (plumbing — no AI)
 
@@ -55,7 +58,7 @@ npx @nynb/sandpaper open      # serves the repo + opens brain/index.html
 | `sandpaper init` | scaffold `brain/` — assets, `.sandpaper/manifest.json`, a starter multi-page skeleton |
 | `sandpaper upgrade` | bring an existing brain up to date (assets · hooks · commands · canvas), preserving your `theme.css` |
 | `sandpaper rebuild` | full reset — back up the old brain to `brain.bak-<date>/`, lay down a fresh skeleton |
-| `sandpaper doctor` | health-check a setup: assets, digest, links, source meta, manifest, hooks |
+| `sandpaper doctor` | independently derive brain facts and check assets, digest/NOW/log/open agreement, fallbacks, links, source/package meta, manifest, hooks |
 | `sandpaper open` | serve this repo's brain + open it in a browser |
 | `sandpaper <doc.html \| dir>` | serve any doc or directory with the on-page refine toolbar |
 | `sandpaper help` | usage |
