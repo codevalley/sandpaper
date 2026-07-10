@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { createServer as createHttpServer, get as httpGet, request as httpRequest } from 'node:http';
-import { copyFileSync, existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
 import { createSandpaperServer } from '../src/server.js';
@@ -760,4 +760,55 @@ test('reload for an AI change reaches all same-page clients only after the termi
     assert.deepEqual(await events.next(), { type: 'reload', page: '/' });
   }
   await noMatchingFrame(otherPage, (frame) => frame.type === 'reload');
+});
+
+test('directory watching falls back when recursive fs.watch is unavailable and closes every watcher', async (t) => {
+  const repo = makeRepo();
+  const nested = join(repo.root, 'nested');
+  mkdirSync(nested);
+  writeFileSync(join(nested, 'page.html'), '<!doctype html><html><body>Nested</body></html>');
+
+  const calls = [];
+  const handles = [];
+  const callbacks = new Map();
+  const watch = (directory, options, onChange) => {
+    calls.push({ directory, options });
+    if (options.recursive) {
+      const error = new Error('The feature watch recursively is unavailable on the current platform');
+      error.code = 'ERR_FEATURE_UNAVAILABLE_ON_PLATFORM';
+      throw error;
+    }
+    callbacks.set(directory, onChange);
+    const handle = { closed: false, close() { this.closed = true; } };
+    handles.push(handle);
+    return handle;
+  };
+
+  const controller = createSandpaperServer(repo.root, { brain: true }, {
+    runner: createFakeRunner(),
+    tokenFactory: () => 'test-token',
+    watch,
+  });
+  t.after(async () => {
+    await controller.close();
+    repo.cleanup();
+  });
+
+  const url = await controller.listen(0);
+  const events = await openEvents(url, { clientId: 'fallback-client', page: '/nested/page.html' });
+  t.after(() => events.close());
+  await events.next();
+
+  assert.equal(calls[0].options.recursive, true);
+  const fallbackRoot = calls[1].directory;
+  const nestedDirectory = join(fallbackRoot, 'nested');
+  assert.ok(callbacks.has(fallbackRoot));
+  assert.ok(callbacks.has(nestedDirectory));
+  writeFileSync(join(nested, 'page.html'), '<!doctype html><html><body>Changed</body></html>');
+  callbacks.get(nestedDirectory)('change', 'page.html');
+  assert.deepEqual(await events.next(), { type: 'reload', page: '/nested/page.html' });
+
+  await controller.close();
+  assert.ok(handles.length >= 2);
+  assert.equal(handles.every((handle) => handle.closed), true);
 });

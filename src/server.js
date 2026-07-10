@@ -4,7 +4,7 @@
 import { createServer } from 'node:http';
 import {
   readFile, readFileSync, writeFileSync, watch as watchFiles, copyFileSync, mkdirSync,
-  existsSync, unlinkSync, realpathSync,
+  existsSync, lstatSync, readdirSync, unlinkSync, realpathSync,
 } from 'node:fs';
 import { join, dirname, basename, extname, sep, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -193,6 +193,76 @@ function takeSnapshot(pageFile, root, turnId) {
 function removeSnapshot(path) {
   if (!path) return;
   try { unlinkSync(path); } catch { /* best-effort cleanup */ }
+}
+
+function recursiveWatchUnavailable(error) {
+  return error?.code === 'ERR_FEATURE_UNAVAILABLE_ON_PLATFORM'
+    || /recursive.*(?:unavailable|not supported)/i.test(String(error?.message || ''));
+}
+
+function createFallbackTreeWatcher(root, watch, onChange) {
+  const watchers = new Map();
+  const skipped = new Set(['.agents', '.codex', '.git', '.sandpaper', 'node_modules']);
+  let closed = false;
+
+  const closeAll = () => {
+    if (closed) return;
+    closed = true;
+    for (const handle of watchers.values()) {
+      try { handle.close(); } catch { /* best-effort fallback cleanup */ }
+    }
+    watchers.clear();
+  };
+
+  const allowedDirectory = (directory) => {
+    const rel = relative(root, directory);
+    return !rel.split(sep).some((segment) => skipped.has(segment));
+  };
+
+  const pruneRemoved = () => {
+    for (const [directory, handle] of watchers) {
+      if (existsSync(directory)) continue;
+      try { handle.close(); } catch { /* best-effort */ }
+      watchers.delete(directory);
+    }
+  };
+
+  const addDirectory = (directory) => {
+    if (closed || watchers.has(directory) || !allowedDirectory(directory)) return;
+    let stat;
+    let entries;
+    try {
+      stat = lstatSync(directory);
+      if (!stat.isDirectory() || stat.isSymbolicLink()) return;
+      entries = readdirSync(directory, { withFileTypes: true });
+    } catch (error) {
+      if (error?.code === 'ENOENT' || error?.code === 'ENOTDIR' || error?.code === 'EACCES') return;
+      throw error;
+    }
+
+    const handle = watch(directory, { persistent: true }, (event, filename) => {
+      if (closed) return;
+      const name = filename == null ? null : String(filename);
+      const candidate = name ? join(directory, name) : null;
+      const rel = candidate ? relative(root, candidate) : null;
+      onChange(event, rel);
+      if (event === 'rename') {
+        if (candidate) {
+          try { addDirectory(candidate); } catch { /* a new inaccessible subtree is not fatal */ }
+        }
+        pruneRemoved();
+      }
+    });
+    watchers.set(directory, handle);
+
+    for (const entry of entries) {
+      if (entry.isDirectory() && !entry.isSymbolicLink()) addDirectory(join(directory, entry.name));
+    }
+  };
+
+  try { addDirectory(root); }
+  catch (error) { closeAll(); throw error; }
+  return { close: closeAll };
 }
 
 // `target` is a file (single-doc mode) or a directory (folder/brain mode, opts.brain=true).
@@ -617,7 +687,7 @@ export function createSandpaperServer(target, opts = {}, deps = {}) {
     socket.on('close', () => sockets.delete(socket));
   });
 
-  watcher = watch(root, { persistent: true, recursive: isDir }, (_event, filename) => {
+  const onWatchChange = (_event, filename) => {
     let name = filename;
     if (!name) { if (isDir) return; name = defaultDoc; }
     const rel = String(name).split(sep).join('/');
@@ -642,7 +712,13 @@ export function createSandpaperServer(target, opts = {}, deps = {}) {
       broadcastReload(page);
     }, 120);
     reloadTimers.set(page, timer);
-  });
+  };
+  try {
+    watcher = watch(root, { persistent: true, recursive: isDir }, onWatchChange);
+  } catch (error) {
+    if (!isDir || !recursiveWatchUnavailable(error)) throw error;
+    watcher = createFallbackTreeWatcher(root, watch, onWatchChange);
+  }
 
   let listeningPromise = null;
   let rejectPendingListen = null;

@@ -9,6 +9,35 @@ own work — via `/sandpaper:release`, never written from scratch.
 
 ## [Unreleased]
 
+### Added
+- Node 18/20/22 integration coverage, Chromium interaction coverage, shipped-JavaScript syntax
+  checks, and a fresh-install package smoke that exercises the installed CLI and server.
+
+### Changed
+- The living brain now derives mechanical progress and counts in the browser, while `doctor`
+  independently checks stamped fallbacks, digest state, source metadata, and repository links.
+- README, product/engineering specs, and brain wiki/map language now agree on the shipped
+  Claude-only provider boundary, Hands behavior, undo support, and current roadmap status.
+- CI and release automation now install prerequisites explicitly, inspect the actual tarball,
+  require an exact tag/lockfile/changelog match, and block publishing on every release gate.
+
+### Fixed
+- Server turns now reserve one truthful lifecycle across SSE replay, terminal status, byte hashes,
+  bounded snapshots, undo, runner failures, and page/client-scoped reload attribution.
+- Directory serving falls back to closeable per-directory watchers where recursive `fs.watch` is
+  unavailable, preserving Node 18 Linux support.
+- The toolbar now recovers drafts and controls after rejected requests, makes Pick and Hands
+  exclusive, rolls back failed direct edits exactly, and repairs search, keyboard, focus, motion,
+  ARIA, and host-style isolation behavior.
+- Release-note extraction keeps the post-`v0.2.0` literal `awk` heading match, now fails on a
+  missing or empty exact version section, and never invents fallback notes after publishing.
+
+### Security
+- A shared canonical repository-path policy allows intended source and `.github` links while
+  denying traversal, escaping symlinks, runtime state, hidden namespaces, and secret-shaped files.
+- Every local mutation and SSE connection now requires a process-only token, loopback host,
+  same-origin browser context, valid client identity, and structured size/content validation.
+
 ## [0.2.0] — 2026-07-03
 
 ### Added
