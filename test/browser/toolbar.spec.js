@@ -384,6 +384,32 @@ test('malformed direct response reloads into text already persisted by the real 
   expect(readFileSync(pageFile, 'utf8')).toContain('<em>Persisted despite malformed response</em>');
 });
 
+test('structured 500 after a persisted direct write reloads from disk without rollback', async ({ page }) => {
+  let forwardedStatus = 0;
+  await page.route('**/__sandpaper/write', async (route) => {
+    const response = await route.fetch();
+    forwardedStatus = response.status();
+    await route.fulfill({
+      status: 500,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ok: false,
+        error: { code: 'write_recovery_failed', message: 'Write outcome requires reconciliation' },
+      }),
+    });
+  });
+  let navigations = 0;
+  page.on('framenavigated', (frame) => { if (frame === page.mainFrame()) navigations += 1; });
+
+  await enterHands(page);
+  await editHtml(page, 'row-a', '<strong>Persisted despite structured 500</strong>');
+
+  await expect.poll(() => navigations).toBe(1);
+  expect(forwardedStatus).toBe(200);
+  await expect(page.locator('[data-cid="row-a"]')).toHaveText('Persisted despite structured 500');
+  expect(readFileSync(pageFile, 'utf8')).toContain('<strong>Persisted despite structured 500</strong>');
+});
+
 test('lost direct response reloads into structural edit already persisted by the real server', async ({ page }) => {
   let forwardedStatus = 0;
   await page.route('**/__sandpaper/dom', async (route) => {

@@ -169,7 +169,7 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
     persist(); stick();
   }
   function confirmedDirectRejection(error) {
-    return !!(error && error.status > 0 && error.code !== 'network_error' && error.code !== 'invalid_response');
+    return !!(error && typeof error.status === 'number' && error.status >= 400 && error.status < 500);
   }
   function reconcileDirectOutcome(error) {
     announceRequestError(new Error(errorMessage(error) + ' · reloading to reconcile'));
