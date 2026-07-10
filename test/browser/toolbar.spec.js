@@ -345,18 +345,63 @@ test('additional mode changes are ignored while a Hands commit is pending', asyn
   await expect(page.locator('#sp-pick')).toHaveAttribute('aria-pressed', 'true');
 });
 
-test('failed rich text write restores exact innerHTML without reload', async ({ page }) => {
+test('confirmed 4xx rich text rejection exact-rolls back without navigation', async ({ page }) => {
   await rejectMutation(page, 'write', 'Text write refused');
   await enterHands(page);
   const row = page.locator('[data-cid="row-a"]');
   const before = await row.evaluate((element) => element.innerHTML);
+  const beforeFile = readFileSync(pageFile, 'utf8');
   let navigations = 0;
   page.on('framenavigated', (frame) => { if (frame === page.mainFrame()) navigations += 1; });
   await editHtml(page, 'row-a', '<em>Optimistic rich text</em>');
 
   await expect.poll(() => row.evaluate((element) => element.innerHTML)).toBe(before);
   expect(navigations).toBe(0);
+  expect(readFileSync(pageFile, 'utf8')).toBe(beforeFile);
   await expect(page.locator('#sp-label')).toHaveText('Text write refused');
+});
+
+test('malformed direct response reloads into text already persisted by the real server', async ({ page }) => {
+  let forwardedStatus = 0;
+  await page.route('**/__sandpaper/write', async (route) => {
+    const response = await route.fetch();
+    forwardedStatus = response.status();
+    await route.fulfill({
+      response,
+      contentType: 'application/json',
+      body: '{',
+    });
+  });
+  let navigations = 0;
+  page.on('framenavigated', (frame) => { if (frame === page.mainFrame()) navigations += 1; });
+
+  await enterHands(page);
+  await editHtml(page, 'row-a', '<em>Persisted despite malformed response</em>');
+
+  await expect.poll(() => navigations).toBe(1);
+  expect(forwardedStatus).toBe(200);
+  await expect(page.locator('[data-cid="row-a"]')).toHaveText('Persisted despite malformed response');
+  expect(readFileSync(pageFile, 'utf8')).toContain('<em>Persisted despite malformed response</em>');
+});
+
+test('lost direct response reloads into structural edit already persisted by the real server', async ({ page }) => {
+  let forwardedStatus = 0;
+  await page.route('**/__sandpaper/dom', async (route) => {
+    const response = await route.fetch();
+    forwardedStatus = response.status();
+    await route.abort('connectionreset');
+  });
+  let navigations = 0;
+  page.on('framenavigated', (frame) => { if (frame === page.mainFrame()) navigations += 1; });
+
+  await enterHands(page);
+  await page.locator('[data-cid="row-b"]').dispatchEvent('mouseover');
+  await page.locator('#sp-rowctl .sp-row-delete').dispatchEvent('click');
+
+  await expect.poll(() => navigations).toBe(1);
+  expect(forwardedStatus).toBe(200);
+  await expect(page.locator('[data-cid="row-b"]')).toHaveCount(0);
+  expect(readFileSync(pageFile, 'utf8')).not.toContain('data-cid="row-b"');
 });
 
 test('failed delete restores exact sibling bytes and order without reload', async ({ page }) => {
@@ -564,7 +609,7 @@ test('status, transcript, toolbar controls, and composer expose baseline semanti
   await expect(page.locator('#sp-chip')).toHaveAttribute('aria-atomic', 'true');
   await expect(page.locator('#sp-thread')).toHaveAttribute('role', 'log');
   await expect(page.locator('#sp-thread')).toHaveAttribute('aria-label', 'Sandpaper conversation');
-  await expect(page.locator('#sp-thread')).not.toHaveAttribute('aria-live', /.+/);
+  await expect(page.locator('#sp-thread')).toHaveAttribute('aria-live', 'off');
   await expect(page.locator('#sp-toggle')).toHaveAttribute('aria-expanded', 'false');
   await expect(page.locator('#sp-toggle')).toHaveAttribute('aria-controls', 'sp-thread');
   await expect(page.locator('#sp-pick')).toHaveAttribute('aria-label', 'Pick a page element');

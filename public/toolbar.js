@@ -45,7 +45,7 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
       '<button type="button" id="sp-min" aria-label="Minimize Sandpaper" title="Minimize">–</button>' +
       '<button type="button" id="sp-toggle" aria-label="Expand or collapse conversation" aria-controls="sp-thread" aria-expanded="false">▸</button>' +
     '</div>' +
-    '<div id="sp-thread" role="log" aria-label="Sandpaper conversation" hidden></div>' +
+    '<div id="sp-thread" role="log" aria-label="Sandpaper conversation" aria-live="off" hidden></div>' +
     '<div id="sp-target" hidden></div>' +
     '<form id="sp-form">' +
       '<input id="sp-input" aria-label="Message Claude Code" placeholder="Ask, discuss, or describe a change…" autocomplete="off" />' +
@@ -168,6 +168,13 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
     chip.style.color = COLORS.error;
     persist(); stick();
   }
+  function confirmedDirectRejection(error) {
+    return !!(error && error.status > 0 && error.code !== 'network_error' && error.code !== 'invalid_response');
+  }
+  function reconcileDirectOutcome(error) {
+    announceRequestError(new Error(errorMessage(error) + ' · reloading to reconcile'));
+    location.reload();
+  }
   function rejectPendingTurn(record, error, draft, terminal) {
     var message = errorMessage(error);
     if (record && !record.errorShown) {
@@ -191,6 +198,10 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
       if (onSuccess) onSuccess(result);
       return result;
     }).catch(function (error) {
+      if (!confirmedDirectRejection(error)) {
+        reconcileDirectOutcome(error);
+        return null;
+      }
       try {
         if (rollback) rollback();
       } catch (rollbackError) {
