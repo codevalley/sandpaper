@@ -3,12 +3,13 @@
 // toolbar at response time only, relaying page → Claude turns, streaming status over SSE,
 // and live-reloading the affected page when its file changes.
 import { createServer } from 'node:http';
-import { readFile, writeFile, readFileSync, writeFileSync, watch, copyFileSync, mkdirSync, existsSync, realpathSync } from 'node:fs';
-import { join, dirname, basename, extname, normalize, sep } from 'node:path';
+import { readFile, readFileSync, writeFileSync, watch, copyFileSync, mkdirSync, existsSync } from 'node:fs';
+import { join, dirname, basename, extname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID, createHash } from 'node:crypto';
 import { runTurn } from './claude.js';
 import { replaceInner, removeElement, moveElement } from './edit.js';
+import { resolveRepositoryPath } from './path-policy.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PUBLIC = join(HERE, '..', 'public');
@@ -48,7 +49,7 @@ export function startServer(target, port, opts = {}) {
   // (so two rapid edits can't interleave). compute(src) -> new HTML string, or null if not located.
   // Refuses to write while an AI turn is editing the same page (it would clobber Claude's in-progress edit).
   const applyDirect = (pageFile, compute) => {
-    if (activeTurn && (!isDir || resolveUnder(activeTurnPage) === pageFile)) return { code: 409, body: '{"error":"an AI turn is editing this page"}' };
+    if (activeTurn && (!isDir || resolveUnder(activeTurnPage, { mutable: true }) === pageFile)) return { code: 409, body: '{"error":"an AI turn is editing this page"}' };
     let src;
     try { src = readFileSync(pageFile, 'utf8'); } catch { return { code: 404, body: '{"error":"unreadable"}' }; }
     const out = compute(src);
@@ -75,30 +76,28 @@ export function startServer(target, port, opts = {}) {
     return html.includes('</body>') ? html.replace('</body>', tag + '</body>') : html + tag;
   };
 
-  const serveFile = (file, res) => {
+  const serveFile = (file, req, res) => {
     readFile(file, (err, data) => {
       if (err) { res.writeHead(404); return res.end('not found'); }
       res.writeHead(200, { 'Content-Type': MIME[extname(file)] || 'application/octet-stream' });
-      res.end(data);
+      res.end(req.method === 'HEAD' ? undefined : data);
     });
   };
 
-  // Resolve a URL path to an absolute file UNDER root, or null if it escapes (traversal guard).
-  const resolveUnder = (reqPath) => {
+  // Resolve a decoded URL path through the repository's shared serve/write boundary.
+  const resolveUnder = (reqPath, { mutable = false } = {}) => {
     const rel = (reqPath === '/' || reqPath === '') ? defaultDoc : reqPath.replace(/^\/+/, '');
-    if (rel === '.git' || rel.startsWith('.git/')) return null; // never serve VCS internals
-    const file = normalize(join(root, rel));
-    if (file !== root && !file.startsWith(root + sep)) return null; // lexical traversal guard
-    // also resolve symlinks: a link inside root pointing outside must not escape.
-    try { const real = realpathSync(file); if (real !== root && !real.startsWith(root + sep)) return null; }
-    catch { /* path not yet on disk — the lexical guard already passed */ }
-    return file;
+    const result = resolveRepositoryPath(root, join(root, rel), { mutable });
+    return result.ok ? result.file : null;
   };
 
   const server = createServer((req, res) => {
-    const url = new URL(req.url, `http://${req.headers.host}`);
     let path;
-    try { path = decodeURIComponent(url.pathname); }
+    try {
+      const url = new URL(req.url, `http://${req.headers.host || '127.0.0.1'}`);
+      path = decodeURIComponent(url.pathname);
+      if (path.includes('\0')) throw new URIError('NUL path');
+    }
     catch { res.writeHead(400); return res.end('bad request'); }
 
     // Root convenience: serving a repo whose brain lives in brain/ — send "/" to the cover so
@@ -130,7 +129,7 @@ export function startServer(target, port, opts = {}) {
         try { payload = JSON.parse(body || '{}'); } catch {}
         // Never trust the client page: re-resolve it under root and require an existing .html.
         const turnPage = typeof payload.page === 'string' ? payload.page : '/';
-        const pageFile = resolveUnder(turnPage);
+        const pageFile = resolveUnder(turnPage, { mutable: true });
         if (!pageFile || extname(pageFile) !== '.html' || !existsSync(pageFile)) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           return res.end('{"error":"unknown page"}');
@@ -189,7 +188,7 @@ export function startServer(target, port, opts = {}) {
       req.on('data', (d) => { body += d; if (body.length > 2e6) req.destroy(); });
       req.on('end', () => {
         let p = {}; try { p = JSON.parse(body || '{}'); } catch {}
-        const pageFile = resolveUnder(typeof p.page === 'string' ? p.page : '/');
+        const pageFile = resolveUnder(typeof p.page === 'string' ? p.page : '/', { mutable: true });
         const cid = typeof p.cid === 'string' ? p.cid : '';
         if (!pageFile || extname(pageFile) !== '.html' || !existsSync(pageFile) ||
             !/^[\w:-]{1,64}$/.test(cid) || typeof p.html !== 'string') {
@@ -210,7 +209,7 @@ export function startServer(target, port, opts = {}) {
       req.on('end', () => {
         let p = {}; try { p = JSON.parse(body || '{}'); } catch {}
         const okCid = (c) => typeof c === 'string' && /^[\w:-]{1,64}$/.test(c);
-        const pageFile = resolveUnder(typeof p.page === 'string' ? p.page : '/');
+        const pageFile = resolveUnder(typeof p.page === 'string' ? p.page : '/', { mutable: true });
         if (!pageFile || extname(pageFile) !== '.html' || !existsSync(pageFile) || !okCid(p.cid) ||
             (p.op !== 'delete' && p.op !== 'move') || (p.op === 'move' && !okCid(p.target))) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -233,7 +232,7 @@ export function startServer(target, port, opts = {}) {
       req.on('data', (d) => { body += d; if (body.length > 1e4) req.destroy(); });
       req.on('end', () => {
         let p = {}; try { p = JSON.parse(body || '{}'); } catch {}
-        const pageFile = resolveUnder(typeof p.page === 'string' ? p.page : '/');
+        const pageFile = resolveUnder(typeof p.page === 'string' ? p.page : '/', { mutable: true });
         const snap = pageFile && directSnaps.get(pageFile);
         if (snap && existsSync(snap)) {
           try {
@@ -252,20 +251,22 @@ export function startServer(target, port, opts = {}) {
 
     // --- toolbar assets (dev chrome, served from the package; never written to disk) ---
     if (path.startsWith('/__sandpaper/') && (path.endsWith('.js') || path.endsWith('.css'))) {
-      return serveFile(join(PUBLIC, basename(path)), res); // toolbar.js / toolbar.css / sp-markdown.js
+      if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); return res.end('method not allowed'); }
+      return serveFile(join(PUBLIC, basename(path)), req, res); // toolbar.js / toolbar.css / sp-markdown.js
     }
 
     // --- any file under root: .html gets the toolbar injected, everything else served raw ---
+    if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); return res.end('method not allowed'); }
     const file = resolveUnder(path);
     if (!file) { res.writeHead(404); return res.end('not found'); }
     if (extname(file) === '.html') {
       return readFile(file, 'utf8', (err, html) => {
         if (err) { res.writeHead(404); return res.end('not found'); }
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-        res.end(injectToolbar(html));
+        res.end(req.method === 'HEAD' ? undefined : injectToolbar(html));
       });
     }
-    return serveFile(file, res);
+    return serveFile(file, req, res);
   });
 
   // Watch the served tree; reload the page whose .html changed.

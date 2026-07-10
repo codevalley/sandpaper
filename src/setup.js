@@ -2,8 +2,9 @@
 // The plumbing half of Sandpaper (no AI): copy the skill + hooks + design-system templates from
 // THIS package into a target repo, write the manifest, and health-check a setup. Zero deps.
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, copyFileSync, statSync, renameSync } from 'node:fs';
-import { join, dirname, basename, normalize, extname, resolve } from 'node:path';
+import { join, dirname, basename, extname, relative, resolve, sep } from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { PATH_REASONS, resolveRepositoryPath } from './path-policy.js';
 
 const ok = (m) => console.log('  ✓ ' + m);
 const warn = (m) => console.log('  · ' + m);
@@ -219,8 +220,12 @@ export function doctor(target) {
     const m = h.match(/id="brain-state">([\s\S]*?)<\/script>/);
     if (m) { JSON.parse(m[1]); ok('#brain-state digest parses'); } else { warn('cover has no #brain-state digest'); }
   } catch { bad('brain/index.html unreadable'); problems++; }
-  const broken = checkLinks(brain);
-  if (broken === 0) ok('internal links resolve'); else { bad(`${broken} broken internal link(s)`); problems++; }
+  const broken = checkBrainLinks(target, brain);
+  if (broken.length === 0) ok('internal links resolve');
+  else {
+    for (const problem of broken) bad(`${problem.page}: ${problem.reference} — ${problem.message}`);
+    problems += broken.length;
+  }
   // the out-link source meta: every page should carry the SAME base (or none at all)
   const metas = htmlPages(brain).map((p) => (readFileSync(p, 'utf8').match(/name="sandpaper:source" content="([^"]*)"/) || [, null])[1]);
   const distinct = [...new Set(metas)];
@@ -346,24 +351,47 @@ function ensureCanvas(coverPath) {
   return { injected: false };
 }
 
-// walk brain/*.html, return count of broken internal href/src/data-ref (file missing or #anchor
-// absent). data-ref is the brain's citation attribute — linting it here is the stamp-time guard
-// that keeps every out-of-brain ref true on disk (the resolver can then trust the mapping).
-function checkLinks(brain) {
+// Walk brain/*.html and report local href/src/data-ref targets rejected by repository policy,
+// missing on disk, unreadable, or missing their requested anchor.
+export function checkBrainLinks(target, brain) {
   const pages = htmlPages(brain);
-  let bad = 0;
+  const problems = [];
   for (const p of pages) {
     const html = readFileSync(p, 'utf8'), dir = dirname(p);
     for (const m of html.matchAll(/(?:href|src|data-ref)="([^"]+)"/g)) {
       const hr = m[1];
       if (/^(https?:|#|mailto:|data:)/.test(hr)) continue;
       const [path, anchor] = hr.split('#');
-      const t = normalize(join(dir, path.endsWith('/') ? path + 'index.html' : path));
-      if (!existsSync(t)) { bad++; continue; }
-      if (anchor) { const x = readFileSync(t, 'utf8'); if (!x.includes(`id="${anchor}"`) && !x.includes(`name="${anchor}"`)) bad++; }
+      const candidate = resolve(dir, path.endsWith('/') ? path + 'index.html' : path);
+      const result = resolveRepositoryPath(target, candidate);
+      const page = relative(target, p).split(sep).join('/');
+      if (!result.ok) {
+        problems.push({
+          page,
+          reference: hr,
+          reason: result.reason,
+          message: linkProblemMessage(result.reason),
+        });
+        continue;
+      }
+      if (!anchor) continue;
+      try {
+        const x = readFileSync(result.file, 'utf8');
+        if (!x.includes(`id="${anchor}"`) && !x.includes(`name="${anchor}"`)) {
+          problems.push({ page, reference: hr, reason: 'missing-anchor', message: `anchor #${anchor} not found` });
+        }
+      } catch {
+        problems.push({ page, reference: hr, reason: PATH_REASONS.UNREADABLE, message: linkProblemMessage(PATH_REASONS.UNREADABLE) });
+      }
     }
   }
-  return bad;
+  return problems;
+}
+
+function linkProblemMessage(reason) {
+  if (reason === PATH_REASONS.MISSING) return 'target does not exist';
+  if (reason === PATH_REASONS.UNREADABLE) return 'target is unreadable';
+  return `target rejected by repository policy (${reason})`;
 }
 
 // ---- the multi-page skeleton: one shared shell + per-page bodies (so the brain is never a single page) ----
