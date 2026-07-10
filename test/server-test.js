@@ -261,6 +261,37 @@ test('SSE origin rejects absent and foreign Origin', async (t) => {
   }
 });
 
+test('SSE accepts Chromium same-origin fetch metadata when native EventSource omits Origin', async (t) => {
+  const { url } = await fixture(t);
+  const events = await openEvents(url, {
+    origin: null,
+    clientId: 'native-event-source',
+    headers: {
+      'Sec-Fetch-Site': 'same-origin',
+      Referer: new URL('/index.html', url).href,
+    },
+  });
+  t.after(() => events.close());
+  assert.equal(events.status, 200);
+  assert.deepEqual(await events.next(), { type: 'status', state: 'idle', label: 'idle' });
+});
+
+test('SSE rejects missing Origin when same-origin fetch metadata is incomplete or foreign', async (t) => {
+  const { url } = await fixture(t);
+  for (const headers of [
+    { 'Sec-Fetch-Site': 'same-origin' },
+    { 'Sec-Fetch-Site': 'cross-site', Referer: new URL('/index.html', url).href },
+    { 'Sec-Fetch-Site': 'same-origin', Referer: 'https://foreign.example/page.html' },
+    { 'Sec-Fetch-Site': 'same-origin', Referer: 'not a url' },
+    { 'Sec-Fetch-Site': 'same-origin', Referer: new URL('/index.html', url).href.replace('127.0.0.1', 'localhost') },
+  ]) {
+    const events = await openEvents(url, { origin: null, clientId: 'bad-event-source', headers });
+    events.close();
+    assert.equal(events.status, 403);
+    assert.equal(events.json.error.code, 'invalid_origin');
+  }
+});
+
 test('valid JSON requires an object body for turn and direct mutations', async (t) => {
   const cases = [
     ['/__sandpaper/turn', null],
@@ -546,6 +577,44 @@ test('same-page AI and direct undo return 409 during a turn', async (t) => {
   const directUndo = await requestJson(url, '/__sandpaper/undo-direct', { body: { page: '/' } });
   assert.equal(aiUndo.status, 409);
   assert.equal(directUndo.status, 409);
+});
+
+test('direct mutation reports undoable only when a usable snapshot exists', async (t) => {
+  const { url } = await fixture(t);
+  const changed = await requestJson(url, '/__sandpaper/write', {
+    body: { page: '/', cid: 'main', html: 'Changed' },
+  });
+  assert.equal(changed.status, 200);
+  assert.equal(changed.json.undoable, true);
+
+  const noop = await requestJson(url, '/__sandpaper/write', {
+    body: { page: '/', cid: 'main', html: 'Changed' },
+  });
+  assert.equal(noop.status, 200);
+  assert.equal(noop.json.undoable, false);
+});
+
+test('direct mutation succeeds without exposing undo when snapshot creation fails', async (t) => {
+  const repo = makeRepo();
+  writeFileSync(join(repo.root, '.sandpaper'), 'blocks the snapshot directory');
+  const controller = createSandpaperServer(repo.pageFile, {}, {
+    runner: createFakeRunner(),
+    tokenFactory: () => 'test-token',
+  });
+  const url = await controller.listen();
+  t.after(async () => {
+    await controller.close();
+    repo.cleanup();
+  });
+
+  const changed = await requestJson(url, '/__sandpaper/write', {
+    body: { page: '/', cid: 'main', html: 'Changed without snapshot' },
+  });
+  assert.equal(changed.status, 200);
+  assert.equal(changed.json.undoable, false);
+
+  const undo = await requestJson(url, '/__sandpaper/undo-direct', { body: { page: '/' } });
+  assert.equal(undo.status, 404);
 });
 
 test('direct write restores exact disk bytes when persistence corrupts then throws', async (t) => {

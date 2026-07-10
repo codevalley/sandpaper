@@ -36,7 +36,10 @@
   },
   "scripts": {
     "start": "node bin/cli.js help",
-    "test": "node --test test/path-policy-test.js test/server-test.js && node test/parse-test.js && node test/markdown-test.js && node test/edit-test.js",
+    "test": "node --test test/path-policy-test.js test/server-test.js test/client-test.js && node test/parse-test.js && node test/markdown-test.js && node test/edit-test.js",
     "verify-publish": "node bin/verify-publish.js"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1"
   }
 }

@@ -22,7 +22,7 @@
         var okTerm = !term || hay.indexOf(term) >= 0;
         var okFacet = !activeFacet || e.getAttribute('data-kind') === activeFacet || e.getAttribute('data-status') === activeFacet || e.getAttribute('data-lens') === activeFacet;
         var show = okTerm && okFacet;
-        e.classList.toggle('hidden', !show);
+        e.hidden = !show;
         if (show) shown++;
       });
       if (note) note.textContent = (term || activeFacet) ? (shown + ' shown') : '';
@@ -32,13 +32,20 @@
       f.addEventListener('click', function () {
         var val = f.getAttribute('data-facet') || '';
         activeFacet = (activeFacet === val) ? '' : val;
-        facetEls.forEach(function (x) { x.classList.toggle('on', x === f && activeFacet); });
+        facetEls.forEach(function (x) {
+          var pressed = x === f && !!activeFacet;
+          x.classList.toggle('on', pressed);
+          x.setAttribute('aria-pressed', String(pressed));
+        });
         apply();
       });
     });
     // press "/" to focus search
     document.addEventListener('keydown', function (e) {
-      if (e.key === '/' && document.activeElement !== q) { e.preventDefault(); q.focus(); }
+      if (e.defaultPrevented || e.isComposing || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || e.key !== '/') return;
+      var target = e.target;
+      if (target && target.nodeType === 1 && target.closest('input, textarea, select, button, [contenteditable]')) return;
+      if (document.activeElement !== q) { e.preventDefault(); q.focus(); }
     });
   }
 

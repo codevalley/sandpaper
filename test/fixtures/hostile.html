@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hostile toolbar fixture</title>
+  <link rel="stylesheet" href="/assets/brain.css">
+  <style>
+    * { box-sizing: content-box; transition: all 8s linear !important; }
+    button { position: fixed; inset: 0; width: 90vw; height: 90vh; padding: 70px; background: magenta; color: lime; }
+    .sp-del { display: block; position: static; width: 123px; height: 45px; padding: 17px; background: rgb(20, 40, 60); color: rgb(240, 230, 220); }
+  </style>
+</head>
+<body>
+  <main>
+    <h1 data-cid="title">Hostile fixture</h1>
+    <section id="rows">
+      <p data-cid="row-a"><strong>Alpha</strong> row</p>
+      <p data-cid="row-b">Beta row</p>
+      <p data-cid="row-c">Gamma row</p>
+    </section>
+    <div class="sp-del" id="host-sp-del">Host .sp-del content</div>
+    <button type="button" id="host-button">Host button</button>
+    <input id="host-input" aria-label="Host input">
+    <div id="host-editable" contenteditable="true">Host editable</div>
+    <section class="brain-search">
+      <input id="brain-q" aria-label="Filter timeline">
+      <button class="facet" type="button" data-facet="worklog">Worklog</button>
+      <span id="brain-searchnote"></span>
+    </section>
+    <ol class="timeline">
+      <li data-kind="worklog" data-cid="log-alpha">Alpha launch</li>
+      <li data-kind="worklog" data-cid="log-beta">Beta polish</li>
+    </ol>
+  </main>
+  <script src="/assets/brain.js"></script>
+</body>
+</html>

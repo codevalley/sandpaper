@@ -61,13 +61,13 @@
       <div class="entry-head"><span class="entry-id">⌥</span><h3>src/claude.js — the bridge</h3><span class="badge fixed">wip · P0</span></div>
       <p>Spawns <code>claude -p</code>, maps stream-json → typed frames (status / assistant_delta / edit), persists the session id. <a class="ref" href="../engg-spec.html#s-bridge">engg →</a></p>
     </article>
-    <article class="entry entry--component" data-kind="component" id="c-toolbar" data-cid="c-toolbar" data-status="wip" data-date="2026-06-29" data-ref="../engg-spec.html#s-protocol" data-tags="toolbar conversation scope">
-      <div class="entry-head"><span class="entry-id">⌥</span><h3>public/toolbar.js + .css — the on-page surface</h3><span class="badge fixed">wip · being re-scoped</span></div>
-      <p>Status chip, change cards, click-to-scope. Post-pivot it shrinks from a chat to capture + sling glue. <a class="ref" href="decisions.html#d-pivot">why →</a></p>
+    <article class="entry entry--component" data-kind="component" id="c-toolbar" data-cid="c-toolbar" data-status="wip" data-date="2026-07-10" data-ref="./decisions.html#d-browser-contract" data-tags="toolbar browser client conversation scope transactions rollback accessibility">
+      <div class="entry-head"><span class="entry-id">⌥</span><h3>public/sp-client.js + toolbar.js + .css — the on-page surface</h3><span class="badge fixed">wip · pending review</span></div>
+      <p>Centralizes authenticated transport, truthful completion and undo, serialized Hands transactions, exact rollback, scoped styling, and baseline accessibility. <a class="ref" href="../public/toolbar.js">source →</a></p>
     </article>
-    <article class="entry entry--component" data-kind="component" id="c-test" data-cid="c-test" data-status="verified" data-date="2026-06-29" data-ref="../engg-spec.html#s-test" data-tags="test parser">
+    <article class="entry entry--component" data-kind="component" id="c-test" data-cid="c-test" data-status="verified" data-date="2026-07-10" data-ref="./decisions.html#d-layered-test-architecture" data-tags="test node integration playwright chromium fake runner browser">
       <div class="entry-head"><span class="entry-id">⌥</span><h3>test/ — recorded stream + parser test</h3><span class="badge verified">verified</span></div>
-      <p>A recorded stream-json sample exercises <code>mapEvents</code> / <code>getSessionId</code> with no live model call. <a class="ref" href="../engg-spec.html#s-test">engg →</a></p>
+      <p>Node integration and Chromium browser suites exercise the real server with a deterministic fake runner and no live model call. <a class="ref" href="../test/browser/toolbar.spec.js">browser suite →</a></p>
     </article>
 
     <h2 style="margin-top:26px">Glossary</h2>

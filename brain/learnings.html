@@ -44,6 +44,11 @@
   </section>
 
   <section class="zone flush col">
+    <aside class="entry entry--learning callout gotcha" data-kind="learning" data-lens="engineering" id="l-eventsource-origin" data-cid="l-eventsource-origin" data-status="active" data-date="2026-07-10" data-ref="./decisions.html#d-browser-contract" data-area="browser" data-tags="eventsource origin sec-fetch-site referer same-origin chromium sse auth">
+      <div class="eyebrow">▲ Gotcha · browser</div>
+      <p><strong>Chromium omits <code>Origin</code> on a native same-origin <code>EventSource</code> request.</strong> Preserve SSE origin proof by accepting only <code>Sec-Fetch-Site: same-origin</code> with an exact matching loopback <code>Referer</code> when <code>Origin</code> is absent; foreign, malformed, incomplete, or host-mismatched metadata still fails. <a class="ref" href="./decisions.html#d-browser-contract">browser contract →</a></p>
+    </aside>
+
     <aside class="entry entry--learning callout gotcha" data-kind="learning" data-lens="engineering" id="l-doctor-file-refs" data-cid="l-doctor-file-refs" data-status="active" data-date="2026-07-10" data-ref="../src/setup.js" data-area="brain" data-tags="doctor internal links directory refs index html canonical stamp">
       <div class="eyebrow">▲ Gotcha · brain</div>
       <p><strong>A trailing-slash brain reference means “this directory has an <code>index.html</code>,” not merely “this directory exists.”</strong> Point canonical citations at an existing file when a source folder has no index, or <code>doctor</code> correctly rejects both the <code>data-ref</code> and visible link. <a class="ref" href="../src/setup.js">link check →</a></p>

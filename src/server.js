@@ -115,6 +115,20 @@ function loopbackHost(host) {
 function invalidBrowserOrigin(req) {
   const host = req.headers.host;
   const origin = req.headers.origin;
+  if (origin == null) {
+    try {
+      const referer = new URL(req.headers.referer);
+      if (req.headers['sec-fetch-site'] !== 'same-origin' ||
+          referer.protocol !== 'http:' ||
+          referer.host.toLowerCase() !== host.toLowerCase() ||
+          !loopbackHost(referer.host)) {
+        throw new Error('invalid same-origin fetch metadata');
+      }
+      return null;
+    } catch {
+      return new RequestError(403, 'invalid_origin', 'Request origin must match this local server');
+    }
+  }
   try {
     const parsed = new URL(origin);
     if (parsed.protocol !== 'http:' || parsed.host.toLowerCase() !== host.toLowerCase() || !loopbackHost(parsed.host)) {
@@ -290,7 +304,7 @@ export function createSandpaperServer(target, opts = {}, deps = {}) {
     catch { throw new RequestError(404, 'unreadable_page', 'Page could not be read'); }
     const out = compute(src);
     if (out == null) throw new RequestError(409, 'element_not_found', 'Element was not found');
-    if (out === src) return { ok: true, noop: true };
+    if (out === src) return { ok: true, noop: true, undoable: false };
     const snap = takeDirectSnap(pageFile);
     try { writePage(pageFile, out); }
     catch {
@@ -310,7 +324,7 @@ export function createSandpaperServer(target, opts = {}, deps = {}) {
       throw new RequestError(500, 'write_failed', 'Page could not be written');
     }
     if (snap) directSnaps.set(pageFile, snap);
-    return { ok: true, clientId, page: pageForFile(pageFile), hash: fileHash(pageFile) };
+    return { ok: true, clientId, page: pageForFile(pageFile), hash: fileHash(pageFile), undoable: !!snap };
   };
 
   const serveFile = (file, req, res) => {

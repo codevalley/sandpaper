@@ -238,7 +238,7 @@ table.tbl{width:100%;border-collapse:collapse;margin-top:8px;font-size:13.5px}
 #brain-q:focus{outline:2px solid var(--tint-clay-focus);border-color:var(--clay)}
 .facet{font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;border:1px solid var(--rule);background:var(--white);border-radius:var(--radius-sm);padding:4px 11px;cursor:pointer;color:var(--ink)}
 .facet.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
-.entry.hidden{display:none}
+.entry[hidden],.timeline li[hidden]{display:none}
 .searchnote{font-family:var(--mono);font-size:11px;color:var(--mute)}
 
 /* ---- plan board: initiatives → tasks → DERIVED progress (brain.js fills the bars) ---- */
