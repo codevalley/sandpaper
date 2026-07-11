@@ -4,14 +4,21 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 import { createSandpaperServer } from '../../src/server.js';
-import { createFakeRunner } from '../helpers/server-fixture.js';
+import { createFakeProviderServices } from '../helpers/server-fixture.js';
 
 const ROOT = new URL('../..', import.meta.url).pathname;
 let repo;
 let pageFile;
 let runner;
+let codexRunner;
+let providerServices;
 let controller;
 let baseUrl;
+
+const READY_PROVIDERS = [
+  { id: 'claude', label: 'Claude Code', available: true, compatible: true, authMethod: 'subscription' },
+  { id: 'codex', label: 'Codex', available: true, compatible: true, authMethod: 'chatgpt' },
+];
 
 async function waitFor(predicate, message, timeout = 4_000) {
   const deadline = Date.now() + timeout;
@@ -57,30 +64,334 @@ async function rejectMutation(page, path, message = 'Mutation refused') {
   }));
 }
 
+async function startProviderServer(page, {
+  initialProvider = 'claude',
+  defaultProvider = 'claude',
+  diagnostics = READY_PROVIDERS,
+} = {}) {
+  await controller?.close();
+  providerServices = createFakeProviderServices({ defaultProvider, diagnostics });
+  runner = providerServices.runners.claude;
+  codexRunner = providerServices.runners.codex;
+  controller = createSandpaperServer(repo, { brain: true, initialProvider }, {
+    registry: providerServices.registry,
+    preferences: providerServices.preferences,
+    sessions: providerServices.sessions,
+    tokenFactory: () => 'browser-test-token',
+  });
+  baseUrl = await controller.listen();
+  await page.goto(new URL('/hostile.html', baseUrl).href);
+  await expect(page.locator('#sp-panel')).toBeVisible();
+}
+
 test.beforeEach(async ({ page }) => {
   repo = mkdtempSync(join(tmpdir(), 'sandpaper-browser-'));
   mkdirSync(join(repo, 'assets'));
   pageFile = join(repo, 'hostile.html');
   copyFileSync(join(ROOT, 'test/fixtures/hostile.html'), pageFile);
+  copyFileSync(join(ROOT, 'test/fixtures/hostile.html'), join(repo, 'other.html'));
   copyFileSync(join(ROOT, 'brain/assets/brain.js'), join(repo, 'assets/brain.js'));
   copyFileSync(join(ROOT, 'brain/assets/brain.css'), join(repo, 'assets/brain.css'));
-  runner = createFakeRunner();
-  controller = createSandpaperServer(repo, { brain: true }, {
-    runner,
-    tokenFactory: () => 'browser-test-token',
-  });
-  baseUrl = await controller.listen();
   await page.addInitScript(() => {
     localStorage.setItem('sp-welcomed:v1', '1');
     sessionStorage.setItem('sp-welcomed:v1', '1');
   });
-  await page.goto(new URL('/hostile.html', baseUrl).href);
-  await expect(page.locator('#sp-panel')).toBeVisible();
+  await startProviderServer(page);
 });
 
 test.afterEach(async () => {
   await controller?.close();
   rmSync(repo, { recursive: true, force: true });
+});
+
+test('provider bootstrap identity is accessible and every turn posts the selected provider', async ({ page }) => {
+  const button = page.locator('#sp-provider-button');
+  await expect(button).toHaveText(/Claude Code/);
+  await expect(button).toHaveAttribute('aria-haspopup', 'menu');
+  await expect(button).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.locator('#sp-provider-menu')).toHaveAttribute('role', 'menu');
+  await expect(page.locator('#sp-input')).toHaveAttribute('aria-label', 'Message Claude Code');
+
+  const call = await submit(page, 'Use the default provider');
+  expect(runner.calls[call].prompt).toContain('Use the default provider');
+  expect(codexRunner.calls).toHaveLength(0);
+  runner.complete(call);
+});
+
+test('provider selection is session-local, survives reload, and does not mutate the default', async ({ page }) => {
+  let defaultPosts = 0;
+  await page.route('**/__sandpaper/provider-default', async (route) => {
+    defaultPosts += 1;
+    await route.fallback();
+  });
+
+  await page.locator('#sp-provider-button').click();
+  await page.locator('[data-provider="codex"]').click();
+  await expect(page.locator('#sp-provider-button')).toHaveText(/Codex/);
+  await expect(page.locator('#sp-input')).toHaveAttribute('aria-label', 'Message Codex');
+  await expect(page.locator('[data-provider="codex"]')).toHaveAttribute('aria-checked', 'true');
+  expect(defaultPosts).toBe(0);
+
+  const stored = await page.evaluate(() => {
+    const script = document.querySelector('script[data-sandpaper-bootstrap]');
+    const bootstrap = JSON.parse(script.getAttribute('data-sandpaper-bootstrap'));
+    return {
+      key: `sp-provider:v1:${bootstrap.projectId}`,
+      value: sessionStorage.getItem(`sp-provider:v1:${bootstrap.projectId}`),
+    };
+  });
+  expect(stored.value).toBe('codex');
+  expect(stored.key).toMatch(/^sp-provider:v1:[a-f0-9]{16}$/);
+
+  await page.reload();
+  await expect(page.locator('#sp-provider-button')).toHaveText(/Codex/);
+  expect(defaultPosts).toBe(0);
+  expect(providerServices.defaultProvider).toBe('claude');
+
+  await page.locator('#sp-input').fill('Use Codex explicitly');
+  await page.locator('#sp-send').click();
+  await waitFor(() => codexRunner.calls.length === 1, 'Codex runner did not receive the turn');
+  expect(runner.calls).toHaveLength(0);
+  codexRunner.complete(0);
+});
+
+test('provider launch override controls initial identity without changing the manifest default', async ({ page }) => {
+  await startProviderServer(page, { initialProvider: 'codex', defaultProvider: 'claude' });
+  await expect(page.locator('#sp-provider-button')).toHaveText(/Codex/);
+  await page.locator('#sp-provider-button').click();
+  await expect(page.locator('[data-provider="claude"]')).toContainText('Default');
+  await expect(page.locator('#sp-provider-default')).toBeEnabled();
+  expect(providerServices.defaultProvider).toBe('claude');
+});
+
+test('provider storage discards unknown ids but preserves a known unavailable selection without fallback', async ({ page }) => {
+  const key = await page.evaluate(() => {
+    const script = document.querySelector('script[data-sandpaper-bootstrap]');
+    const bootstrap = JSON.parse(script.getAttribute('data-sandpaper-bootstrap'));
+    return `sp-provider:v1:${bootstrap.projectId}`;
+  });
+  await page.evaluate(({ storageKey }) => sessionStorage.setItem(storageKey, 'mystery-provider'), { storageKey: key });
+  await page.reload();
+  await expect(page.locator('#sp-provider-button')).toHaveText(/Claude Code/);
+  expect(await page.evaluate(({ storageKey }) => sessionStorage.getItem(storageKey), { storageKey: key })).toBeNull();
+
+  const unavailable = [
+    READY_PROVIDERS[0],
+    {
+      id: 'codex', label: 'Codex', available: false, compatible: true,
+      authMethod: null, unavailableCode: 'unauthenticated',
+    },
+  ];
+  await startProviderServer(page, { diagnostics: unavailable });
+  const unavailableKey = await page.evaluate(() => {
+    const script = document.querySelector('script[data-sandpaper-bootstrap]');
+    const bootstrap = JSON.parse(script.getAttribute('data-sandpaper-bootstrap'));
+    return `sp-provider:v1:${bootstrap.projectId}`;
+  });
+  await page.evaluate(({ storageKey }) => sessionStorage.setItem(storageKey, 'codex'), { storageKey: unavailableKey });
+  await page.reload();
+
+  await expect(page.locator('#sp-provider-button')).toHaveText(/Codex/);
+  await expect(page.locator('#sp-input')).toHaveAttribute('aria-label', 'Message Codex');
+  await expect(page.locator('#sp-send')).toBeDisabled();
+  await expect(page.locator('#sp-provider-default')).toBeDisabled();
+  await expect(page.locator('#sp-provider-guidance')).toContainText(/sign in|login/i);
+  expect(runner.calls).toHaveLength(0);
+  expect(codexRunner.calls).toHaveLength(0);
+});
+
+test('unavailable provider remains visible and actionable but cannot be selected', async ({ page }) => {
+  await startProviderServer(page, {
+    diagnostics: [
+      READY_PROVIDERS[0],
+      {
+        id: 'codex', label: 'Codex', available: false, compatible: false,
+        authMethod: null, unavailableCode: 'binary_missing',
+      },
+    ],
+  });
+  await page.locator('#sp-provider-button').click();
+  const codex = page.locator('[data-provider="codex"]');
+  await expect(codex).toBeVisible();
+  await expect(codex).toHaveAttribute('role', 'menuitemradio');
+  await expect(codex).toHaveAttribute('aria-checked', 'false');
+  await expect(codex).toHaveAttribute('aria-disabled', 'true');
+  await codex.focus();
+  await expect(page.locator('#sp-provider-guidance')).toContainText(/install Codex/i);
+  await codex.click({ force: true });
+  await expect(page.locator('#sp-provider-button')).toHaveText(/Claude Code/);
+  await expect(page.locator('#sp-provider-guidance')).toBeVisible();
+  await expect(page.locator('#sp-provider-guidance')).toContainText(/install Codex/i);
+  const geometry = await page.evaluate(() => {
+    const menu = document.querySelector('#sp-provider-menu').getBoundingClientRect();
+    const guidance = document.querySelector('#sp-provider-guidance').getBoundingClientRect();
+    const hit = document.elementFromPoint(guidance.left + guidance.width / 2, guidance.top + guidance.height / 2);
+    return {
+      menuTop: menu.top,
+      menuBottom: menu.bottom,
+      viewportHeight: window.innerHeight,
+      guidanceHit: hit && (hit.id || hit.closest('#sp-provider-guidance')?.id),
+    };
+  });
+  expect(geometry.menuTop).toBeGreaterThanOrEqual(0);
+  expect(geometry.menuBottom).toBeLessThanOrEqual(geometry.viewportHeight);
+  expect(geometry.guidanceHit).toBe('sp-provider-guidance');
+});
+
+test('provider Make default commits only on success and never changes selection', async ({ page }) => {
+  let requestSeen;
+  const seen = new Promise((resolve) => { requestSeen = resolve; });
+  let releaseRequest;
+  await page.route('**/__sandpaper/provider-default', async (route) => {
+    requestSeen();
+    await new Promise((resolve) => { releaseRequest = resolve; });
+    await route.fallback();
+  });
+  await page.locator('#sp-provider-button').click();
+  await page.locator('[data-provider="codex"]').click();
+  await page.locator('#sp-provider-button').click();
+  await page.locator('#sp-provider-default').click();
+
+  await seen;
+  await expect(page.locator('#sp-provider-default')).toBeDisabled();
+  await expect(page.locator('#sp-provider-default')).toHaveAttribute('aria-disabled', 'true');
+  releaseRequest();
+
+  await expect(page.locator('#sp-provider-button')).toHaveText(/Codex/);
+  await expect(page.locator('#sp-provider-default')).toBeDisabled();
+  await expect(page.locator('#sp-provider-default')).toContainText(/default/i);
+  expect(providerServices.preferenceCalls.filter(([operation]) => operation === 'set')).toEqual([['set', 'codex']]);
+  expect(providerServices.defaultProvider).toBe('codex');
+});
+
+for (const failure of [
+  {
+    name: 'structured provider default failure',
+    install: (page) => page.route('**/__sandpaper/provider-default', (route) => route.fulfill({
+      status: 409,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: false, error: { code: 'default_refused', message: 'Default preference refused' } }),
+    })),
+    message: 'Default preference refused',
+  },
+  {
+    name: 'network provider default failure',
+    install: (page) => page.route('**/__sandpaper/provider-default', (route) => route.abort('connectionrefused')),
+    message: /unreachable|failed/i,
+  },
+]) {
+  test(`${failure.name} preserves the previous default and selected provider`, async ({ page }) => {
+    await page.locator('#sp-provider-button').click();
+    await page.locator('[data-provider="codex"]').click();
+    await failure.install(page);
+    await page.locator('#sp-provider-button').click();
+    await page.locator('#sp-provider-default').click();
+
+    await expect(page.locator('#sp-provider-button')).toHaveText(/Codex/);
+    await expect(page.locator('#sp-provider-default')).toBeEnabled();
+    await expect(page.locator('#sp-provider-guidance')).toContainText(failure.message);
+    expect(providerServices.defaultProvider).toBe('claude');
+  });
+}
+
+test('provider default action is inert when the selected provider is already default', async ({ page }) => {
+  let defaultPosts = 0;
+  await page.route('**/__sandpaper/provider-default', async (route) => {
+    defaultPosts += 1;
+    await route.fallback();
+  });
+  await page.locator('#sp-provider-button').click();
+  await expect(page.locator('#sp-provider-default')).toBeDisabled();
+  await expect(page.locator('#sp-provider-default')).toContainText(/default/i);
+  expect(defaultPosts).toBe(0);
+});
+
+test('provider accessibility keyboard model supports navigation, activation, dismissal, and focus return', async ({ page }) => {
+  const button = page.locator('#sp-provider-button');
+  const menu = page.locator('#sp-provider-menu');
+  await button.focus();
+  await button.press('ArrowDown');
+  await expect(menu).toBeVisible();
+  await expect(button).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.locator('[data-provider="claude"]')).toBeFocused();
+  await page.keyboard.press('End');
+  await expect(page.locator('[data-provider="codex"]')).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(button).toHaveText(/Codex/);
+  await expect(button).toBeFocused();
+
+  await button.press('ArrowUp');
+  await page.keyboard.press('Home');
+  await expect(page.locator('[data-provider="claude"]')).toBeFocused();
+  await page.keyboard.press(' ');
+  await expect(button).toHaveText(/Claude Code/);
+  await expect(button).toBeFocused();
+
+  await button.press('Enter');
+  await page.keyboard.press('Escape');
+  await expect(menu).toBeHidden();
+  await expect(button).toBeFocused();
+
+  await button.click();
+  await page.locator('body').click({ position: { x: 5, y: 5 } });
+  await expect(menu).toBeHidden();
+  await expect(button).toHaveAttribute('aria-expanded', 'false');
+
+  await button.click();
+  await page.locator('[data-provider="claude"]').press('Tab');
+  await expect(menu).toBeHidden();
+});
+
+test('provider busy lifecycle locks every tab and matching idle restores controls', async ({ page, context }) => {
+  const peer = await context.newPage();
+  await peer.addInitScript(() => {
+    localStorage.setItem('sp-welcomed:v1', '1');
+    sessionStorage.setItem('sp-welcomed:v1', '1');
+  });
+  await peer.goto(new URL('/other.html', baseUrl).href);
+  await expect(peer.locator('#sp-provider-button')).toBeEnabled();
+
+  const call = await submit(page, 'Hold the global provider lifecycle');
+  for (const tab of [page, peer]) {
+    await expect(tab.locator('#sp-provider-button')).toBeDisabled();
+    await expect(tab.locator('#sp-provider-default')).toBeDisabled();
+    await expect(tab.locator('#sp-input')).toBeDisabled();
+  }
+  runner.complete(call);
+  for (const tab of [page, peer]) {
+    await expect(tab.locator('#sp-provider-button')).toBeEnabled();
+    await expect(tab.locator('#sp-input')).toBeEnabled();
+  }
+  await peer.close();
+});
+
+test('provider welcome names both bootstrap providers and shows both command examples', async ({ context }) => {
+  const tour = await context.newPage();
+  await tour.addInitScript(() => {
+    localStorage.removeItem('sp-welcomed:v1');
+    sessionStorage.removeItem('sp-welcomed:v1');
+  });
+  await tour.goto(new URL('/hostile.html', baseUrl).href);
+  await expect(tour.locator('#sp-welcome')).toBeVisible();
+  await expect(tour.locator('.sp-w-provider-copy')).toContainText('Claude Code and Codex');
+  await expect(tour.locator('.sp-w-tip')).toContainText('/sandpaper:theme');
+  await expect(tour.locator('.sp-w-tip')).toContainText('$sandpaper theme');
+  await tour.close();
+});
+
+test('provider identity remains visible when minimized and through request errors', async ({ page }) => {
+  await page.locator('#sp-provider-button').click();
+  await page.locator('[data-provider="codex"]').click();
+  await page.locator('#sp-min').click();
+  await expect(page.locator('#sp-panel')).toHaveClass(/sp-min/);
+  await expect(page.locator('#sp-who')).toHaveText('Codex');
+
+  await page.locator('#sp-head').click();
+  await page.route('**/__sandpaper/turn', (route) => route.abort('connectionrefused'));
+  await recoverableSubmit(page, 'Codex network draft');
+  await expect(page.locator('#sp-head')).toContainText('Codex');
+  await expect(page.locator('#sp-label')).not.toHaveText('Sending…');
+  await expect(page.locator('#sp-provider-button')).toHaveText(/Codex/);
 });
 
 test('reply-only completion says Replied and has no AI undo', async ({ page }) => {

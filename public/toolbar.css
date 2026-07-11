@@ -38,6 +38,7 @@
   border:1px solid rgba(23,21,15,.32); border-radius:14px;
   box-shadow:0 16px 44px rgba(23,21,15,.28); overflow:hidden;
 }
+#sp-panel.sp-provider-menu-open{ overflow:visible; }
 #sp-panel.sp-collapsed{ max-height:none; }
 
 /* dark "console" head — carries the brain's drafting-plate grid so it reads as the same manual */
@@ -45,10 +46,33 @@
   font-family:'IBM Plex Mono',ui-monospace,Menlo,monospace; background:var(--sp-ink); color:var(--sp-paper);
   background-image:linear-gradient(rgba(244,240,230,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(244,240,230,.05) 1px,transparent 1px);
   background-size:18px 18px; }
+#sp-panel #sp-provider-wrap{ position:relative; flex:none; min-width:0; }
+#sp-panel #sp-provider-button{ position:static; inset:auto; display:inline-flex; align-items:center; gap:6px; width:auto; height:auto;
+  max-width:150px; padding:3px 5px; border:0; border-radius:5px; background:transparent; color:var(--sp-paper);
+  font-family:'IBM Plex Mono',ui-monospace,Menlo,monospace; font-size:12px; font-weight:600; letter-spacing:.02em; cursor:pointer; }
+#sp-panel #sp-provider-button:hover, #sp-panel #sp-provider-button[aria-expanded="true"]{ background:rgba(244,240,230,.1); }
+#sp-panel #sp-provider-button:disabled{ cursor:default; opacity:.7; }
+#sp-panel #sp-who{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#sp-panel #sp-provider-chevron{ flex:none; color:var(--sp-mute); font-size:10px; }
+#sp-panel #sp-provider-menu{ position:absolute; z-index:4; left:0; bottom:calc(100% + 9px); width:258px; padding:6px;
+  color:var(--sp-ink); background:var(--sp-paper); border:1px solid rgba(23,21,15,.28); border-radius:10px;
+  box-shadow:0 12px 32px rgba(23,21,15,.3); font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; }
+#sp-panel #sp-provider-options{ display:flex; flex-direction:column; gap:2px; }
+#sp-panel #sp-provider-options [data-provider], #sp-panel #sp-provider-actions button{ position:static; inset:auto; width:100%; min-height:34px;
+  display:flex; align-items:center; justify-content:space-between; gap:10px; padding:7px 9px; border:0; border-radius:6px;
+  background:transparent; color:var(--sp-ink); text-align:left; font-size:12px; cursor:pointer; }
+#sp-panel #sp-provider-options [data-provider]:hover, #sp-panel #sp-provider-options [data-provider]:focus-visible,
+#sp-panel #sp-provider-actions button:not(:disabled):hover, #sp-panel #sp-provider-actions button:not(:disabled):focus-visible{ background:var(--sp-paper-2); }
+#sp-panel #sp-provider-options [data-provider][aria-checked="true"]{ background:rgba(63,82,71,.1); color:var(--sp-pine); font-weight:600; }
+#sp-panel #sp-provider-options [data-provider][aria-disabled="true"]{ color:var(--sp-mute); }
+#sp-panel .sp-provider-state{ margin-left:auto; font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:9px; font-weight:500; color:var(--sp-mute); text-transform:uppercase; letter-spacing:.06em; }
+#sp-panel #sp-provider-actions{ margin-top:5px; padding-top:5px; border-top:1px solid rgba(23,21,15,.12); }
+#sp-panel #sp-provider-actions button:disabled{ color:var(--sp-mute); cursor:default; }
+#sp-panel #sp-provider-guidance{ margin:5px 3px 2px; padding:7px 8px; border-left:2px solid var(--sp-clay); border-radius:0 5px 5px 0;
+  background:var(--sp-paper-2); color:var(--sp-text-quote); font-size:11px; line-height:1.4; }
 /* who is working + its state — readable light text on the dark head; the dot carries the state colour */
 #sp-panel #sp-chip{ display:inline-flex; align-items:center; gap:8px; min-width:0; flex:0 1 auto; overflow:hidden;
   font-size:12px; font-weight:500; }
-#sp-panel #sp-who{ flex:none; color:var(--sp-paper); font-weight:600; letter-spacing:.02em; }
 #sp-panel #sp-label{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--sp-paper-2); letter-spacing:.02em; }
 #sp-panel #sp-label::before{ content:"·"; color:var(--sp-mute); margin-right:7px; }
 #sp-panel #sp-led{ width:8px; height:8px; border-radius:50%; background:var(--sp-mute); flex:none; box-shadow:0 0 0 3px rgba(244,240,230,.08); }
@@ -61,7 +85,8 @@
 /* minimized → a small status pill; click it to restore */
 #sp-panel.sp-min{ width:auto; max-width:300px; cursor:pointer; }
 #sp-panel.sp-min #sp-thread, #sp-panel.sp-min #sp-target, #sp-panel.sp-min #sp-form,
-#sp-panel.sp-min #sp-cost, #sp-panel.sp-min #sp-undo, #sp-panel.sp-min #sp-min, #sp-panel.sp-min #sp-toggle{ display:none; }
+#sp-panel.sp-min #sp-cost, #sp-panel.sp-min #sp-undo, #sp-panel.sp-min #sp-min, #sp-panel.sp-min #sp-toggle,
+#sp-panel.sp-min #sp-provider-menu{ display:none; }
 #sp-panel.sp-min #sp-head{ border-bottom:0; padding:9px 15px; }
 #sp-panel.sp-min #sp-chip::after{ content:"▸"; color:var(--sp-paper-2); margin-left:9px; font-size:11px; opacity:.7; }
 

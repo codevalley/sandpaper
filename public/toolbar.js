@@ -1,5 +1,5 @@
 // toolbar.js — Sandpaper conversation surface (injected into the served document).
-// Holds the back-and-forth with Claude on the page: streams replies, shows what each
+// Holds the back-and-forth with the selected provider on the page: streams replies, shows what each
 // turn changed (and undo), survives the live-reload, and keeps the document the star.
 import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
 import { createSandpaperClient } from '/__sandpaper/sp-client.js';
@@ -15,6 +15,28 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
   var SKEY = 'sp-thread:' + location.pathname; // transcript persists per-document
   var bootstrap = document.querySelector('script[type="module"][src="/__sandpaper/toolbar.js"][data-sandpaper-token]');
   var token = bootstrap ? bootstrap.getAttribute('data-sandpaper-token') : '';
+  var bootstrapData = {};
+  try {
+    bootstrapData = JSON.parse(bootstrap ? bootstrap.getAttribute('data-sandpaper-bootstrap') || '{}' : '{}');
+  } catch (error) { bootstrapData = {}; }
+  var providers = Array.isArray(bootstrapData.providers) ? bootstrapData.providers.filter(function (provider) {
+    return provider && typeof provider.id === 'string' && provider.id && typeof provider.label === 'string' && provider.label;
+  }) : [];
+  var providersById = Object.create(null);
+  providers.forEach(function (provider) { providersById[provider.id] = provider; });
+  var initialProvider = providersById[bootstrapData.initialProvider]
+    ? bootstrapData.initialProvider
+    : (providers[0] ? providers[0].id : null);
+  var defaultProvider = providersById[bootstrapData.defaultProvider]
+    ? bootstrapData.defaultProvider
+    : initialProvider;
+  var providerKey = 'sp-provider:v1:' + String(bootstrapData.projectId || 'unknown');
+  var selectedProvider = initialProvider;
+  try {
+    var storedProvider = sessionStorage.getItem(providerKey);
+    if (storedProvider && providersById[storedProvider]) selectedProvider = storedProvider;
+    else if (storedProvider) sessionStorage.removeItem(providerKey);
+  } catch (error) { /* storage is a convenience, never a launch blocker */ }
   var clientId = (window.crypto && typeof window.crypto.randomUUID === 'function')
     ? window.crypto.randomUUID()
     : 'page-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
@@ -39,7 +61,18 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
   panel.className = 'sp-collapsed';
   panel.innerHTML =
     '<div id="sp-head">' +
-      '<span id="sp-chip" role="status" aria-live="polite" aria-atomic="true"><span id="sp-led"></span><span id="sp-who">Claude&nbsp;Code</span><span id="sp-label">idle</span></span>' +
+      '<div id="sp-provider-wrap">' +
+        '<button type="button" id="sp-provider-button" aria-haspopup="menu" aria-expanded="false" aria-controls="sp-provider-menu"><span id="sp-who"></span><span id="sp-provider-chevron" aria-hidden="true">▾</span></button>' +
+        '<div id="sp-provider-menu" role="menu" aria-label="Choose AI provider" hidden>' +
+          '<div id="sp-provider-options"></div>' +
+          '<div id="sp-provider-actions" role="none">' +
+            '<button type="button" id="sp-provider-default" role="menuitem"></button>' +
+            '<button type="button" id="sp-provider-new-session" role="menuitem" disabled>New session (coming next)</button>' +
+          '</div>' +
+          '<div id="sp-provider-guidance" role="status" aria-live="polite" hidden></div>' +
+        '</div>' +
+      '</div>' +
+      '<span id="sp-chip" role="status" aria-live="polite" aria-atomic="true"><span id="sp-led"></span><span id="sp-label">idle</span></span>' +
       '<span id="sp-cost"></span>' +
       '<button type="button" id="sp-undo" hidden aria-label="Undo the last direct edit" title="Undo the last direct edit">⟲ undo</button>' +
       '<button type="button" id="sp-min" aria-label="Minimize Sandpaper" title="Minimize">–</button>' +
@@ -64,7 +97,11 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
       thread = panel.querySelector('#sp-thread'), input = panel.querySelector('#sp-input'),
       sendBtn = panel.querySelector('#sp-send'), pickBtn = panel.querySelector('#sp-pick'),
       editBtn = panel.querySelector('#sp-edit'), undoBtn = panel.querySelector('#sp-undo'),
-      targetTag = panel.querySelector('#sp-target'), toggleBtn = panel.querySelector('#sp-toggle');
+      targetTag = panel.querySelector('#sp-target'), toggleBtn = panel.querySelector('#sp-toggle'),
+      providerButton = panel.querySelector('#sp-provider-button'), providerMenu = panel.querySelector('#sp-provider-menu'),
+      providerOptions = panel.querySelector('#sp-provider-options'), providerDefault = panel.querySelector('#sp-provider-default'),
+      providerNewSession = panel.querySelector('#sp-provider-new-session'), providerGuidance = panel.querySelector('#sp-provider-guidance'),
+      providerWho = panel.querySelector('#sp-who');
 
   // ---------- adopt the host's skin when it has one ----------
   // The toolbar ships a hardcoded --sp-* palette so it stands alone on ANY page. But when it is
@@ -115,11 +152,180 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
   var lastChangedCids = [];
   var stickBottom = true;
   var directQueue = Promise.resolve();
-  var directPending = 0, turnBusy = false, modeVersion = 0;
+  var directPending = 0, turnBusy = false, statusBusy = false, lifecycleBusy = false,
+      lifecycleTurnId = null, modeVersion = 0;
   var disclosureSeq = 0;
 
   // ---------- small helpers ----------
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  function selectedProviderState() { return selectedProvider ? providersById[selectedProvider] || null : null; }
+  function providerRepairGuidance(provider) {
+    var name = provider && provider.label ? provider.label : 'This provider';
+    var code = provider && provider.unavailableCode;
+    if (code === 'binary_missing') return 'Install ' + name + ', then run sandpaper doctor.';
+    if (code === 'unauthenticated' || code === 'not_authenticated') return 'Sign in to ' + name + ', then run sandpaper doctor.';
+    if (code === 'incompatible') return 'Update ' + name + ' to a supported version, then run sandpaper doctor.';
+    return name + ' is not ready. Run sandpaper doctor for repair guidance.';
+  }
+  function showProviderGuidance(message) {
+    providerGuidance.textContent = message || '';
+    providerGuidance.hidden = !message;
+  }
+  function providerItems() {
+    return Array.prototype.slice.call(providerOptions.querySelectorAll('[data-provider]'));
+  }
+  function syncProviderControls() {
+    var selected = selectedProviderState();
+    var ready = !!(selected && selected.available === true);
+    providerButton.disabled = turnBusy || !selected;
+    providerButton.setAttribute('aria-disabled', String(providerButton.disabled));
+    providerItems().forEach(function (item) {
+      var provider = providersById[item.getAttribute('data-provider')];
+      var checked = !!provider && provider.id === selectedProvider;
+      item.setAttribute('aria-checked', String(checked));
+      item.setAttribute('aria-disabled', String(!provider || provider.available !== true || turnBusy));
+      var state = item.querySelector('.sp-provider-state');
+      if (state) state.textContent = provider && provider.id === defaultProvider
+        ? 'Default'
+        : (provider && provider.available === true ? '' : 'Unavailable');
+    });
+    var alreadyDefault = !!selected && selected.id === defaultProvider;
+    providerDefault.textContent = alreadyDefault ? selected.label + ' is default' : 'Make ' + (selected ? selected.label : 'provider') + ' default';
+    providerDefault.disabled = turnBusy || !ready || alreadyDefault;
+    providerDefault.setAttribute('aria-disabled', String(providerDefault.disabled));
+    providerDefault.setAttribute('aria-label', alreadyDefault
+      ? selected.label + ' is the default provider'
+      : 'Make ' + (selected ? selected.label : 'this provider') + ' the default provider');
+    providerNewSession.disabled = true;
+    providerNewSession.setAttribute('aria-disabled', 'true');
+    providerNewSession.setAttribute('aria-label', 'New session for ' + (selected ? selected.label : 'provider') + ' is available in the next toolbar step');
+    input.disabled = turnBusy || !ready;
+    sendBtn.disabled = turnBusy || !ready;
+  }
+  function syncProviderPresentation(options) {
+    var selected = selectedProviderState();
+    var name = selected ? selected.label : 'Provider unavailable';
+    providerWho.textContent = name;
+    providerButton.setAttribute('aria-label', 'Provider: ' + name + '. Choose provider');
+    input.setAttribute('aria-label', 'Message ' + name);
+    panel.setAttribute('data-sandpaper-provider', selected ? selected.id : 'unavailable');
+    syncProviderControls();
+    if (options && options.keepGuidance) return;
+    if (!selected || selected.available !== true) {
+      showProviderGuidance(providerRepairGuidance(selected));
+      label.textContent = name + ' unavailable';
+      led.style.background = COLORS.error;
+      chip.style.color = COLORS.error;
+    } else {
+      showProviderGuidance('');
+      if (options && options.selectionChanged) {
+        label.textContent = 'idle';
+        led.style.background = COLORS.idle;
+        chip.style.color = COLORS.idle;
+      }
+    }
+  }
+  function closeProviderMenu(returnFocus) {
+    providerMenu.hidden = true;
+    panel.classList.remove('sp-provider-menu-open');
+    providerButton.setAttribute('aria-expanded', 'false');
+    if (returnFocus) providerButton.focus();
+  }
+  function focusProviderItem(index) {
+    var items = providerItems();
+    if (!items.length) return;
+    var safe = Math.max(0, Math.min(items.length - 1, index));
+    items[safe].focus();
+  }
+  function openProviderMenu(index) {
+    if (turnBusy || providerButton.disabled) return;
+    providerMenu.hidden = false;
+    panel.classList.add('sp-provider-menu-open');
+    providerButton.setAttribute('aria-expanded', 'true');
+    if (typeof index === 'number') focusProviderItem(index);
+  }
+  function selectProvider(id) {
+    var provider = providersById[id];
+    if (!provider) return false;
+    if (provider.available !== true) {
+      showProviderGuidance(providerRepairGuidance(provider));
+      return false;
+    }
+    if (turnBusy) return false;
+    selectedProvider = id;
+    try { sessionStorage.setItem(providerKey, id); } catch (error) {}
+    syncProviderPresentation({ selectionChanged: true });
+    return true;
+  }
+  providers.forEach(function (provider) {
+    var item = document.createElement('button');
+    item.type = 'button';
+    item.setAttribute('role', 'menuitemradio');
+    item.setAttribute('data-provider', provider.id);
+    item.setAttribute('aria-checked', 'false');
+    item.appendChild(el('span', 'sp-provider-name', provider.label));
+    item.appendChild(el('span', 'sp-provider-state', ''));
+    item.addEventListener('click', function () {
+      if (selectProvider(provider.id)) closeProviderMenu(true);
+    });
+    item.addEventListener('focus', function () {
+      if (provider.available !== true) showProviderGuidance(providerRepairGuidance(provider));
+      else if (selectedProviderState() && selectedProviderState().available === true) showProviderGuidance('');
+    });
+    providerOptions.appendChild(item);
+  });
+  providerButton.addEventListener('click', function (event) {
+    event.stopPropagation();
+    if (providerMenu.hidden) openProviderMenu(); else closeProviderMenu(false);
+  });
+  providerButton.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape' && !providerMenu.hidden) {
+      event.preventDefault();
+      closeProviderMenu(true);
+      return;
+    }
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Home' || event.key === 'End') {
+      event.preventDefault();
+      var items = providerItems();
+      var index = event.key === 'ArrowUp' || event.key === 'End' ? items.length - 1 : 0;
+      openProviderMenu(index);
+    }
+  });
+  providerMenu.addEventListener('keydown', function (event) {
+    var items = providerItems();
+    var index = items.indexOf(document.activeElement);
+    if (event.key === 'Escape') { event.preventDefault(); closeProviderMenu(true); return; }
+    if (event.key === 'Tab') { closeProviderMenu(false); return; }
+    if (!items.length || index < 0) return;
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Home' || event.key === 'End') {
+      event.preventDefault();
+      if (event.key === 'Home') index = 0;
+      else if (event.key === 'End') index = items.length - 1;
+      else index = (index + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+      focusProviderItem(index);
+    } else if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      items[index].click();
+    }
+  });
+  document.addEventListener('click', function (event) {
+    if (!providerMenu.hidden && !panel.querySelector('#sp-provider-wrap').contains(event.target)) closeProviderMenu(false);
+  });
+  providerDefault.addEventListener('click', function () {
+    var selected = selectedProviderState();
+    if (!selected || selected.available !== true || turnBusy || selected.id === defaultProvider) return;
+    providerDefault.disabled = true;
+    providerDefault.setAttribute('aria-disabled', 'true');
+    client.setDefaultProvider(selected.id).then(function (result) {
+      if (result && providersById[result.defaultProvider]) defaultProvider = result.defaultProvider;
+      else defaultProvider = selected.id;
+      syncProviderPresentation({ keepGuidance: true });
+      showProviderGuidance(selected.label + ' is now the default provider.');
+    }).catch(function (error) {
+      syncProviderPresentation({ keepGuidance: true });
+      showProviderGuidance(errorMessage(error));
+    });
+  });
   function expand() { panel.classList.remove('sp-collapsed'); thread.hidden = false; toggleBtn.textContent = '▾'; toggleBtn.setAttribute('aria-expanded', 'true'); }
   function collapse() { panel.classList.add('sp-collapsed'); thread.hidden = true; toggleBtn.textContent = '▸'; toggleBtn.setAttribute('aria-expanded', 'false'); }
   function expandIfContent() { if (panel.classList.contains('sp-collapsed')) expand(); }
@@ -142,12 +348,25 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
     }
     if (locked && rowctl) rowctl.hidden = true;
   }
-  function setBusy(busy) {
-    turnBusy = busy;
-    chip.classList.toggle('sp-busy', busy);
-    input.disabled = busy; sendBtn.disabled = busy;
+  function syncBusyState() {
+    turnBusy = statusBusy || lifecycleBusy;
+    chip.classList.toggle('sp-busy', turnBusy);
+    if (turnBusy) closeProviderMenu(false);
+    syncProviderControls();
     syncUndoAvailability();
   }
+  function setBusy(busy) { statusBusy = busy; syncBusyState(); }
+  function setLifecycleBusy(frame) {
+    if (frame.busy) {
+      lifecycleBusy = true;
+      lifecycleTurnId = frame.turnId || null;
+    } else if (!lifecycleBusy || !lifecycleTurnId || !frame.turnId || frame.turnId === lifecycleTurnId) {
+      lifecycleBusy = false;
+      lifecycleTurnId = null;
+    } else return;
+    syncBusyState();
+  }
+  syncProviderPresentation({ selectionChanged: false });
   function renderScope(scope) {
     sel = scope || null;
     if (!sel) { targetTag.hidden = true; targetTag.textContent = ''; return; }
@@ -248,7 +467,8 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
     panel.classList.add('sp-has-thread'); // the input's top rule only shows once a conversation exists
     return { id: turnId, box: box, proseEl: prose, thinkEl: thinkBody, thinkWrap: think, metaEl: meta,
              editCount: 0, cardEl: null, cardBody: null, cardTitle: null, textBuf: '', thinkBuf: '', raf: 0,
-             changedCids: [], draft: userText, scope: null, finalized: false, errorShown: false };
+             changedCids: [], draft: userText, scope: null, provider: selectedProvider,
+             finalized: false, errorShown: false };
   }
 
   function getTurn(turnId) {
@@ -371,6 +591,7 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
         cardBody: card ? card.querySelector('.sp-card-body') : null,
         cardTitle: card ? card.querySelector('.sp-card-title') : null,
         textBuf: '', thinkBuf: '', raf: 0, changedCids: [], draft: null, scope: null,
+        provider: selectedProvider,
         finalized: !!(meta && !meta.hidden && meta.querySelector('.sp-tag')),
         errorShown: !!box.querySelector('.sp-err'),
       };
@@ -384,6 +605,7 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
   var es = new EventSource(client.eventUrl() + '&page=' + encodeURIComponent(location.pathname));
   es.onmessage = function (m) {
     var f; try { f = JSON.parse(m.data); } catch (e) { return; }
+    if (f.type === 'lifecycle') { setLifecycleBusy(f); return; }
     if (f.page && f.page !== location.pathname) return; // frames are page-scoped; ignore other pages' turns
     if (f.type === 'reload') {
       try { sessionStorage.setItem('sp-scroll', String(window.scrollY)); } catch (e) {}
@@ -405,14 +627,16 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
   // ---------- submit a turn ----------
   panel.querySelector('#sp-form').addEventListener('submit', function (e) {
     e.preventDefault();
-    if (chip.classList.contains('sp-busy')) return; // a turn is already running
+    var provider = selectedProviderState();
+    if (chip.classList.contains('sp-busy') || !provider || provider.available !== true) return; // a turn is already running or provider is unavailable
     var prompt = input.value.trim(); if (!prompt) return;
     var attach = sel ? ((sel.cid ? '#' + sel.cid : sel.selector) + (sel.snippet ? ' — ' + sel.snippet : '')) : null;
     pendingTurn = createTurn(null, prompt, attach);
+    pendingTurn.provider = provider.id;
     pendingTurn.scope = sel ? { cid: sel.cid, selector: sel.selector, snippet: sel.snippet } : null;
     var submitted = pendingTurn;
     expand();
-    var payload = { prompt: prompt, page: location.pathname };
+    var payload = { prompt: prompt, page: location.pathname, provider: provider.id };
     if (sel) { payload.cid = sel.cid; payload.selector = sel.selector; payload.snippet = sel.snippet; }
     setChip({ state: 'thinking', label: 'Sending…' });
     client.post('/turn', payload)
@@ -475,7 +699,7 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
 
   // minimize to a small status pill (gets the toolbar out of the way); click the pill to restore
   var minBtn = panel.querySelector('#sp-min');
-  minBtn.addEventListener('click', function (e) { e.stopPropagation(); panel.classList.add('sp-min'); });
+  minBtn.addEventListener('click', function (e) { e.stopPropagation(); closeProviderMenu(false); panel.classList.add('sp-min'); });
   panel.querySelector('#sp-head').addEventListener('click', function () { if (panel.classList.contains('sp-min')) panel.classList.remove('sp-min'); });
 
   // ---------- click-to-scope ----------
@@ -730,15 +954,22 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
           '<h2 class="sp-w-title" id="sp-welcome-title">This page is your project&rsquo;s brain.</h2>' +
           '<p class="sp-w-lede">It mirrors where the project stands — and you refine it right here, in the page. Three ways:</p>' +
           '<ul class="sp-w-tools">' +
-            '<li><span class="sp-w-g sp-w-sand">Sand</span><div><b>Say a change</b><span class="d">Describe it in plain words — Claude edits the page, scoped to whatever you point at.</span></div></li>' +
+            '<li><span class="sp-w-g sp-w-sand">Sand</span><div><b>Say a change</b><span class="d sp-w-provider-copy"></span></div></li>' +
             '<li><span class="sp-w-g sp-w-hands">✎</span><div><b>Use your hands</b><span class="d">Edit text, drag to reorder, or delete — directly, no AI.</span></div></li>' +
             '<li><span class="sp-w-g sp-w-sling">&gt;_</span><div><b>Sling to terminal</b><span class="d">Copy a ready-made instruction for bigger, cross-page work.</span></div></li>' +
           '</ul>' +
-          '<p class="sp-w-tip">Try first: re-skin it to your brand with <code>/sandpaper:theme #yourhex</code>, or hit <b>✎</b> and rewrite the line up top.</p>' +
+          '<p class="sp-w-tip">Try first: re-skin it to your brand with <code class="sp-w-claude-command"></code> or <code class="sp-w-codex-command"></code>, or hit <b>✎</b> and rewrite the line up top.</p>' +
         '</div>' +
         '<div class="sp-w-foot"><span class="sp-w-point">your tools live down here ↘</span>' +
           '<button type="button" class="sp-w-go">Start refining →</button></div>' +
       '</div>';
+    var providerNames = providers.map(function (provider) { return provider.label; });
+    var providerCopy = w.querySelector('.sp-w-provider-copy');
+    providerCopy.textContent = 'Describe it in plain words — ' + (providerNames.length ? providerNames.join(' and ') : 'your provider') + ' can edit the page, scoped to whatever you point at.';
+    var claudeProvider = providersById.claude;
+    var codexProvider = providersById.codex;
+    w.querySelector('.sp-w-claude-command').textContent = (claudeProvider ? claudeProvider.label + ': ' : '') + '/sandpaper:theme #yourhex';
+    w.querySelector('.sp-w-codex-command').textContent = (codexProvider ? codexProvider.label + ': ' : '') + '$sandpaper theme #yourhex';
     document.body.appendChild(w);
     requestAnimationFrame(function () { w.classList.add('sp-w-in'); });
     function close() {
