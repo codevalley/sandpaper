@@ -379,24 +379,26 @@
             <span class="led" id="statusLed"></span>
             <span id="statusLabel">Idle — ready when you are</span>
           </span>
-          <div class="meta" id="statusMeta">Opus · context <b>27%</b> · idle</div>
+          <div class="meta" id="statusMeta">Claude Code · no supplied usage</div>
           <div class="timeline" id="timeline" data-cid="timeline">
             <span class="tl" data-st="init"><span class="d"></span>init</span>
             <span class="tl" data-st="thinking"><span class="d"></span>thinking</span>
+            <span class="tl" data-st="tool_using"><span class="d"></span>tool_using</span>
             <span class="tl" data-st="editing"><span class="d"></span>editing</span>
-            <span class="tl" data-st="waiting"><span class="d"></span>waiting</span>
             <span class="tl" data-st="error"><span class="d"></span>error</span>
             <span class="tl" data-st="done"><span class="d"></span>done</span>
             <span class="tl" data-st="idle"><span class="d"></span>idle</span>
           </div>
           <div class="hint">↑ live preview — normalized provider frames, one server-owned global lifecycle</div>
+          <div class="hint">Usage examples are provider-supplied terminal data: Claude Code · supplied cost $0.0400; Codex · supplied total 1,842 tokens.</div>
         </div>
 
         <p style="margin-top:22px">
           <strong>Provider streams supply normalized frames; the server supplies truth.</strong>
           Provider events drive Thinking and Editing, while the server
           hashes the page before and after the runner finishes. Changed bytes produce <em>Saved</em> and an
-          undo affordance; reply-only or no-op turns produce <em>Replied</em>. Waiting remains reserved.
+          undo affordance; reply-only or no-op turns produce <em>Replied</em>. A non-edit command/tool may
+          produce <code>tool_using</code>; provider failures remain visible errors with no invented recovery.
         </p>
       </div>
       <aside class="side" data-cid="side-status">
@@ -570,7 +572,7 @@
   </footer>
 </div>
 
-<script>
+<script id="status-demo-script">
 (function(){
   var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var chip=document.getElementById('statusChip'), led=document.getElementById('statusLed');
@@ -578,26 +580,27 @@
   var tls=Array.prototype.slice.call(document.querySelectorAll('#timeline .tl'));
   var C={mute:'#8A8578',clay:'#C75B39',pine:'#3F5247',ochre:'#C98A1E',rust:'#B23A2E',moss:'#4E7C59'};
   var seq=[
-    ['idle','Idle — ready when you are',C.mute,'Opus · context <b>27%</b> · idle',2200,false],
-    ['init','Initializing session…',C.mute,'Opus · resuming context',700,true],
-    ['thinking','Composing the change…',C.clay,'Opus · context <b>28%</b> · thinking',2600,true],
-    ['editing','Editing sandpaper.html',C.pine,'Opus · sanding your change into disk · $<b>0.04</b>',2600,true],
-    ['done','Saved to sandpaper.html · undo?',C.moss,'Opus · context <b>29%</b> · done in 5.1s',1900,false],
-    ['idle','Idle — ready when you are',C.mute,'Opus · context <b>29%</b> · idle',2200,false],
-    ['thinking','Composing the change…',C.clay,'Opus · context <b>30%</b> · thinking',1800,true],
-    ['waiting','Action required — approve to continue',C.ochre,'Opus · permission: Write sandpaper.html',2600,true],
-    ['editing','Editing sandpaper.html',C.pine,'Opus · sanding your change into disk · $<b>0.07</b>',2000,true],
-    ['error','API busy — retrying in 20s',C.rust,'Opus · rate limited · auto-retry',2200,true],
-    ['done','Saved to sandpaper.html · undo?',C.moss,'Opus · context <b>31%</b> · done',1900,false]
+    ['idle','Claude Code · idle',C.mute,'Claude Code · no supplied usage',2200,false],
+    ['init','Claude Code · starting…',C.mute,'Claude Code · starting',700,true],
+    ['thinking','Claude Code · thinking…',C.clay,'Claude Code · no supplied usage',1800,true],
+    ['editing','Claude Code · editing sandpaper.html',C.pine,'Claude Code · no supplied usage',2200,true],
+    ['done','Claude Code · Saved · Undo',C.moss,'Claude Code · supplied cost $0.0400',1900,false],
+    ['idle','Codex · idle',C.mute,'Codex · no supplied usage',1800,false],
+    ['init','Codex · starting…',C.mute,'Codex · starting',700,true],
+    ['thinking','Codex · thinking…',C.clay,'Codex · no supplied usage',1700,true],
+    ['tool_using','Codex · running command…',C.ochre,'Codex · no supplied usage',1700,true],
+    ['editing','Codex · reported file changes',C.pine,'Codex · no supplied usage',2000,true],
+    ['done','Codex · Saved · Undo',C.moss,'Codex · supplied total 1,842 tokens',1900,false],
+    ['error','Codex · turn failed',C.rust,'Codex · provider error',1800,false]
   ];
   var i=0;
   function paint(s){
-    chip.style.color=s[2]; led.style.background=s[2]; label.textContent=s[1]; meta.innerHTML=s[3];
+    chip.style.color=s[2]; led.style.background=s[2]; label.textContent=s[1]; meta.textContent=s[3];
     if(s[5] && !reduce){chip.classList.add('pulse');} else {chip.classList.remove('pulse');}
     tls.forEach(function(t){t.classList.toggle('on',t.getAttribute('data-st')===s[0]);});
   }
   function tick(){paint(seq[i]); i=(i+1)%seq.length; setTimeout(tick, seq[i===0?seq.length-1:i-1][4]);}
-  if(reduce){paint(seq[3]);} else {tick();}
+  if(reduce){paint(seq[0]);} else {tick();}
 })();
 </script>
 <script>/* mirror data-cid -> id so #anchors from the project brain scroll here */(function(){document.querySelectorAll("[data-cid]").forEach(function(e){if(!e.id)e.id=e.getAttribute("data-cid");});if(location.hash){var t=document.getElementById(location.hash.slice(1));if(t)t.scrollIntoView();}})();</script>

@@ -56,19 +56,50 @@
   </header>
   <!-- /BRAIN:EDITION -->
 
-  <!-- ZONE CANVAS — the live working surface: Claude's distilled/elevated boards (newest first). THE HERO. -->
+  <!-- ZONE CANVAS — the live working surface: distilled/elevated boards (newest first). THE HERO. -->
   <section class="canvas" id="s-canvas" data-cid="s-canvas" aria-label="Canvas">
     <div class="canvas-rail">
-      <div class="eyebrow">Canvas <span class="canvas-sub">— where Claude's explanations show up</span></div>
-      <span class="canvas-count" data-cid="canvas-count">5 boards</span>
+      <div class="eyebrow">Canvas <span class="canvas-sub">— where agent explanations show up</span></div>
+      <span class="canvas-count" data-cid="canvas-count">6 boards</span>
     </div>
     <!-- BRAIN:CANVAS — boards prepend here, newest first; .canvas-empty shows when there are none -->
     <!-- the whiteboard: a white container whose CONTENT scrolls inside it; the page scrolls everything else -->
     <div class="whiteboard" data-cid="whiteboard">
-      <article class="board board--live" id="board-0011" data-cid="board-0011" data-kind="board" data-status="current" data-date="2026-07-10" data-ref="../src/server.js">
+      <article class="board board--live" id="board-0012" data-cid="board-0012" data-kind="board" data-status="current" data-date="2026-07-12" data-ref="../docs/superpowers/specs/2026-07-11-v0.3.0-first-class-codex-design.md">
         <header class="board-head">
           <span class="board-dot" aria-hidden="true"></span>
-          <h3 class="board-title">Sandpaper as built — two writing loops, one source of truth</h3>
+          <h3 class="board-title">First-class Claude + Codex — one brain, explicit compute</h3>
+          <span class="board-when">07-12 · board 012</span>
+        </header>
+        <div class="board-body">
+          <p><strong>Claude Code and Codex are now first-party adapters over one Sandpaper truth.</strong>
+            Both integrations install by default and both entry syntaxes consume the same workflow set and
+            brain. The toolbar uses explicit provider selection with no silent fallback: launch choice,
+            tab-local choice, and <em>Make default</em> remain distinct.</p>
+
+          <div class="split">
+            <div class="split-col hot"><span class="split-k">Context stays honest</span><span class="split-d">Page/provider-scoped resume IDs and project/page/provider transcripts stay independent. Switching transfers no hidden context; <strong>New session</strong> clears only the selected scope after server success.</span></div>
+            <div class="split-col"><span class="split-k">The server stays authoritative</span><span class="split-d">One global lifecycle serializes turns and tags every accepted frame with provider identity. Selected-document bytes and hashes alone decide Saved/Replied/Undo; a best-effort external-path warning cannot verify or undo other paths.</span></div>
+          </div>
+
+          <table class="tbl">
+            <tr><th>Layer</th><th>Verified current state</th></tr>
+            <tr><td class="m"><span class="badge done">runtime</span></td><td>Internal registry, Claude and controlled Codex adapters, diagnostics, saved auth, provider-scoped sessions, and explicit unavailable states.</td></tr>
+            <tr><td class="m"><span class="badge done">distribution</span></td><td>Dual or solo integration trees, provider-neutral workflows, Claude and Codex hooks/trust, lifecycle preservation, doctor, and an exact <strong>58-file</strong> release gate.</td></tr>
+            <tr><td class="m"><span class="badge done">toolbar</span></td><td>Accessible selection/default/reset, isolated transcripts, provider-tagged status, supplied Claude cost or Codex tokens, sparse edit paths, and narrow-viewport behavior.</td></tr>
+            <tr><td class="m"><span class="badge verified">verified</span></td><td><strong>334 unit</strong> tests, <strong>101 Chromium</strong> tests, package smoke, syntax, doctor, and publish verification passed before this stamp.</td></tr>
+          </table>
+        </div>
+        <footer class="board-foot">
+          <span class="board-tag">v0.3.0 · board 012 · provider truth</span>
+          <span><a class="ref" href="../README.md">public contract →</a> · <a class="ref" href="../engg-spec.html#s-protocol">protocol →</a> · <a class="ref" href="./project/index.html#i-providers">release task →</a></span>
+        </footer>
+      </article>
+
+      <article class="board board--past" id="board-0011" data-cid="board-0011" data-kind="board" data-status="past" data-date="2026-07-10" data-ref="../src/server.js">
+        <header class="board-head">
+          <span class="board-dot" aria-hidden="true"></span>
+          <h3 class="board-title">Historical snapshot · Sandpaper as built — two writing loops, one source of truth</h3>
           <span class="board-when">07-10 · board 011</span>
         </header>
         <div class="board-body">

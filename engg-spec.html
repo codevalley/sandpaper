@@ -271,8 +271,25 @@
           request body. Global busy requests fail with 409 turn_in_progress, including default and
           reset requests from another page. Failures are structured <code>{ok:false,error:{code,message}}</code>.</p>
         <p>Accepted output uses provider-tagged status, assistant_delta, edit, usage, and lifecycle frames.
-          Turn frames include server <code>turnId</code>, validated <code>provider</code>, canonical <code>page</code>,
-          and phase. Lifecycle is global; status/reload delivery remains page-aware.</p>
+          Status, assistant, edit, and usage frames include server <code>turnId</code>, validated
+          <code>provider</code>, canonical <code>page</code>, and <code>phase</code>. Lifecycle is the global
+          busy envelope and deliberately has no phase; status/reload delivery remains page-aware.</p>
+        <div id="frame-schemas" data-cid="frame-schemas">
+          <h3>Exact normalized frame shapes</h3>
+          <pre class="code">lifecycle        {type:'lifecycle',busy,turnId,provider,page}
+status           {type:'status',state,label,turnId,provider,page,phase,changed?,undoable?,cost?}
+assistant        {type:'assistant_delta',kind,text,turnId,provider,page,phase}
+Claude edit      {type:'edit',provider:'claude',turnId,page,phase,file?,added?,removed?,hunks?:[{oldText,newText}],cids?:[]}
+Codex edit       {type:'edit',provider:'codex',turnId,page,phase,file,paths:[{path,kind}]}
+Codex usage      {type:'usage',provider:'codex',turnId,page,phase,inputTokens?,cachedInputTokens?,outputTokens?,totalTokens?}
+providerless idle {type:'status',state:'idle',label:'idle'}</pre>
+          <p>Lifecycle frames never carry <code>phase</code>. Before a page has an accepted/current turn, SSE
+            may replay the providerless idle status shown above; it is not a provider turn. Optional terminal
+            <code>changed</code> and <code>undoable</code> come from server bytes/snapshots. Claude cost is supplied terminal data only.
+            Claude edit file/count/hunk/CID details stay optional to consumers.
+            Codex edit paths carry only reported path/kind pairs with no fabricated hunks; token fields are
+            optional and <code>totalTokens</code> appears only when the adapter has finite input and output counts.</p>
+        </div>
         <h3>Anatomy of one turn</h3>
         <ol class="flow" id="turnseq" data-cid="turnseq">
           <li>Pick optionally records a <code>data-cid</code>, selector, and text snippet; Sand and Hands remain mutually exclusive.</li>

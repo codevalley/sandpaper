@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
@@ -32,6 +33,16 @@ const CURRENT_BRAIN_FILES = [
 function assertContains(file, patterns) {
   const source = read(file);
   for (const pattern of patterns) assert.match(source, pattern, `${file} is missing ${pattern}`);
+}
+
+function elementById(file, tag, id) {
+  const source = read(file);
+  const idAt = source.indexOf(`id="${id}"`);
+  assert.notEqual(idAt, -1, `${file} is missing #${id}`);
+  const start = source.lastIndexOf(`<${tag}`, idAt);
+  const end = source.indexOf(`</${tag}>`, idAt);
+  assert.ok(start >= 0 && end >= idAt, `${file} has malformed #${id}`);
+  return source.slice(start, end + tag.length + 3);
 }
 
 test('all current public surfaces name both providers and both workflow syntaxes', () => {
@@ -102,6 +113,57 @@ test('engineering spec records the exact provider protocol and ownership model',
     /not shipped in <code>v0\.3\.0<\/code>/i,
     /versioned, trusted provider-plugin/i,
   ]);
+
+  const schemas = elementById('engg-spec.html', 'div', 'frame-schemas');
+  for (const exact of [
+    "{type:'lifecycle',busy,turnId,provider,page}",
+    "{type:'status',state,label,turnId,provider,page,phase,changed?,undoable?,cost?}",
+    "{type:'assistant_delta',kind,text,turnId,provider,page,phase}",
+    "{type:'edit',provider:'claude',turnId,page,phase,file?,added?,removed?,hunks?:[{oldText,newText}],cids?:[]}",
+    "{type:'edit',provider:'codex',turnId,page,phase,file,paths:[{path,kind}]}",
+    "{type:'usage',provider:'codex',turnId,page,phase,inputTokens?,cachedInputTokens?,outputTokens?,totalTokens?}",
+    "{type:'status',state:'idle',label:'idle'}",
+  ]) assert.match(schemas, new RegExp(exact.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.match(schemas, /lifecycle frames never carry <code>phase<\/code>/i);
+  assert.doesNotMatch(schemas, /type:'lifecycle'[^\n]*phase/);
+  assert.match(schemas, /Claude[^<\n]{0,100}cost[^<\n]{0,100}supplied terminal/i);
+  assert.match(schemas, /Codex[^<\n]{0,100}no fabricated hunks/i);
+});
+
+test('cover has one truthful current board while preserving board 0011 as dated evidence', () => {
+  const source = read('brain/index.html');
+  const current = source.match(/<(?:article|details)[^>]*class="[^"]*\bboard--live\b[^"]*"[^>]*data-status="current"/g) || [];
+  assert.equal(current.length, 1);
+
+  const latest = elementById('brain/index.html', 'article', 'board-0012');
+  assert.match(latest, /class="board board--live"/);
+  assert.match(latest, /data-status="current"/);
+  for (const anchor of [
+    /Claude Code/, /Codex/, /explicit provider selection/i, /no silent fallback/i,
+    /page\/provider-scoped resume/i, /project\/page\/provider transcript/i, /New session/,
+    /one global lifecycle/i, /selected-document bytes/i, /best-effort external-path warning/i,
+    /58-file/, /334 unit/, /101 Chromium/,
+  ]) assert.match(latest, anchor);
+
+  const historical = elementById('brain/index.html', 'article', 'board-0011');
+  assert.match(historical, /class="board board--past"/);
+  assert.match(historical, /data-status="past"/);
+  assert.match(historical, /Historical snapshot/);
+  const bodyStart = historical.indexOf('<div class="board-body">');
+  const bodyEnd = historical.indexOf('\n        <footer class="board-foot">', bodyStart);
+  assert.ok(bodyStart >= 0 && bodyEnd > bodyStart);
+  const bodyHash = createHash('sha256').update(historical.slice(bodyStart, bodyEnd)).digest('hex');
+  assert.equal(bodyHash, '2bf016d56ac350c4ffec64e473e84e7a626e2e13ee62a3a8c8239c7fb4954f80');
+  assert.match(source, /data-cid="canvas-count">6 boards<\/span>/);
+});
+
+test('current status demo never invents provider model, context, permission, retry, or usage', () => {
+  const status = elementById('sandpaper.html', 'section', 's-status')
+    + elementById('sandpaper.html', 'script', 'status-demo-script');
+  assert.match(status, /Claude Code[^\n]{0,160}supplied cost[^\n]{0,80}\$0\.0400/i);
+  assert.match(status, /Codex[^\n]{0,160}supplied total[^\n]{0,80}1,842 tokens/i);
+  assert.match(status, /tool_using/);
+  assert.doesNotMatch(status, /Opus|context\s*(?:<[^>]+>)*\d+%|auto-retry|retrying|rate limit|permission|data-st="waiting"|\$<b>|\$0\.07/i);
 });
 
 test('CLI help describes the completed dual-provider toolbar without stale wave copy', () => {
