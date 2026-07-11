@@ -99,9 +99,21 @@ function emptySnapshot(rootMode = 0o755) {
   return { rootMode, directories: new Map(), files: new Map() };
 }
 
-function scanTree(path, pathClass, fs, pathApi) {
+function sameRecordedIdentity(left, right) {
+  return Boolean(left && right
+    && left.dev === right.dev
+    && left.ino === right.ino
+    && left.type === right.type);
+}
+
+function captureTree(path, pathClass, fs, pathApi) {
   const root = assertDirectory(path, pathClass, fs);
   const snapshot = emptySnapshot(root.mode & 0o777);
+  const metadata = new Map([['', {
+    identity: identity(root),
+    kind: 'directory',
+    mode: root.mode & 0o777,
+  }]]);
   const walk = (directory, prefix) => {
     let entries;
     try { entries = fs.readdirSync(directory).sort(); }
@@ -113,23 +125,60 @@ function scanTree(path, pathClass, fs, pathApi) {
       if (!stats) throw new Error(`Sandpaper ${pathClass} changed during preflight`);
       if (stats.isSymbolicLink()) unsafe(pathClass, 'symlink');
       if (stats.isDirectory()) {
-        snapshot.directories.set(relative, stats.mode & 0o777);
+        const mode = stats.mode & 0o777;
+        snapshot.directories.set(relative, mode);
+        metadata.set(relative, { identity: identity(stats), kind: 'directory', mode });
         walk(child, relative);
       } else if (stats.isFile()) {
-        snapshot.files.set(relative, readRegularFile(child, pathClass, fs));
+        const file = readRegularFile(child, pathClass, fs);
+        if (!sameRecordedIdentity(identity(stats), file.identity)) {
+          throw new Error(`Sandpaper ${pathClass} changed during preflight`);
+        }
+        snapshot.files.set(relative, { bytes: Buffer.from(file.bytes), mode: file.mode });
+        metadata.set(relative, {
+          identity: file.identity,
+          kind: 'file',
+          mode: file.mode,
+          bytes: Buffer.from(file.bytes),
+        });
       } else {
         unsafe(pathClass, 'special file');
       }
     }
   };
   walk(path, '');
-  const identities = identityTree(path, { fs, pathApi });
-  const expectedRoot = identity(root);
-  const actualRoot = identities.get('');
-  if (!actualRoot || actualRoot.dev !== expectedRoot.dev || actualRoot.ino !== expectedRoot.ino || actualRoot.type !== expectedRoot.type) {
+  return { snapshot, metadata };
+}
+
+function sameTreeMetadata(left, right) {
+  if (left.size !== right.size) return false;
+  for (const [path, expected] of left) {
+    const actual = right.get(path);
+    if (!actual
+      || actual.kind !== expected.kind
+      || actual.mode !== expected.mode
+      || !sameRecordedIdentity(actual.identity, expected.identity)) return false;
+    if (expected.kind === 'file' && !actual.bytes.equals(expected.bytes)) return false;
+  }
+  return true;
+}
+
+function metadataIdentities(metadata) {
+  return new Map([...metadata].map(([path, entry]) => [path, { ...entry.identity }]));
+}
+
+function scanTree(path, pathClass, fs, pathApi) {
+  const captured = captureTree(path, pathClass, fs, pathApi);
+  const verified = captureTree(path, pathClass, fs, pathApi);
+  if (!sameTreeMetadata(captured.metadata, verified.metadata)) {
     throw new Error(`Sandpaper ${pathClass} changed during preflight`);
   }
-  return { snapshot, identity: identity(root), identities };
+  return {
+    snapshot: captured.snapshot,
+    identity: captured.metadata.get('').identity,
+    identities: metadataIdentities(captured.metadata),
+    metadata: captured.metadata,
+  };
 }
 
 function cloneSnapshot(snapshot) {
@@ -256,12 +305,18 @@ function validateCurrent(operation, fs, pathApi) {
   if (!sameIdentity(current, operation.expectedIdentity)) {
     throw new Error('Sandpaper transaction path changed before commit');
   }
-  if (current && operation.kind === 'file') {
+  if (current && operation.kind === 'directory') {
+    const captured = captureTree(operation.destination, 'destination tree', fs, pathApi);
+    if (!sameTreeMetadata(captured.metadata, operation.expectedMetadata)) {
+      throw new Error('Sandpaper transaction contents changed before commit');
+    }
+  } else if (current && operation.kind === 'file') {
     if (!current.isFile()) throw new Error('Sandpaper transaction file changed before commit');
     const bytes = readRegularFile(operation.destination, 'managed file', fs).bytes;
     if (!bytes.equals(operation.expectedBytes)) throw new Error('Sandpaper transaction file changed before commit');
   }
-  if (current && !sameIdentityTree(identityTree(operation.destination, { fs, pathApi }), operation.expectedContents)) {
+  if (current && operation.kind === 'file'
+    && !sameIdentityTree(identityTree(operation.destination, { fs, pathApi }), operation.expectedContents)) {
     throw new Error('Sandpaper transaction contents changed before commit');
   }
 }
@@ -506,6 +561,7 @@ export function copyTree(source, destination, {
     changed: true,
     expectedIdentity: destinationRead?.identity || null,
     expectedContents: destinationRead?.identities || new Map(),
+    expectedMetadata: destinationRead?.metadata || new Map(),
     expectedBytes: null,
   };
   const transaction = prepareTransaction({
@@ -603,11 +659,13 @@ export function prepareInstallIntegrations(target, packageRoot, options = {}, {
     const namespaceInspection = inspectTrustedPath(target, namespace, { fs, pathApi, pathClass: 'destination path' });
     let namespaceIdentity = null;
     let namespaceContents = new Map();
+    let namespaceMetadata = new Map();
     if (namespaceInspection.exists) {
       if (!namespaceInspection.stats.isDirectory()) unsafe('destination namespace', typeOf(namespaceInspection.stats));
       const namespaceRead = scanTree(namespace, 'destination namespace', fs, pathApi);
       namespaceIdentity = namespaceRead.identity;
       namespaceContents = namespaceRead.identities;
+      namespaceMetadata = namespaceRead.metadata;
     }
     operations.push({
       label: `${provider}-namespace`,
@@ -619,6 +677,7 @@ export function prepareInstallIntegrations(target, packageRoot, options = {}, {
       changed: selected || Boolean(namespaceIdentity),
       expectedIdentity: namespaceIdentity,
       expectedContents: namespaceContents,
+      expectedMetadata: namespaceMetadata,
       expectedBytes: null,
     });
 
