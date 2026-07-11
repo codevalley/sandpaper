@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%2212%2092%20576%20468%22%3E%3Cg%20transform%3D%22matrix(0.545861%2C0.545861%2C-0.545861%2C0.545861%2C300%2C-55.841103)%22%3E%3Cpath%20d%3D%22M40%2C560L560%2C560L560%2C40L240%2C40L40%2C240%22%20fill%3D%22%2318293D%22%2F%3E%3Cpath%20d%3D%22M100%2C300L100%2C500L500%2C500L500%2C100L300%2C100L300%2C300L100%2C300Z%22%20fill%3D%22%23C63B30%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E" />
-<meta name="sandpaper:source" content="https://github.com/codevalley/sandpaper/blob/HEAD/" data-pkg="sandpaper" />
+<meta name="sandpaper:source" content="https://github.com/codevalley/sandpaper/blob/HEAD/" data-pkg="@nynb/sandpaper" />
 <title>Sandpaper · Log Book — Decisions</title>
 <!-- 02 — DECISIONS. Accepted calls + open questions = one lifecycle via data-status. Append on a new call/question; flip ONE data-status to resolve/supersede. A reversal is a NEW entry with data-rel="supersedes:<id>" — never rewrite. -->
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -44,6 +44,41 @@
   </section>
 
   <section class="band" style="border-top:0;padding-top:0">
+    <article class="entry entry--decision" data-lens="project" data-kind="decision" id="d-v021-release-contract" data-cid="d-v021-release-contract" data-status="accepted" data-date="2026-07-10" data-ref="../docs/superpowers/specs/2026-07-10-v0.2.1-stabilization-design.md" data-tags="release v0.2.1 patch gates changelog provenance registry npx fresh-install immutable">
+      <div class="entry-head"><span class="entry-id">D-025</span><h3><code>v0.2.1</code> requires package-level release evidence</h3><span class="badge accepted">Accepted</span></div>
+      <p>Keep the sweep a patch release and gate it on shipped-JavaScript syntax, Node and browser suites, doctor, packed-package installation, one disposable Claude smoke, and a human-confirmed tag. Release is complete only after registry, provenance, fresh <code>npx</code>, and clean-install verification; corrections use a new immutable patch. <a class="ref" href="../docs/superpowers/specs/2026-07-10-v0.2.1-stabilization-design.md">release contract →</a></p>
+    </article>
+
+    <article class="entry entry--decision" data-lens="engineering" data-kind="decision" id="d-layered-test-architecture" data-cid="d-layered-test-architecture" data-status="accepted" data-date="2026-07-10" data-ref="../test/parse-test.js" data-tags="testing unit integration playwright browser fake runner provider-neutral ci node versions live-agent smoke">
+      <div class="entry-head"><span class="entry-id">D-024</span><h3>Layer tests around a deterministic provider-neutral runner</h3><span class="badge accepted">Accepted</span></div>
+      <p>Expose a testable server constructor, inject a fake runner, and cover policy, lifecycle, undo, setup, and browser contracts with Node integration tests plus dev-only Playwright on Chromium. Keep live agents out of CI; record one disposable Claude smoke before release while preserving zero runtime dependencies. <a class="ref" href="../test/parse-test.js">current tests →</a></p>
+    </article>
+
+    <article class="entry entry--decision" data-lens="engineering" data-kind="decision" id="d-browser-contract" data-cid="d-browser-contract" data-status="accepted" data-date="2026-07-10" data-ref="../public/toolbar.js" data-tags="browser client api helper token client-id errors optimistic rollback accessibility css isolation keyboard deferred">
+      <div class="entry-head"><span class="entry-id">D-023</span><h3>One hardened browser contract; repair existing semantics</h3><span class="badge accepted">Accepted</span></div>
+      <p>Centralize authenticated API handling, make Sand/Hands and undo state truthful, preserve intentional rich HTML edits, and fix verified CSS/search/mode regressions. Repair baseline semantics and focus now; keyboard/touch reorder-delete remains the explicit later task <code>t-0024</code>. <a class="ref" href="../public/toolbar.js">toolbar →</a></p>
+    </article>
+
+    <article class="entry entry--decision" data-lens="project" data-kind="decision" id="d-brain-truth-model" data-cid="d-brain-truth-model" data-status="accepted" data-date="2026-07-10" data-ref="./project/index.html#i-plan" data-tags="brain truth derived mechanical editorial stamp doctor drift counts metadata docs reconcile">
+      <div class="entry-head"><span class="entry-id">D-022</span><h3>Derive mechanical brain state; stamp editorial judgment</h3><span class="badge accepted">Accepted</span></div>
+      <p>HTML entries remain canonical: browser code derives numerical rollups, while NOW, focus, worklog, decisions, and learnings stay stamp-maintained. <code>doctor</code> independently validates both layers, metadata, references, and serving policy; the sweep reconciles current docs without rewriting history. <a class="ref" href="./project/index.html#i-plan">plan model →</a></p>
+    </article>
+
+    <article class="entry entry--decision" data-lens="engineering" data-kind="decision" id="d-turn-lifecycle" data-cid="d-turn-lifecycle" data-status="accepted" data-date="2026-07-10" data-ref="../src/server.js" data-tags="turn lifecycle state-machine concurrency sse hash truthful saved undo client-id reload provider-neutral">
+      <div class="entry-head"><span class="entry-id">D-021</span><h3>The server owns one truthful turn lifecycle</h3><span class="badge accepted">Accepted</span></div>
+      <p>Reserve turns before body reads, retain/replay current SSE state, let runners emit normalized frames, and derive Saved/Undo from actual file change rather than requested tools. Per-tab client IDs replace global reload suppression; errors are terminal and snapshots are useful, bounded state. <a class="ref" href="../src/server.js">runtime →</a></p>
+    </article>
+
+    <article class="entry entry--decision" data-lens="engineering" data-kind="decision" id="d-safe-repo-serving" data-cid="d-safe-repo-serving" data-status="accepted" data-date="2026-07-10" data-ref="../src/server.js" data-tags="security serving repo-root dotfiles secrets github allowlist doctor link-never-copy">
+      <div class="entry-head"><span class="entry-id">D-020</span><h3>Keep repo-root presentation; default-deny secret paths</h3><span class="badge accepted">Accepted</span></div>
+      <p>Preserve whole-repo serving because the brain intentionally links to canonical specs, source, assets, and <code>.github</code> workflows outside <code>brain/</code>. Deny runtime/secret paths and unknown hidden namespaces by default, allow safe hidden prefixes narrowly, and make <code>doctor</code> detect blocked brain references before they break. <a class="ref" href="../src/server.js">server boundary →</a></p>
+    </article>
+
+    <article class="entry entry--decision" data-lens="project" data-kind="decision" id="d-stabilize-before-codex" data-cid="d-stabilize-before-codex" data-status="accepted" data-date="2026-07-10" data-ref="./project/index.html#i-stability" data-tags="sequence stabilization v0.2.1 codex providers v0.3.0 scope risk-based roadmap">
+      <div class="entry-head"><span class="entry-id">D-019</span><h3>Stabilize first; make Claude + Codex first-class second</h3><span class="badge accepted">Accepted</span></div>
+      <p>Ship a risk-based <code>v0.2.1</code> sweep before first-class provider support in <code>v0.3.0</code>. The sweep fixes verified defects, drift, and regression coverage plus self-derived state; net-new product surfaces remain explicit roadmap choices. <a class="ref" href="./project/index.html#i-stability">tracked work →</a></p>
+    </article>
+
     <article class="entry entry--decision" data-lens="engineering" data-kind="decision" id="d-release-process" data-cid="d-release-process" data-status="accepted" data-date="2026-07-03" data-ref="../skill/sandpaper/commands/release.md" data-tags="release versioning semver changelog github-actions ci cd provenance dependabot verify-publish automation-token">
       <div class="entry-head"><span class="entry-id">D-018</span><h3>Versioning is a Sandpaper feature — <code>/sandpaper:release</code> + a tag-triggered publish</h3><span class="badge accepted">Accepted</span></div>
       <dl class="entry-fields">
@@ -227,8 +262,8 @@
       <p>If Claude rewrites the doc and drops <code>data-cid</code>s, open annotations + brain links dangle. Plan: a CLAUDE.md contract that never strips cids, plus text-snippet / selector fallback. <a class="ref" href="../sandpaper.html#s-risks">Risks §07 →</a></p>
     </article>
 
-    <article class="entry entry--question" data-kind="question" id="q-undo" data-cid="q-undo" data-status="open" data-date="2026-06-29" data-ref="../engg-spec.html#s-fixed" data-tags="undo snapshot">
-      <div class="entry-head"><span class="badge open">open · soon</span><h3>Make "undo?" real</h3></div>
+    <article class="entry entry--question" data-kind="question" id="q-undo" data-cid="q-undo" data-status="resolved" data-date="2026-06-29" data-ref="../engg-spec.html#s-fixed" data-tags="undo snapshot">
+      <div class="entry-head"><span class="badge accepted">resolved · built</span><h3>Make "undo?" real</h3></div>
       <p>The chip promises undo; a pre-turn snapshot exists. Wire it to the change card + a one-click restore. <a class="ref" href="../engg-spec.html#s-fixed">engg →</a></p>
     </article>
 

@@ -19,7 +19,7 @@ try {
     .split('\n').filter(Boolean).map((l) => l.slice(3).trim());
 } catch { process.exit(0); } // not a git repo / git missing — stay silent
 
-const isProject = (f) => /\.(js|css|html|md|json)$/.test(f) && !f.startsWith('.sandpaper') && !f.includes('node_modules');
+const isProject = (f) => /\.(js|css|html|md|json|ya?ml)$/.test(f) && !f.startsWith('.sandpaper') && !f.includes('node_modules');
 const proj = changed.filter(isProject);
 const brainTouched = proj.some((f) => f.startsWith('brain/'));            // guard #2: stamped → won't fire
 const nonBrain = proj.filter((f) => !f.startsWith('brain/') && f !== 'CLAUDE.md');

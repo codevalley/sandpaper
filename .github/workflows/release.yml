@@ -1,58 +1,159 @@
 name: Release
 
-# Fires on a version tag (created by `npm version` inside /sandpaper:release, then
-# `git push --follow-tags`). Tests + verify-publish run again here even though CI
-# already ran them on main — belt and suspenders before anything public happens.
+# A human-created version tag starts this workflow. Metadata is validated before
+# any gate, and publish explicitly waits for every independent gate job.
 on:
   push:
     tags: ['v*.*.*']
 
 permissions:
-  contents: write   # to create the GitHub Release
-  id-token: write   # for npm provenance (and OIDC trusted publishing, if configured)
+  contents: read
 
 jobs:
-  publish:
+  metadata:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.release-metadata.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+      - name: verify exact tag, lockfile, and changelog
+        id: release-metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(node -p "require('./package.json').version")"
+          EXPECTED_TAG="v${VERSION}"
+          if [ "$GITHUB_REF_NAME" != "$EXPECTED_TAG" ]; then
+            echo "::error::tag $GITHUB_REF_NAME must equal $EXPECTED_TAG"
+            exit 1
+          fi
+          node - <<'NODE'
+          const lock = require('./package-lock.json');
+          const version = require('./package.json').version;
+          if (lock.version !== version || lock.packages[""].version !== version) {
+            console.error(`package-lock versions must both equal ${version}`);
+            process.exit(1);
+          }
+          NODE
+          COUNT="$(awk -v version="$VERSION" '
+            function target(line, prefix, date) {
+              prefix = "## [" version "] — ";
+              if (index(line, prefix) != 1 || length(line) != length(prefix) + 10) return 0;
+              date = substr(line, length(prefix) + 1);
+              return date ~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/;
+            }
+            target($0) { count++ }
+            END { print count + 0 }
+          ' CHANGELOG.md)"
+          if [ "$COUNT" -ne 1 ]; then
+            echo "::error::CHANGELOG.md must contain exactly one dated section for $VERSION"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+  node:
+    needs: metadata
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18, 20, 22]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node-version }}
+      - run: npm ci
+      - run: npm run check:syntax
+      - run: npm test
+      - run: npm run verify-publish
+
+  browser:
+    needs: metadata
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
 
+  package-smoke:
+    needs: metadata
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm run test:package
+      - run: node bin/cli.js doctor
+
+  publish:
+    needs: [metadata, node, browser, package-smoke]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
         with:
           node-version: 20
           registry-url: https://registry.npmjs.org
 
-      - name: syntax-check every shipped script
+      - name: extract strict release notes
+        shell: bash
+        env:
+          VERSION: ${{ needs.metadata.outputs.version }}
         run: |
-          set -e
-          for f in $(git ls-files 'bin/*.js' 'src/*.js'); do node --check "$f"; done
+          set -euo pipefail
+          awk -v version="$VERSION" '
+            function target(line, prefix, date) {
+              prefix = "## [" version "] — ";
+              if (index(line, prefix) != 1 || length(line) != length(prefix) + 10) return 0;
+              date = substr(line, length(prefix) + 1);
+              return date ~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/;
+            }
+            target($0) { p=1; next }
+            /^## \[/ && p { exit }
+            p { print }
+          ' CHANGELOG.md > /tmp/release-notes.md
+          if ! grep -q '[^[:space:]]' /tmp/release-notes.md; then
+            echo "::error::release notes for $VERSION are empty"
+            exit 1
+          fi
 
-      - run: npm test
-      - run: npm run verify-publish
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: /tmp/release-notes.md
+          if-no-files-found: error
+          retention-days: 1
 
-      # Requires either the NPM_TOKEN repo secret (an npm "Automation" token — the
-      # 2FA-for-writes account setting rejects the interactive Publish token type in
-      # CI) or npm Trusted Publishing configured for this exact repo + workflow, in
-      # which case NPM_TOKEN can be removed and this step needs no env at all.
+      # NPM_TOKEN may be omitted when npm Trusted Publishing is configured for
+      # this exact repository and workflow; provenance uses the scoped OIDC grant.
       - name: publish to npm (with provenance)
         run: npm publish --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: extract this version's CHANGELOG section
-        id: notes
-        run: |
-          set -e
-          VERSION="${GITHUB_REF_NAME#v}"
-          # index()-based match, not a regex via -v: awk's -v assignment eats a lone
-          # backslash meant to escape [ ] for the ~ operator (\[ isn't a real C-style
-          # escape, so awk just drops the backslash) — index() is a literal substring
-          # search and sidesteps the whole escaping problem. Learned this the hard way
-          # on v0.2.0's own release: see brain/learnings.html#l-awk-v-escaping.
-          awk -v ver="## [$VERSION]" 'index($0, ver) == 1 {p=1; next} /^## \[/ && p {exit} p' CHANGELOG.md > /tmp/release-notes.md
-          if [ ! -s /tmp/release-notes.md ]; then echo "_No changelog entry found for $VERSION — see commit history._" > /tmp/release-notes.md; fi
-
+  github-release:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-notes
+          path: /tmp/release-artifact
       - name: create the GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file /tmp/release-notes.md
+        run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file /tmp/release-artifact/release-notes.md

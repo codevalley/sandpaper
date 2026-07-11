@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%2212%2092%20576%20468%22%3E%3Cg%20transform%3D%22matrix(0.545861%2C0.545861%2C-0.545861%2C0.545861%2C300%2C-55.841103)%22%3E%3Cpath%20d%3D%22M40%2C560L560%2C560L560%2C40L240%2C40L40%2C240%22%20fill%3D%22%2318293D%22%2F%3E%3Cpath%20d%3D%22M100%2C300L100%2C500L500%2C500L500%2C100L300%2C100L300%2C300L100%2C300Z%22%20fill%3D%22%23C63B30%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E" />
-<meta name="sandpaper:source" content="https://github.com/codevalley/sandpaper/blob/HEAD/" data-pkg="sandpaper" />
+<meta name="sandpaper:source" content="https://github.com/codevalley/sandpaper/blob/HEAD/" data-pkg="@nynb/sandpaper" />
 <title>Sandpaper · Product — What &amp; why</title>
 <!-- PRODUCT lens LANDING. Navigable index into the product records; deep prose is a later task (project#t-0004).
      Surfaces: the spec one-pager + product decisions + the modes/promise + the pitch. link, never copy. -->
@@ -53,27 +53,27 @@
   <section class="zone">
     <div class="eyebrow">What it is</div>
     <h2 class="h">Refine the rendered page, in place</h2>
-    <p>Sandpaper is a local tool that turns a Claude-generated HTML document into a surface you refine <em>in the browser</em>. A small Node bridge (a few hundred lines, zero runtime deps) drives <code>claude -p</code> in stream-json; when Claude edits the file, a watcher live-reloads the page, and a calm status chip says what it's doing — thinking · editing · done. No terminal round-trip, no re-describing. <a class="ref" href="../engineering/index.html">how it's built →</a> &nbsp; <a class="ref" href="../../sandpaper.html#s-status">the status chip §04 →</a></p>
+    <p>Sandpaper is a local tool that turns a Claude-generated HTML document into a surface you refine <em>in the browser</em>. The current <code>v0.2.1</code> surface runs Claude Code only: a small zero-dependency Node bridge drives <code>claude -p</code> in stream-json; when Claude edits the file, a watcher live-reloads the page, and a calm status chip says what is happening. First-class Codex support is planned for <code>v0.3.0</code>; only the server's internal runner seam is provider-neutral today. <a class="ref" href="../engineering/index.html">how it's built →</a> &nbsp; <a class="ref" href="../../sandpaper.html#s-status">the status chip §04 →</a></p>
     <p>One invariant carries the whole design: <strong>the document on disk is the single source of truth.</strong> Both you (direct edits) and Claude (Edit/Write) mutate the <em>same</em> file; the page reflects disk, never ahead of it. That rules out a server-side document model, HTML-from-stdout, and diffing — the bridge stays a dumb pipe, never screen-scraping a terminal. And the file you finish with is valid, shareable HTML that opens correctly with Sandpaper <em>not</em> running — the spec your team builds from. <a class="ref" href="../decisions.html#d-ssot">the SSOT call →</a> &nbsp; <a class="ref" href="../map.html">the component map →</a> &nbsp; <a class="ref" href="../learnings.html#l-amux">why not scrape →</a></p>
   </section>
 
   <section class="zone">
     <div class="eyebrow">Input · the ways in</div>
     <h2 class="h">Point to scope, then choose a hand</h2>
-    <p>Every interaction starts the same way: hover, then click an element or lasso a region, and Sandpaper resolves it to the exact spot in the HTML file. With the target scoped, there are three ways in.</p>
+    <p>Every scoped interaction starts the same way: enter Pick, then click an element, and Sandpaper resolves its nearest <code>data-cid</code> or a selector/snippet fallback. With the target scoped, there are three ways in.</p>
     <table class="tbl">
       <tr><th>Way in</th><th>What it does</th><th>Edits via</th></tr>
-      <tr><td class="m">Sand</td><td>Scoped AI edit — say the change (“tighten this, use our clay”) or one-click refine (expand · simplify · shift tone). Claude edits just that block; the page live-reloads.</td><td class="m">Claude</td></tr>
-      <tr><td class="m">✎ Hands</td><td>Direct manipulation — drag to reorder, delete, or edit text in place. Written straight to the file: no AI call, zero latency.</td><td class="m">you</td></tr>
+      <tr><td class="m">Sand</td><td>Scoped AI edit — select a block and describe the change. Claude edits the file; the page live-reloads with a truthful Saved or Replied outcome.</td><td class="m">Claude</td></tr>
+      <tr><td class="m">✎ Hands</td><td>Direct manipulation — edit text, move a sibling block, delete it, or undo. Written straight to the file: no AI call.</td><td class="m">you</td></tr>
       <tr><td class="m">⇥ Sling</td><td>Copies a terminal-ready instruction for cross-cutting / multi-file work — you hand it across to the terminal that's already good at it.</td><td class="m">terminal</td></tr>
     </table>
-    <p>Sand and Hands are the two halves of one invariant — an AI file write and a human file write to the same source of truth. Sling is the deliberate seam: the page is the eyes, deep steering stays in the terminal. Point-and-say Sand shipped with the spine; Hands is in the build now. <a class="ref" href="../../sandpaper.html#s-modes">the modes §03 →</a> &nbsp; <a class="ref" href="../wiki/product.html">modes &amp; promise →</a> &nbsp; <a class="ref" href="../project/index.html#i-hands">Hands on the board →</a></p>
+    <p>Sand and Hands are the two halves of one invariant — an AI file write and a human file write to the same source of truth. Sling is the deliberate seam: the page is the eyes, deep steering stays in the terminal. Point-and-say Sand plus direct text/move/delete/undo are shipped; screenshot paste, one-click presets, and branching remain planned. <a class="ref" href="../../sandpaper.html#s-modes">the modes §03 →</a> &nbsp; <a class="ref" href="../wiki/product.html">modes &amp; promise →</a> &nbsp; <a class="ref" href="../project/index.html#i-hands">Hands on the board →</a></p>
   </section>
 
   <section class="zone">
     <div class="eyebrow">Path · where it's going</div>
     <h2 class="h">Thin spine first, then the hard modes</h2>
-    <p>The roadmap climbs a thin spine before it widens. <strong>P0 the spine</strong> — live status chip + point-and-say on one HTML doc — is shipped. <strong>P1 the two hard modes</strong> — direct manipulation and paste-a-screenshot — is in flight. <strong>P2–P4</strong> — durable <code>data-cid</code> anchoring, branch &amp; compare, and a long-lived watch session — are planned. The rungs are canonical in the spec; the live state of each is the project board, not this page. <a class="ref" href="../../sandpaper.html#s-road">roadmap §06 →</a> &nbsp; <a class="ref" href="../project/index.html#i-skeleton">the plan board →</a></p>
+    <p>The roadmap climbs a thin spine before it widens. <strong>P0</strong> — the Claude round-trip, live status, and scoped edits — is shipped. The direct-manipulation half of <strong>P1</strong> is shipped too; screenshot paste remains planned. Durable <code>data-cid</code> anchoring, branch &amp; compare, a long-lived session, and first-class Codex support remain later work. The rungs are canonical in the spec; the live state of each is the project board. <a class="ref" href="../../sandpaper.html#s-road">roadmap §06 →</a> &nbsp; <a class="ref" href="../project/index.html#i-skeleton">the plan board →</a></p>
     <p class="muted">The one rung that's also a blocker: keeping annotations attached when Claude regenerates the whole HTML. Tracked as an open question and a named spec risk. <a class="ref" href="../decisions.html#q-anchoring">the anchoring question →</a> &nbsp; <a class="ref" href="../../sandpaper.html#s-risks">risks §07 →</a></p>
   </section>
 

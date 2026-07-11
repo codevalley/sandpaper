@@ -25,19 +25,53 @@ from it, never from scratch.
    apply), one line per real change, in plain user-facing language — not log-entry jargon. Fold
    in anything still under `## [Unreleased]`. Show the draft to the owner before writing it.
 
-4. **WRITE + TAG** — insert the new section into `CHANGELOG.md` above the previous version (keep
-   `[Unreleased]` empty at the top), update the compare-links footer, then:
+4. **START CLEAN, WRITE, THEN STAMP** — before changing anything, run
+   ```
+   git status --porcelain
+   ```
+   Stop if it prints anything: do not stash, discard, or sweep unrelated work into a release.
+   Once clean, insert the confirmed `## [X.Y.Z] — YYYY-MM-DD` section above the previous version
+   (keep `[Unreleased]` empty at the top), update the compare-links footer, then run the complete
+   `/sandpaper:stamp` for the release. The stamp happens before the tag so the tagged commit carries
+   the release worklog, NOW, digest, and any release task/map status.
+
+5. **STAGE ONLY THE RELEASE RECORD** — stage the known changelog/stamp files explicitly, verify
+   the staged names, and commit them before running any version command:
+   ```
+   git add -- CHANGELOG.md brain/index.html brain/log.html brain/project/index.html brain/map.html
+   git diff --cached --check
+   git diff --cached --name-only
+   git commit -m "chore: prepare vX.Y.Z release"
+   git status --porcelain
+   ```
+   The staged-name list may contain only those five paths. Stop if the final status is not clean.
+   Never use `git add .`, `git add -A`, or a force option in this flow.
+
+6. **RUN THE RELEASE GATES** — while the repository is still untagged, run every release-candidate
+   gate and stop on the first failure:
+   ```
+   npm run check:syntax
+   npm test
+   npm run test:browser
+   npm run test:package
+   node bin/cli.js doctor
+   npm run verify-publish
+   git diff --check
+   git status --porcelain
+   ```
+   The last command must remain empty. Show the gate results and ask the owner to confirm the final
+   version/tag/push step; the earlier bump and notes approval does not silently authorize a push.
+
+7. **VERSION, TAG, THEN PUSH** — only after that final owner confirmation, run:
    ```
    npm version <bump> -m "chore(release): v%s"
    git push --follow-tags
    ```
-   `npm version` bumps `package.json`, commits, and tags `vX.Y.Z` in one step — don't hand-edit
-   the version number.
+   `npm version` updates `package.json` and `package-lock.json`, creates the version commit, and tags
+   `vX.Y.Z`. Confirm that exact tag points at the version commit before pushing. Do not hand-edit the
+   version, bypass the clean-tree check, force a tag, force-push, or publish directly.
 
-5. **STAMP** — run the rest of `/sandpaper:stamp`: a log row for the release, the cover's NOW,
-   the digest, and a plan-board tick if a task tracked this work.
-
-6. **HANDOFF** — tell the owner the pushed tag will trigger `.github/workflows/release.yml`
+8. **HANDOFF** — tell the owner the pushed tag will trigger `.github/workflows/release.yml`
    (tests → `verify-publish` → `npm publish --provenance` → a GitHub Release), which needs either
    an `NPM_TOKEN` repo secret (an npm **Automation** token — required if the account has
    `auth-and-writes` 2FA, since only Automation tokens skip the interactive OTP prompt) or npm

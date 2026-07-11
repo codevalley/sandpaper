@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%2212%2092%20576%20468%22%3E%3Cg%20transform%3D%22matrix(0.545861%2C0.545861%2C-0.545861%2C0.545861%2C300%2C-55.841103)%22%3E%3Cpath%20d%3D%22M40%2C560L560%2C560L560%2C40L240%2C40L40%2C240%22%20fill%3D%22%2318293D%22%2F%3E%3Cpath%20d%3D%22M100%2C300L100%2C500L500%2C500L500%2C100L300%2C100L300%2C300L100%2C300Z%22%20fill%3D%22%23C63B30%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E" />
-<meta name="sandpaper:source" content="https://github.com/codevalley/sandpaper/blob/HEAD/" data-pkg="sandpaper" />
+<meta name="sandpaper:source" content="https://github.com/codevalley/sandpaper/blob/HEAD/" data-pkg="@nynb/sandpaper" />
 <title>Sandpaper · Log Book — Map</title>
 <!-- 03 — MAP. The noun-space: components, architecture (linked, not redrawn), glossary. The one edit-in-place book; carries data-fresh. Edit a card's data-status when a module's build state changes. -->
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -49,21 +49,25 @@
       <div class="entry-head"><span class="entry-id">⌥</span><h3>bin/cli.js — CLI entry</h3><span class="badge verified">verified</span></div>
       <p>Validates the arg, resolves the doc, reads the port, starts the server, logs the URL. <a class="ref" href="../engg-spec.html#s-build">engg →</a></p>
     </article>
-    <article class="entry entry--component" data-kind="component" id="c-server" data-cid="c-server" data-status="built" data-date="2026-06-29" data-ref="../engg-spec.html#s-protocol" data-tags="server http sse watch">
-      <div class="entry-head"><span class="entry-id">⌥</span><h3>src/server.js — HTTP · SSE · file-watch · toolbar inject</h3><span class="badge done">built</span></div>
-      <p>Serves the doc (toolbar injected at response-time), <code>/turn</code>, SSE <code>/events</code>, deferred reload, snapshots, <code>/undo</code>. <a class="ref" href="../engg-spec.html#s-protocol">engg →</a></p>
+    <article class="entry entry--component" data-kind="component" id="c-server" data-cid="c-server" data-status="verified" data-date="2026-07-10" data-ref="../src/server.js" data-tags="server http sse auth lifecycle snapshots reload watch">
+      <div class="entry-head"><span class="entry-id">⌥</span><h3>src/server.js — HTTP · SSE · file-watch · toolbar inject</h3><span class="badge verified">verified</span></div>
+      <p>Owns authenticated requests, one turn lifecycle, byte-truth snapshots and undo, and page/client-scoped reloads. <a class="ref" href="../src/server.js">source →</a></p>
     </article>
-    <article class="entry entry--component" data-kind="component" id="c-claude" data-cid="c-claude" data-status="wip" data-date="2026-06-29" data-ref="../engg-spec.html#s-bridge" data-tags="claude bridge stream-json">
-      <div class="entry-head"><span class="entry-id">⌥</span><h3>src/claude.js — the bridge</h3><span class="badge fixed">wip · P0</span></div>
+    <article class="entry entry--component" data-kind="component" id="c-path-policy" data-cid="c-path-policy" data-status="verified" data-date="2026-07-10" data-ref="../src/path-policy.js" data-tags="security paths repository symlink secrets doctor">
+      <div class="entry-head"><span class="entry-id">⌥</span><h3>src/path-policy.js — shared repository serve · mutation boundary</h3><span class="badge verified">verified</span></div>
+      <p>Classifies repository-relative paths and rechecks canonical aliases after realpath resolution. <a class="ref" href="../src/path-policy.js">source →</a></p>
+    </article>
+    <article class="entry entry--component" data-kind="component" id="c-claude" data-cid="c-claude" data-status="verified" data-date="2026-07-10" data-ref="../engg-spec.html#s-bridge" data-tags="claude bridge stream-json">
+      <div class="entry-head"><span class="entry-id">⌥</span><h3>src/claude.js — the Claude runner</h3><span class="badge verified">verified</span></div>
       <p>Spawns <code>claude -p</code>, maps stream-json → typed frames (status / assistant_delta / edit), persists the session id. <a class="ref" href="../engg-spec.html#s-bridge">engg →</a></p>
     </article>
-    <article class="entry entry--component" data-kind="component" id="c-toolbar" data-cid="c-toolbar" data-status="wip" data-date="2026-06-29" data-ref="../engg-spec.html#s-protocol" data-tags="toolbar conversation scope">
-      <div class="entry-head"><span class="entry-id">⌥</span><h3>public/toolbar.js + .css — the on-page surface</h3><span class="badge fixed">wip · being re-scoped</span></div>
-      <p>Status chip, change cards, click-to-scope. Post-pivot it shrinks from a chat to capture + sling glue. <a class="ref" href="decisions.html#d-pivot">why →</a></p>
+    <article class="entry entry--component" data-kind="component" id="c-toolbar" data-cid="c-toolbar" data-status="verified" data-date="2026-07-10" data-ref="./decisions.html#d-browser-contract" data-tags="toolbar browser client conversation scope transactions rollback accessibility">
+      <div class="entry-head"><span class="entry-id">⌥</span><h3>public/sp-client.js + toolbar.js + .css — the on-page surface</h3><span class="badge verified">verified</span></div>
+      <p>Centralizes authenticated transport, truthful completion and undo, serialized Hands transactions, exact rollback, scoped styling, and baseline accessibility. <a class="ref" href="../public/toolbar.js">source →</a></p>
     </article>
-    <article class="entry entry--component" data-kind="component" id="c-test" data-cid="c-test" data-status="verified" data-date="2026-06-29" data-ref="../engg-spec.html#s-test" data-tags="test parser">
-      <div class="entry-head"><span class="entry-id">⌥</span><h3>test/ — recorded stream + parser test</h3><span class="badge verified">verified</span></div>
-      <p>A recorded stream-json sample exercises <code>mapEvents</code> / <code>getSessionId</code> with no live model call. <a class="ref" href="../engg-spec.html#s-test">engg →</a></p>
+    <article class="entry entry--component" data-kind="component" id="c-test" data-cid="c-test" data-status="verified" data-date="2026-07-10" data-ref="./decisions.html#d-layered-test-architecture" data-tags="test node integration playwright chromium fake runner browser">
+      <div class="entry-head"><span class="entry-id">⌥</span><h3>test/ — Node integration + Chromium browser suites</h3><span class="badge verified">verified</span></div>
+      <p>Node integration and Chromium browser suites exercise the real server with a deterministic fake runner and no live model call. <a class="ref" href="../test/browser/toolbar.spec.js">browser suite →</a></p>
     </article>
 
     <h2 style="margin-top:26px">Glossary</h2>

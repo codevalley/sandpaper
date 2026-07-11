@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%2212%2092%20576%20468%22%3E%3Cg%20transform%3D%22matrix(0.545861%2C0.545861%2C-0.545861%2C0.545861%2C300%2C-55.841103)%22%3E%3Cpath%20d%3D%22M40%2C560L560%2C560L560%2C40L240%2C40L40%2C240%22%20fill%3D%22%2318293D%22%2F%3E%3Cpath%20d%3D%22M100%2C300L100%2C500L500%2C500L500%2C100L300%2C100L300%2C300L100%2C300Z%22%20fill%3D%22%23C63B30%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E" />
-<meta name="sandpaper:source" content="https://github.com/codevalley/sandpaper/blob/HEAD/" data-pkg="sandpaper" />
+<meta name="sandpaper:source" content="https://github.com/codevalley/sandpaper/blob/HEAD/" data-pkg="@nynb/sandpaper" />
 <title>Sandpaper · Project — The Plan</title>
 <!-- PROJECT lens · the PLAN BOARD. initiative → task → session; progress is DERIVED by brain.js from child
      task status (never typed). Agent ops: FLIP one task's data-status, APPEND a task/initiative, STAMP session. -->
@@ -33,10 +33,10 @@
   </div>
 
   <section class="zone flush">
-    <div class="eyebrow">Project · the plan <span class="mono" style="font-size:11px">· session S09</span></div>
+    <div class="eyebrow">Project · the plan <span class="mono" style="font-size:11px">· session S29</span></div>
     <h1 style="font-size:30px;letter-spacing:-.02em;margin:6px 0 2px">Where the work stands</h1>
-    <p class="muted" style="max-width:40em">Initiatives → tasks → done. Progress is computed from task status — never typed. This board tracks <strong>building Sandpaper, in Sandpaper</strong>.</p>
-    <div class="plan-overall">Overall <span class="track"><i id="plan-overall-bar"></i></span> <span id="plan-overall">—</span></div>
+    <p class="muted" style="max-width:40em">Initiatives → tasks → done. Stamped progress remains readable without JavaScript; the browser re-derives it and doctor independently checks it. This board tracks <strong>building Sandpaper, in Sandpaper</strong>.</p>
+    <div class="plan-overall">Overall <span class="track"><i id="plan-overall-bar"></i></span> <span id="plan-overall">45/54 · 83%</span></div>
     <div class="brain-search">
       <input id="brain-q" placeholder="Filter the plan…  (press / )" />
       <button class="facet" data-facet="doing" type="button">doing</button>
@@ -50,7 +50,7 @@
     <!-- ===== PHASE 0 — make it work for us ===== -->
     <div class="phase-head" data-phase="0">
       <h2 class="phase-title"><span class="phase-n">Phase 0</span> Make it work for us</h2>
-      <span class="phase-bar"><span class="track" data-phase-progress="0"><i></i></span><span class="phase-pct" data-phase-label="0">—</span></span>
+      <span class="phase-bar"><span class="track" data-phase-progress="0"><i></i></span><span class="phase-pct" data-phase-label="0">18/19 · 95%</span></span>
     </div>
     <article class="entry entry--initiative" data-kind="initiative" data-lens="project" data-phase="0" id="i-skeleton" data-cid="i-skeleton" data-rung="living" data-status="done" data-date="2026-06-29" data-ref="../wiki/index.html" data-tags="skeleton ia lenses">
       <div class="ini-head"><span class="entry-id">A</span><h3>Three-lens skeleton + IA rebuild</h3><span class="ini-rung">living</span><span class="badge" data-rollup>—</span><span class="ini-bar"><span class="track" data-progress><i></i></span><span data-progress-label>—</span></span></div>
@@ -86,7 +86,7 @@
     <!-- ===== PHASE 1 — package for distribution ===== -->
     <div class="phase-head" data-phase="1">
       <h2 class="phase-title"><span class="phase-n">Phase 1</span> Package it for distribution</h2>
-      <span class="phase-bar"><span class="track" data-phase-progress="1"><i></i></span><span class="phase-pct" data-phase-label="1">—</span></span>
+      <span class="phase-bar"><span class="track" data-phase-progress="1"><i></i></span><span class="phase-pct" data-phase-label="1">27/35 · 77%</span></span>
     </div>
     <article class="entry entry--initiative" data-kind="initiative" data-lens="project" data-phase="1" id="i-theme" data-cid="i-theme" data-rung="reach" data-status="planned" data-date="2026-06-29" data-ref="./index.html" data-tags="theme tokens themeable">
       <div class="ini-head"><span class="entry-id">D</span><h3>Theme consolidation + /theme</h3><span class="ini-rung">reach</span><span class="badge" data-rollup>—</span><span class="ini-bar"><span class="track" data-progress><i></i></span><span data-progress-label>—</span></span></div>
@@ -133,7 +133,7 @@
         <li class="task" data-kind="task" data-initiative="i-package" data-status="done" data-session="S10" id="t-0020"><span class="sdot ok"></span><span class="t-what">npx sandpaper install-skill / init / doctor / open (tested e2e on a fresh repo)</span><span class="t-sess">S10</span></li>
         <li class="task" data-kind="task" data-initiative="i-package" data-status="todo" id="t-0021"><span class="sdot idle"></span><span class="t-what">Brain-aware Sand contract (respect entry grammar / link-never-copy)</span></li>
         <li class="task" data-kind="task" data-initiative="i-package" data-status="todo" id="t-0027"><span class="sdot idle"></span><span class="t-what">Cold-repo <code>/init</code> — partial-scaffold (dimmed deferred chrome) + no-spec <code>data-ref</code> contract <span class="muted" style="font-size:.85em">· from validation</span></span></li>
-        <li class="task" data-kind="task" data-initiative="i-package" data-status="todo" id="t-0028"><span class="sdot idle"></span><span class="t-what">Self-deriving cover counts — brain.js fills them from the board (retire hand-typed <code>data-count</code>) <span class="muted" style="font-size:.85em">· from validation</span></span></li>
+        <li class="task" data-kind="task" data-initiative="i-package" data-status="done" data-session="S32" id="t-0028"><span class="sdot done"></span><span class="t-what">Self-deriving cover counts — brain.js fills them from the board (retire hand-typed <code>data-count</code>) <span class="muted" style="font-size:.85em">· verified from canonical pages in Chromium</span></span><span class="t-sess">S32</span></li>
       </ol>
     </article>
 
@@ -141,6 +141,27 @@
       <div class="ini-head"><span class="entry-id">H</span><h3>Stats <span class="muted" style="font-weight:400;font-size:.8em">· low prio</span></h3><span class="ini-rung">reach</span><span class="badge" data-rollup>—</span><span class="ini-bar"><span class="track" data-progress><i></i></span><span data-progress-label>—</span></span></div>
       <ol class="tasks">
         <li class="task" data-kind="task" data-initiative="i-stats" data-status="todo" id="t-0022"><span class="sdot idle"></span><span class="t-what">A static stamped table (usage · tokens · commits) — no live analytics</span></li>
+      </ol>
+    </article>
+
+    <article class="entry entry--initiative" data-kind="initiative" data-lens="project" data-phase="1" id="i-stability" data-cid="i-stability" data-rung="reach" data-status="active" data-date="2026-07-10" data-ref="../decisions.html#d-stabilize-before-codex" data-tags="stabilization v0.2.1 audit hardening drift tests release">
+      <div class="ini-head"><span class="entry-id">I</span><h3><code>v0.2.1</code> — truth + safety sweep</h3><span class="ini-rung">reach</span><span class="badge" data-rollup>—</span><span class="ini-bar"><span class="track" data-progress><i></i></span><span data-progress-label>—</span></span></div>
+      <ol class="tasks">
+        <li class="task" data-kind="task" data-initiative="i-stability" data-status="done" data-session="S29" id="t-0042"><span class="sdot done"></span><span class="t-what">Design and approve the risk-based <code>v0.2.1</code> stabilization sweep</span><span class="t-sess">S29</span></li>
+        <li class="task" data-kind="task" data-initiative="i-stability" data-status="done" data-session="S30" id="t-0043"><span class="sdot done"></span><span class="t-what">Implement verified server, trust-boundary, concurrency, session, and reload hardening</span><span class="t-sess">S30</span></li>
+        <li class="task" data-kind="task" data-initiative="i-stability" data-status="done" data-session="S31" id="t-0044"><span class="sdot done"></span><span class="t-what">Make toolbar/direct/undo state truthful and fix the verified UI regressions</span><span class="t-sess">S31</span></li>
+        <li class="task" data-kind="task" data-initiative="i-stability" data-status="done" data-session="S33" id="t-0045"><span class="sdot done"></span><span class="t-what">Reconcile brain/docs/resolver/doctor and complete self-derived cover state (<code>t-0028</code>)</span><span class="t-sess">S33</span></li>
+        <li class="task" data-kind="task" data-initiative="i-stability" data-status="done" data-session="S32" id="t-0046"><span class="sdot done"></span><span class="t-what">Add regression integration coverage for server, SSE, setup, undo, and fixed failure paths</span><span class="t-sess">S32</span></li>
+        <li class="task" data-kind="task" data-initiative="i-stability" data-status="doing" data-session="S36" id="t-0047"><span class="sdot wip"></span><span class="t-what">Verify, stamp, version, and release <code>v0.2.1</code></span><span class="t-sess">S36</span></li>
+      </ol>
+    </article>
+
+    <article class="entry entry--initiative" data-kind="initiative" data-lens="project" data-phase="1" id="i-providers" data-cid="i-providers" data-rung="reach" data-status="planned" data-date="2026-07-10" data-ref="../decisions.html#d-stabilize-before-codex" data-tags="providers codex claude first-class v0.3.0 compatibility install toolbar docs release">
+      <div class="ini-head"><span class="entry-id">J</span><h3><code>v0.3.0</code> — Claude + Codex, first-class</h3><span class="ini-rung">reach</span><span class="badge" data-rollup>—</span><span class="ini-bar"><span class="track" data-progress><i></i></span><span data-progress-label>—</span></span></div>
+      <ol class="tasks">
+        <li class="task" data-kind="task" data-initiative="i-providers" data-status="todo" id="t-0048"><span class="sdot idle"></span><span class="t-what">Design and approve the provider-neutral Claude + Codex contract</span></li>
+        <li class="task" data-kind="task" data-initiative="i-providers" data-status="todo" id="t-0049"><span class="sdot idle"></span><span class="t-what">Implement provider choice, runners, install/hooks, toolbar identity, and documentation</span></li>
+        <li class="task" data-kind="task" data-initiative="i-providers" data-status="todo" id="t-0050"><span class="sdot idle"></span><span class="t-what">Verify both providers, stamp, version, and release <code>v0.3.0</code></span></li>
       </ol>
     </article>
 

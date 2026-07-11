@@ -155,10 +155,11 @@ function childEnv() {
 
 // Run one refinement turn. `onStatus({state,label,detail?,done?})` is called as the
 // stream advances. Returns the child process (or null if spawn failed synchronously).
-export function runTurn(docPath, prompt, onStatus) {
+export function runTurn(docPath, prompt, onStatus, deps) {
   const docDir = dirname(docPath);
   const docName = basename(docPath);
   const prior = loadSession(docDir);
+  const spawnProcess = deps?.spawn || spawn;
 
   const args = [
     '-p', prompt,
@@ -174,13 +175,22 @@ export function runTurn(docPath, prompt, onStatus) {
     // cwd = the document's folder: this is what makes --resume's directory-scoped
     // session lookup reliable, and keeps Claude's relative paths anchored to the doc.
     // stdin 'ignore' so a non-interactive `-p` run can never block waiting on input.
-    child = spawn('claude', args, { cwd: docDir, env: childEnv(), stdio: ['ignore', 'pipe', 'pipe'] });
+    child = spawnProcess('claude', args, { cwd: docDir, env: childEnv(), stdio: ['ignore', 'pipe', 'pipe'] });
   } catch (err) {
     onStatus({ type: 'status', state: 'error', label: 'Could not start claude', detail: err.message });
     return null;
   }
 
-  onStatus({ type: 'status', state: 'init', label: 'starting…' });
+  let terminalEmitted = false;
+  const emit = (frame) => {
+    if (terminalEmitted) return;
+    if (frame.type === 'status' && (frame.done || frame.state === 'done' || frame.state === 'error')) {
+      terminalEmitted = true;
+    }
+    onStatus(frame);
+  };
+
+  emit({ type: 'status', state: 'init', label: 'starting…' });
 
   let buf = '';
   let errored = false;
@@ -192,7 +202,7 @@ export function runTurn(docPath, prompt, onStatus) {
     try { ev = JSON.parse(line); } catch { return; } // ignore non-JSON noise
     const id = getSessionId(ev);
     if (id) saveSession(docDir, id);
-    for (const frame of mapEvents(ev, docName)) onStatus(frame);
+    for (const frame of mapEvents(ev, docName)) emit(frame);
   };
 
   child.stdout.on('data', (chunk) => {
@@ -211,14 +221,14 @@ export function runTurn(docPath, prompt, onStatus) {
   child.stderr.on('data', (d) => { stderr += d.toString(); });
   child.on('error', (err) => {
     errored = true;
-    onStatus({ type: 'status', state: 'error', label: 'claude not found — is it installed?', detail: err.message });
+    emit({ type: 'status', state: 'error', label: 'claude not found — is it installed?', detail: err.message });
   });
   child.on('close', (code) => {
-    if (errored) return; // 'error' already surfaced the real failure — don't overwrite it with idle
+    if (terminalEmitted || errored) return;
     if (code && code !== 0) {
-      onStatus({ type: 'status', state: 'error', label: `claude exited (${code})`, detail: stderr.slice(0, 300) });
+      emit({ type: 'status', state: 'error', label: `claude exited (${code})`, detail: stderr.slice(0, 300) });
     } else {
-      onStatus({ type: 'status', state: 'idle', label: 'idle' });
+      emit({ type: 'status', state: 'error', label: 'claude exited without a result', detail: stderr.slice(0, 300) });
     }
   });
 

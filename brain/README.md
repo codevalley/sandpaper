@@ -35,7 +35,7 @@ The relative `../` refs can't resolve — there's nothing above the root. The bu
 resolver in `assets/brain.js` handles it. Each page's head carries:
 
 ```html
-<meta name="sandpaper:source" content="https://github.com/codevalley/sandpaper/blob/HEAD/" data-pkg="sandpaper" />
+<meta name="sandpaper:source" content="https://github.com/codevalley/sandpaper/blob/HEAD/" data-pkg="@nynb/sandpaper" />
 ```
 
 On load, the page probes `../package.json` and checks its `name` against `data-pkg`.
@@ -46,8 +46,9 @@ unrendered. Use the whole-repo shape if you want rendered specs. With no meta co
 out-links dim with a tooltip instead of 404ing.
 
 The meta is written automatically by `npx sandpaper init` / `upgrade` from the git origin
-(or `package.json` → `"repository"`). `npx sandpaper doctor` verifies it is present and
-consistent across pages.
+(or `package.json` → `"repository"`). `npx sandpaper doctor` verifies every page against
+that independently derived URL and the exact package name; agreement between stale pages
+is not enough.
 
 ## Deployed brains are read-only
 

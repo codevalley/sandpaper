@@ -1,14 +1,17 @@
-// server.js — the local bridge server.
-// Serves a document OR a whole folder (e.g. the project brain), injecting the on-page
-// toolbar at response time only, relaying page → Claude turns, streaming status over SSE,
-// and live-reloading the affected page when its file changes.
+// server.js — the authenticated local bridge server.
+// The document on disk is authoritative: the runner and direct-edit endpoints mutate it,
+// the watcher reports those mutations, and the browser never gets ahead of persisted bytes.
 import { createServer } from 'node:http';
-import { readFile, writeFile, readFileSync, writeFileSync, watch, copyFileSync, mkdirSync, existsSync, realpathSync } from 'node:fs';
-import { join, dirname, basename, extname, normalize, sep } from 'node:path';
+import {
+  readFile, readFileSync, writeFileSync, watch as watchFiles, copyFileSync, mkdirSync,
+  existsSync, lstatSync, readdirSync, unlinkSync, realpathSync,
+} from 'node:fs';
+import { join, dirname, basename, extname, sep, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { randomUUID, createHash } from 'node:crypto';
+import { randomUUID, randomBytes, createHash, timingSafeEqual } from 'node:crypto';
 import { runTurn } from './claude.js';
 import { replaceInner, removeElement, moveElement } from './edit.js';
+import { resolveRepositoryPath } from './path-policy.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PUBLIC = join(HERE, '..', 'public');
@@ -19,308 +22,860 @@ const MIME = {
   '.svg': 'image/svg+xml', '.webp': 'image/webp', '.json': 'application/json',
 };
 
-// `target` is a file (single-doc mode) or a directory (folder/brain mode, opts.brain=true).
-export function startServer(target, port, opts = {}) {
-  const isDir = !!opts.brain;
-  const root = isDir ? target : dirname(target);        // the directory we serve from
-  const defaultDoc = isDir ? 'index.html' : basename(target); // what "/" resolves to
-  const clients = new Set();
-  const turnSnapshots = new Map(); // turnId -> the page file it snapshotted (so undo restores the right file)
-  let activeTurn = null;
-  let activeTurnPage = null;  // the URL path the active turn is editing (for the reload frame)
-  let reloadPending = false;  // a file change happened mid-turn; reload once it ends
-  let suppressReloadUntil = 0; // a direct in-place edit we just wrote — the browser already shows it
+const BODY_LIMITS = Object.freeze({
+  '/__sandpaper/turn': 1_000_000,
+  '/__sandpaper/write': 2_000_000,
+  '/__sandpaper/dom': 100_000,
+  '/__sandpaper/undo': 100_000,
+  '/__sandpaper/undo-direct': 10_000,
+});
 
-  // One-level undo for direct (no-AI) edits: snapshot a page just before we mutate it.
-  const directSnapDir = join(root, '.sandpaper', 'snapshots', 'direct');
-  const directSnaps = new Map(); // pageFile -> its pre-edit snapshot file (recorded only after a successful write)
-  const takeDirectSnap = (pageFile) => { // copy the current file aside; return the snapshot path, or null
+const CLIENT_ID = /^[A-Za-z0-9_-]{1,128}$/;
+
+class RequestError extends Error {
+  constructor(status, code, message) {
+    super(message);
+    this.status = status;
+    this.code = code;
+  }
+}
+
+export function sendJson(res, status, payload) {
+  const body = JSON.stringify(payload);
+  res.writeHead(status, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Content-Length': Buffer.byteLength(body),
+  });
+  res.end(body);
+}
+
+export function readJson(req, limit) {
+  return new Promise((resolve, reject) => {
+    const declared = Number(req.headers['content-length']);
+    let size = 0;
+    let settled = false;
+    let tooLarge = Number.isFinite(declared) && declared > limit;
+    const chunks = [];
+    const fail = (error) => {
+      if (settled) return;
+      settled = true;
+      reject(error);
+    };
+    req.on('data', (chunk) => {
+      if (settled) return;
+      size += chunk.length;
+      if (size > limit) {
+        tooLarge = true;
+        chunks.length = 0;
+        return;
+      }
+      if (!tooLarge) chunks.push(chunk);
+    });
+    req.on('aborted', () => fail(new RequestError(400, 'request_aborted', 'Request body was aborted')));
+    req.on('error', () => fail(new RequestError(400, 'request_aborted', 'Request body could not be read')));
+    req.on('end', () => {
+      if (settled) return;
+      settled = true;
+      if (tooLarge) {
+        reject(new RequestError(413, 'payload_too_large', `JSON body exceeds ${limit} bytes`));
+        return;
+      }
+      let payload;
+      try {
+        payload = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+      } catch {
+        reject(new RequestError(400, 'malformed_json', 'Request body is not valid JSON'));
+        return;
+      }
+      if (payload == null || typeof payload !== 'object' || Array.isArray(payload)) {
+        reject(new RequestError(400, 'invalid_body', 'JSON body must be an object'));
+        return;
+      }
+      resolve(payload);
+    });
+  });
+}
+
+function secureEqual(actual, expected) {
+  const left = createHash('sha256').update(String(actual ?? '')).digest();
+  const right = createHash('sha256').update(String(expected ?? '')).digest();
+  return timingSafeEqual(left, right);
+}
+
+function loopbackHost(host) {
+  if (typeof host !== 'string' || !host) return false;
+  try {
+    const hostname = new URL(`http://${host}`).hostname.toLowerCase();
+    return hostname === '127.0.0.1' || hostname === 'localhost' || hostname === '[::1]';
+  } catch {
+    return false;
+  }
+}
+
+function invalidBrowserOrigin(req) {
+  const host = req.headers.host;
+  const origin = req.headers.origin;
+  if (origin == null) {
     try {
-      if (!existsSync(directSnapDir)) mkdirSync(directSnapDir, { recursive: true });
-      const rel = pageFile.startsWith(root + sep) ? pageFile.slice(root.length + 1) : basename(pageFile);
-      const snap = join(directSnapDir, createHash('sha1').update(rel).digest('hex').slice(0, 16) + '.html');
+      const referer = new URL(req.headers.referer);
+      if (req.headers['sec-fetch-site'] !== 'same-origin' ||
+          referer.protocol !== 'http:' ||
+          referer.host.toLowerCase() !== host.toLowerCase() ||
+          !loopbackHost(referer.host)) {
+        throw new Error('invalid same-origin fetch metadata');
+      }
+      return null;
+    } catch {
+      return new RequestError(403, 'invalid_origin', 'Request origin must match this local server');
+    }
+  }
+  try {
+    const parsed = new URL(origin);
+    if (parsed.protocol !== 'http:' || parsed.host.toLowerCase() !== host.toLowerCase() || !loopbackHost(parsed.host)) {
+      throw new Error('foreign origin');
+    }
+  } catch {
+    return new RequestError(403, 'invalid_origin', 'Request origin must match this local server');
+  }
+  return null;
+}
+
+export function validBrowserRequest(req, token) {
+  const host = req.headers.host;
+  if (!loopbackHost(host)) {
+    return new RequestError(403, 'invalid_host', 'Request host must be loopback');
+  }
+  if (!secureEqual(req.headers['x-sandpaper-token'], token)) {
+    return new RequestError(403, 'invalid_token', 'Invalid Sandpaper token');
+  }
+  const clientId = req.headers['x-sandpaper-client'];
+  if (!CLIENT_ID.test(clientId || '')) {
+    return new RequestError(403, 'invalid_client', 'Missing or invalid Sandpaper client ID');
+  }
+  return invalidBrowserOrigin(req);
+}
+
+function apiFailure(res, error) {
+  if (res.destroyed || res.writableEnded) return;
+  const status = error instanceof RequestError ? error.status : 500;
+  const code = error instanceof RequestError ? error.code : 'internal_error';
+  const message = error instanceof RequestError ? error.message : 'Internal server error';
+  sendJson(res, status, { ok: false, error: { code, message } });
+}
+
+function jsonContentType(req) {
+  const contentType = req.headers['content-type'];
+  return typeof contentType === 'string' && /^application\/json(?:\s*;\s*charset=[^;\s]+)?$/i.test(contentType.trim());
+}
+
+function hasRawDotSegment(requestUrl) {
+  const rawPath = String(requestUrl || '').split(/[?#]/, 1)[0];
+  let decodedPath;
+  try { decodedPath = decodeURIComponent(rawPath); }
+  catch { return false; }
+  return decodedPath.split(/[\\/]/).some((segment) => segment === '.' || segment === '..');
+}
+
+function fileHash(file) {
+  try { return createHash('sha256').update(readFileSync(file)).digest('hex'); }
+  catch { return null; }
+}
+
+function snapshotPath(root, turnId) {
+  const safe = String(turnId || '');
+  return /^[a-fA-F0-9-]+$/.test(safe) ? join(root, '.sandpaper', 'snapshots', `${safe}.html`) : null;
+}
+
+function takeSnapshot(pageFile, root, turnId) {
+  const path = snapshotPath(root, turnId);
+  if (!path) return null;
+  try {
+    mkdirSync(dirname(path), { recursive: true });
+    copyFileSync(pageFile, path);
+    return path;
+  } catch {
+    return null;
+  }
+}
+
+function removeSnapshot(path) {
+  if (!path) return;
+  try { unlinkSync(path); } catch { /* best-effort cleanup */ }
+}
+
+function recursiveWatchUnavailable(error) {
+  return error?.code === 'ERR_FEATURE_UNAVAILABLE_ON_PLATFORM'
+    || /recursive.*(?:unavailable|not supported)/i.test(String(error?.message || ''));
+}
+
+function createFallbackTreeWatcher(root, watch, onChange) {
+  const watchers = new Map();
+  const skipped = new Set(['.agents', '.codex', '.git', '.sandpaper', 'node_modules']);
+  let closed = false;
+
+  const closeAll = () => {
+    if (closed) return;
+    closed = true;
+    for (const handle of watchers.values()) {
+      try { handle.close(); } catch { /* best-effort fallback cleanup */ }
+    }
+    watchers.clear();
+  };
+
+  const allowedDirectory = (directory) => {
+    const rel = relative(root, directory);
+    return !rel.split(sep).some((segment) => skipped.has(segment));
+  };
+
+  const pruneRemoved = () => {
+    for (const [directory, handle] of watchers) {
+      if (existsSync(directory)) continue;
+      try { handle.close(); } catch { /* best-effort */ }
+      watchers.delete(directory);
+    }
+  };
+
+  const addDirectory = (directory) => {
+    if (closed || watchers.has(directory) || !allowedDirectory(directory)) return;
+    let stat;
+    let entries;
+    try {
+      stat = lstatSync(directory);
+      if (!stat.isDirectory() || stat.isSymbolicLink()) return;
+      entries = readdirSync(directory, { withFileTypes: true });
+    } catch (error) {
+      if (error?.code === 'ENOENT' || error?.code === 'ENOTDIR' || error?.code === 'EACCES') return;
+      throw error;
+    }
+
+    const handle = watch(directory, { persistent: true }, (event, filename) => {
+      if (closed) return;
+      const name = filename == null ? null : String(filename);
+      const candidate = name ? join(directory, name) : null;
+      const rel = candidate ? relative(root, candidate) : null;
+      onChange(event, rel);
+      if (event === 'rename') {
+        if (candidate) {
+          try { addDirectory(candidate); } catch { /* a new inaccessible subtree is not fatal */ }
+        }
+        pruneRemoved();
+      }
+    });
+    watchers.set(directory, handle);
+
+    for (const entry of entries) {
+      if (entry.isDirectory() && !entry.isSymbolicLink()) addDirectory(join(directory, entry.name));
+    }
+  };
+
+  try { addDirectory(root); }
+  catch (error) { closeAll(); throw error; }
+  return { close: closeAll };
+}
+
+// `target` is a file (single-doc mode) or a directory (folder/brain mode, opts.brain=true).
+export function createSandpaperServer(target, opts = {}, deps = {}) {
+  const isDir = !!opts.brain;
+  const root = realpathSync(isDir ? target : dirname(target));
+  const defaultDoc = isDir ? 'index.html' : basename(target);
+  const token = (deps.tokenFactory || (() => randomBytes(32).toString('base64url')))();
+  const uuid = deps.uuid || randomUUID;
+  const now = deps.now || Date.now;
+  const snapshotLimit = opts.snapshotLimit || 20;
+  const runner = deps.runner || (({ pageFile, prompt, onFrame }) => runTurn(pageFile, prompt, onFrame));
+  const watch = deps.watch || watchFiles;
+  const writePage = deps.writeFile || writeFileSync;
+  const restoreFile = deps.restoreFile || copyFileSync;
+  const scheduleRetry = deps.setTimeout || setTimeout;
+  const cancelRetry = deps.clearTimeout || clearTimeout;
+
+  const clients = new Map(); // clientId -> Set<ServerResponse>
+  const clientMeta = new WeakMap(); // response -> { page }
+  const turnSnapshots = new Map();
+  const directSnaps = new Map();
+  const expectedWatcherEchoes = new Map(); // page -> { hash, sourceClientId, expiresAt }
+  const reloadTimers = new Map(); // page -> debounce timer
+  const listenRetryTimers = new Set();
+  const directSnapDir = join(root, '.sandpaper', 'snapshots', 'direct');
+  let activeTurn = null;
+  const currentStatusByPage = new Map();
+  let watcher = null;
+  let closed = false;
+
+  const resolveUnder = (reqPath, { mutable = false } = {}) => {
+    const rel = (reqPath === '/' || reqPath === '') ? defaultDoc : String(reqPath).replace(/^\/+/, '');
+    const result = resolveRepositoryPath(root, join(root, rel), { mutable });
+    return result.ok ? result.file : null;
+  };
+
+  const pageForFile = (file) => {
+    if (!isDir) return '/';
+    const rel = relative(root, file).split(sep).join('/');
+    return rel === defaultDoc ? '/' : `/${rel}`;
+  };
+
+  const allResponses = () => {
+    const responses = [];
+    for (const set of clients.values()) responses.push(...set);
+    return responses;
+  };
+
+  const writeFrame = (res, frame) => {
+    try { res.write(`data: ${JSON.stringify(frame)}\n\n`); return true; }
+    catch { return false; }
+  };
+
+  const removeClient = (clientId, res) => {
+    const set = clients.get(clientId);
+    if (!set) return;
+    set.delete(res);
+    if (!set.size) clients.delete(clientId);
+  };
+
+  const broadcast = (frame) => {
+    for (const [clientId, set] of clients) {
+      for (const res of set) if (!writeFrame(res, frame)) removeClient(clientId, res);
+    }
+  };
+
+  const broadcastToClient = (clientId, frame) => {
+    const set = clients.get(clientId);
+    if (!set) return;
+    for (const res of set) if (!writeFrame(res, frame)) removeClient(clientId, res);
+  };
+
+  const broadcastToPage = (page, frame) => {
+    for (const [clientId, set] of clients) {
+      for (const res of set) {
+        if (clientMeta.get(res)?.page !== page) continue;
+        if (!writeFrame(res, frame)) removeClient(clientId, res);
+      }
+    }
+  };
+
+  const broadcastReload = (page, exceptClientId = null) => {
+    const frame = isDir ? { type: 'reload', page } : { type: 'reload' };
+    for (const [clientId, set] of clients) {
+      if (clientId === exceptClientId) continue;
+      for (const res of set) {
+        if (clientMeta.get(res)?.page !== page) continue;
+        if (!writeFrame(res, frame)) removeClient(clientId, res);
+      }
+    }
+  };
+
+  const publishStatus = (frame, { page = frame.page, clientId = null } = {}) => {
+    if (page) {
+      currentStatusByPage.set(page, frame);
+      broadcastToPage(page, frame);
+      return;
+    }
+    if (clientId) broadcastToClient(clientId, frame);
+  };
+
+  const releaseReceivingTurn = (record) => {
+    if (activeTurn !== record || record.phase !== 'receiving') return;
+    record.terminal = true;
+    activeTurn = null;
+    publishStatus({ type: 'status', state: 'idle', label: 'idle' }, {
+      page: record.page,
+      clientId: record.clientId,
+    });
+  };
+
+  const takeDirectSnap = (pageFile) => {
+    try {
+      mkdirSync(directSnapDir, { recursive: true });
+      const rel = relative(root, pageFile) || basename(pageFile);
+      const snap = join(directSnapDir, `${createHash('sha1').update(rel).digest('hex').slice(0, 16)}.html`);
       copyFileSync(pageFile, snap);
       return snap;
-    } catch { return null; } // best-effort; never block the edit
-  };
-
-  // Apply a direct (no-AI) edit ATOMICALLY: sync read → compute → write, with no await points in between
-  // (so two rapid edits can't interleave). compute(src) -> new HTML string, or null if not located.
-  // Refuses to write while an AI turn is editing the same page (it would clobber Claude's in-progress edit).
-  const applyDirect = (pageFile, compute) => {
-    if (activeTurn && (!isDir || resolveUnder(activeTurnPage) === pageFile)) return { code: 409, body: '{"error":"an AI turn is editing this page"}' };
-    let src;
-    try { src = readFileSync(pageFile, 'utf8'); } catch { return { code: 404, body: '{"error":"unreadable"}' }; }
-    const out = compute(src);
-    if (out == null) return { code: 409, body: '{"error":"element not found"}' };
-    if (out === src) return { code: 200, body: '{"ok":true,"noop":true}' };
-    const snap = takeDirectSnap(pageFile);            // snapshot the pre-edit file
-    try { writeFileSync(pageFile, out); } catch { return { code: 500, body: '{"error":"write failed"}' }; }
-    if (snap) directSnaps.set(pageFile, snap);        // record undo ONLY after the write succeeds
-    suppressReloadUntil = Date.now() + 800;           // the browser already shows the change
-    return { code: 200, body: '{"ok":true}' };
-  };
-
-  const broadcast = (obj) => {
-    const frame = `data: ${JSON.stringify(obj)}\n\n`;
-    for (const res of clients) {
-      try { res.write(frame); } catch { clients.delete(res); }
+    } catch {
+      return null;
     }
+  };
+
+  const sameActivePage = (pageFile) => activeTurn && activeTurn.pageFile === pageFile && !activeTurn.terminal;
+
+  const applyDirect = (pageFile, clientId, compute) => {
+    if (sameActivePage(pageFile)) throw new RequestError(409, 'turn_in_progress', 'An AI turn is editing this page');
+    let src;
+    try { src = readFileSync(pageFile, 'utf8'); }
+    catch { throw new RequestError(404, 'unreadable_page', 'Page could not be read'); }
+    const out = compute(src);
+    if (out == null) throw new RequestError(409, 'element_not_found', 'Element was not found');
+    if (out === src) return { ok: true, noop: true, undoable: false };
+    const snap = takeDirectSnap(pageFile);
+    try { writePage(pageFile, out); }
+    catch {
+      let restored = false;
+      if (snap) {
+        try {
+          restoreFile(snap, pageFile);
+          restored = true;
+        } catch { /* preserve the snapshot below for explicit recovery */ }
+      }
+      if (restored) {
+        directSnaps.delete(pageFile);
+        removeSnapshot(snap);
+      } else if (snap) {
+        directSnaps.set(pageFile, snap);
+      }
+      throw new RequestError(500, 'write_failed', 'Page could not be written');
+    }
+    if (snap) directSnaps.set(pageFile, snap);
+    return { ok: true, clientId, page: pageForFile(pageFile), hash: fileHash(pageFile), undoable: !!snap };
+  };
+
+  const serveFile = (file, req, res) => {
+    readFile(file, (error, data) => {
+      if (error) { res.writeHead(404); res.end('not found'); return; }
+      res.writeHead(200, { 'Content-Type': MIME[extname(file)] || 'application/octet-stream' });
+      res.end(req.method === 'HEAD' ? undefined : data);
+    });
   };
 
   const injectToolbar = (html) => {
-    const tag =
-      '\n<link rel="stylesheet" href="/__sandpaper/toolbar.css">' +
-      '\n<script type="module" src="/__sandpaper/toolbar.js"></script>\n';
-    return html.includes('</body>') ? html.replace('</body>', tag + '</body>') : html + tag;
+    const safeToken = String(token).replaceAll('&', '&amp;').replaceAll('"', '&quot;');
+    const tag = '\n<link rel="stylesheet" href="/__sandpaper/toolbar.css">' +
+      `\n<script type="module" src="/__sandpaper/toolbar.js" data-sandpaper-token="${safeToken}"></script>\n`;
+    return html.includes('</body>') ? html.replace('</body>', `${tag}</body>`) : html + tag;
   };
 
-  const serveFile = (file, res) => {
-    readFile(file, (err, data) => {
-      if (err) { res.writeHead(404); return res.end('not found'); }
-      res.writeHead(200, { 'Content-Type': MIME[extname(file)] || 'application/octet-stream' });
-      res.end(data);
+  const requireMutationContract = (req) => {
+    const invalid = validBrowserRequest(req, token);
+    if (invalid) throw invalid;
+    if (!jsonContentType(req)) {
+      throw new RequestError(415, 'unsupported_media_type', 'Content-Type must be application/json');
+    }
+    return req.headers['x-sandpaper-client'];
+  };
+
+  const resolveMutablePage = (page) => {
+    const pageFile = resolveUnder(typeof page === 'string' ? page : '/', { mutable: true });
+    if (!pageFile || extname(pageFile) !== '.html' || !existsSync(pageFile)) {
+      throw new RequestError(400, 'invalid_page', 'Unknown or immutable page');
+    }
+    return pageFile;
+  };
+
+  const handleTurn = async (req, res, clientId) => {
+    if (activeTurn && !activeTurn.terminal) {
+      throw new RequestError(409, 'turn_in_progress', 'A turn is already in progress');
+    }
+
+    const record = {
+      id: uuid(), page: isDir ? null : '/', pageFile: null, clientId,
+      phase: 'receiving',
+      status: { type: 'status', state: 'receiving', label: 'receiving…' },
+      beforeHash: null, snapshot: null, reloadPending: false, terminal: false,
+      runnerHandle: null,
+    };
+    activeTurn = record;
+    publishStatus({ ...record.status, turnId: record.id, page: record.page, phase: record.phase }, {
+      page: record.page,
+      clientId: record.clientId,
     });
+
+    let payload;
+    try { payload = await readJson(req, BODY_LIMITS['/__sandpaper/turn']); }
+    catch (error) { releaseReceivingTurn(record); throw error; }
+
+    try {
+      record.pageFile = resolveMutablePage(payload.page);
+      record.page = pageForFile(record.pageFile);
+    } catch (error) {
+      releaseReceivingTurn(record);
+      throw error;
+    }
+    record.snapshot = takeSnapshot(record.pageFile, root, record.id);
+    if (record.snapshot) turnSnapshots.set(record.id, record);
+    record.beforeHash = fileHash(record.pageFile);
+    record.phase = 'running';
+    record.status = { type: 'status', state: 'init', label: 'starting…' };
+    publishStatus({ ...record.status, turnId: record.id, page: record.page, phase: record.phase }, {
+      page: record.page,
+    });
+
+    try {
+      const handle = runner({
+        pageFile: record.pageFile,
+        prompt: buildPrompt(payload, basename(record.pageFile)),
+        onFrame(frame) {
+          if (record.terminal) return;
+          const terminal = frame.type === 'status' && (frame.done || frame.state === 'done' || frame.state === 'error' || frame.state === 'idle');
+          let enriched = { ...frame, turnId: record.id, page: record.page, phase: terminal ? (frame.state === 'error' ? 'error' : 'done') : 'running' };
+          if (terminal) {
+            const changed = record.beforeHash !== fileHash(record.pageFile);
+            const undoable = changed && !!record.snapshot && existsSync(record.snapshot);
+            enriched = { ...enriched, changed, undoable };
+            if (!undoable) {
+              removeSnapshot(record.snapshot);
+              turnSnapshots.delete(record.id);
+              record.snapshot = null;
+            } else {
+              while (turnSnapshots.size > snapshotLimit) {
+                const [oldestId, oldest] = turnSnapshots.entries().next().value;
+                turnSnapshots.delete(oldestId);
+                removeSnapshot(oldest.snapshot);
+                oldest.snapshot = null;
+              }
+            }
+          }
+          if (frame.type === 'status') {
+            record.status = enriched;
+            publishStatus(enriched, { page: record.page });
+          } else {
+            broadcast(enriched);
+          }
+          if (!terminal) return;
+          record.phase = enriched.phase;
+          record.terminal = true;
+          if (activeTurn === record) activeTurn = null;
+          if (record.reloadPending) broadcastReload(record.page);
+        },
+      });
+      record.runnerHandle = handle || null;
+    } catch (error) {
+      if (record.runnerHandle && typeof record.runnerHandle.kill === 'function') {
+        try { record.runnerHandle.kill(); } catch { /* best-effort startup cleanup */ }
+      }
+      removeSnapshot(record.snapshot);
+      turnSnapshots.delete(record.id);
+      record.snapshot = null;
+      record.phase = 'error';
+      record.terminal = true;
+      if (activeTurn === record) activeTurn = null;
+      const terminal = {
+        type: 'status', state: 'error', label: 'runner failed to start',
+        detail: String(error?.message || '').slice(0, 300),
+        turnId: record.id, page: record.page, phase: record.phase,
+        changed: record.beforeHash !== fileHash(record.pageFile), undoable: false,
+      };
+      record.status = terminal;
+      publishStatus(terminal, { page: record.page });
+      throw new RequestError(500, 'runner_start_failed', 'Runner could not be started');
+    }
+
+    sendJson(res, 202, { ok: true, turnId: record.id });
   };
 
-  // Resolve a URL path to an absolute file UNDER root, or null if it escapes (traversal guard).
-  const resolveUnder = (reqPath) => {
-    const rel = (reqPath === '/' || reqPath === '') ? defaultDoc : reqPath.replace(/^\/+/, '');
-    if (rel === '.git' || rel.startsWith('.git/')) return null; // never serve VCS internals
-    const file = normalize(join(root, rel));
-    if (file !== root && !file.startsWith(root + sep)) return null; // lexical traversal guard
-    // also resolve symlinks: a link inside root pointing outside must not escape.
-    try { const real = realpathSync(file); if (real !== root && !real.startsWith(root + sep)) return null; }
-    catch { /* path not yet on disk — the lexical guard already passed */ }
-    return file;
+  const handleUndo = (payload) => {
+    const record = turnSnapshots.get(payload.turnId);
+    if (!record || !record.snapshot || !existsSync(record.snapshot)) {
+      throw new RequestError(404, 'snapshot_not_found', 'No snapshot exists for that turn');
+    }
+    const pageFile = resolveMutablePage(payload.page);
+    if (pageFile !== record.pageFile) {
+      throw new RequestError(409, 'page_mismatch', 'Snapshot belongs to a different page');
+    }
+    if (sameActivePage(record.pageFile)) {
+      throw new RequestError(409, 'turn_in_progress', 'An AI turn is editing this page');
+    }
+    try { restoreFile(record.snapshot, record.pageFile); }
+    catch { throw new RequestError(500, 'undo_failed', 'Snapshot could not be restored'); }
+    turnSnapshots.delete(record.id);
+    removeSnapshot(record.snapshot);
+    return { ok: true };
+  };
+
+  const handleMutation = async (req, res, path) => {
+    try {
+      const clientId = requireMutationContract(req);
+      if (path === '/__sandpaper/turn') {
+        await handleTurn(req, res, clientId);
+        return;
+      }
+
+      const payload = await readJson(req, BODY_LIMITS[path]);
+      let result;
+      if (path === '/__sandpaper/write') {
+        const pageFile = resolveMutablePage(payload.page);
+        if (typeof payload.cid !== 'string' || !/^[\w:-]{1,64}$/.test(payload.cid) || typeof payload.html !== 'string') {
+          throw new RequestError(400, 'invalid_write', 'Write request is invalid');
+        }
+        result = applyDirect(pageFile, clientId, (src) => replaceInner(src, payload.cid, payload.html));
+      } else if (path === '/__sandpaper/dom') {
+        const pageFile = resolveMutablePage(payload.page);
+        const okCid = (value) => typeof value === 'string' && /^[\w:-]{1,64}$/.test(value);
+        if (!okCid(payload.cid) || (payload.op !== 'delete' && payload.op !== 'move') ||
+            (payload.op === 'move' && !okCid(payload.target))) {
+          throw new RequestError(400, 'invalid_dom_operation', 'DOM operation is invalid');
+        }
+        const mode = payload.mode === 'after' ? 'after' : 'before';
+        result = applyDirect(pageFile, clientId, (src) => {
+          const output = payload.op === 'delete'
+            ? removeElement(src, payload.cid)
+            : moveElement(src, payload.cid, payload.target, mode);
+          return output ? output.html : null;
+        });
+      } else if (path === '/__sandpaper/undo') {
+        result = handleUndo(payload);
+      } else {
+        const pageFile = resolveMutablePage(payload.page);
+        if (sameActivePage(pageFile)) {
+          throw new RequestError(409, 'turn_in_progress', 'An AI turn is editing this page');
+        }
+        const snap = directSnaps.get(pageFile);
+        if (!snap || !existsSync(snap)) throw new RequestError(404, 'snapshot_not_found', 'Nothing to undo');
+        try { restoreFile(snap, pageFile); }
+        catch { throw new RequestError(500, 'undo_failed', 'Snapshot could not be restored'); }
+        directSnaps.delete(pageFile);
+        removeSnapshot(snap);
+        result = { ok: true };
+      }
+      if ((path === '/__sandpaper/write' || path === '/__sandpaper/dom') && !result.noop) {
+        expectedWatcherEchoes.set(result.page, {
+          hash: result.hash,
+          sourceClientId: clientId,
+          expiresAt: now() + 800,
+        });
+        broadcastReload(result.page, clientId);
+      }
+      sendJson(res, 200, result);
+    } catch (error) {
+      apiFailure(res, error);
+    }
   };
 
   const server = createServer((req, res) => {
-    const url = new URL(req.url, `http://${req.headers.host}`);
+    let url;
     let path;
-    try { path = decodeURIComponent(url.pathname); }
-    catch { res.writeHead(400); return res.end('bad request'); }
+    if (hasRawDotSegment(req.url)) {
+      sendJson(res, 400, {
+        ok: false,
+        error: { code: 'invalid_path', message: 'Path dot segments are not allowed' },
+      });
+      return;
+    }
+    try {
+      url = new URL(req.url, `http://${req.headers.host || '127.0.0.1'}`);
+      path = decodeURIComponent(url.pathname);
+      if (path.includes('\0')) throw new URIError('NUL path');
+    } catch {
+      res.writeHead(400);
+      res.end('bad request');
+      return;
+    }
 
-    // Root convenience: serving a repo whose brain lives in brain/ — send "/" to the cover so
-    // localhost:<port> just works, no need to know the /brain/index.html path.
+    if (path === '/__sandpaper/events') {
+      if (!loopbackHost(req.headers.host)) {
+        apiFailure(res, new RequestError(403, 'invalid_host', 'Request host must be loopback'));
+        return;
+      }
+      if (!secureEqual(url.searchParams.get('token'), token)) {
+        apiFailure(res, new RequestError(403, 'invalid_token', 'Invalid Sandpaper token'));
+        return;
+      }
+      const clientId = url.searchParams.get('clientId');
+      if (!CLIENT_ID.test(clientId || '')) {
+        apiFailure(res, new RequestError(403, 'invalid_client', 'Missing or invalid Sandpaper client ID'));
+        return;
+      }
+      const invalidOrigin = invalidBrowserOrigin(req);
+      if (invalidOrigin) {
+        apiFailure(res, invalidOrigin);
+        return;
+      }
+      const requestedPage = url.searchParams.get('page') || '/';
+      let pageFile;
+      try {
+        if (!isDir && requestedPage !== '/') {
+          throw new RequestError(400, 'invalid_page', 'Unknown or immutable page');
+        }
+        pageFile = resolveMutablePage(requestedPage);
+        if (extname(pageFile) !== '.html') {
+          throw new RequestError(400, 'invalid_page', 'Unknown or immutable page');
+        }
+      } catch (error) {
+        apiFailure(res, error);
+        return;
+      }
+      const page = pageForFile(pageFile);
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+      });
+      writeFrame(res, currentStatusByPage.get(page) || { type: 'status', state: 'idle', label: 'idle' });
+      const set = clients.get(clientId) || new Set();
+      set.add(res);
+      clients.set(clientId, set);
+      clientMeta.set(res, { page });
+      req.on('close', () => removeClient(clientId, res));
+      return;
+    }
+
+    if (Object.hasOwn(BODY_LIMITS, path)) {
+      if (req.method !== 'POST') {
+        apiFailure(res, new RequestError(405, 'method_not_allowed', 'Mutation endpoints require POST'));
+        return;
+      }
+      void handleMutation(req, res, path);
+      return;
+    }
+
     if (isDir && (path === '/' || path === '') && !existsSync(join(root, 'index.html')) && existsSync(join(root, 'brain', 'index.html'))) {
       res.writeHead(302, { Location: '/brain/index.html' });
-      return res.end();
-    }
-
-    // --- SSE status/reload channel ---
-    if (path === '/__sandpaper/events') {
-      res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
-      res.write(`data: ${JSON.stringify({ type: 'status', state: 'idle', label: 'idle' })}\n\n`);
-      clients.add(res);
-      req.on('close', () => clients.delete(res));
+      res.end();
       return;
     }
 
-    // --- a refinement turn (page-aware) ---
-    if (path === '/__sandpaper/turn' && req.method === 'POST') {
-      if (activeTurn) {
-        res.writeHead(409, { 'Content-Type': 'application/json' });
-        return res.end('{"error":"a turn is already in progress"}');
-      }
-      let body = '';
-      req.on('data', (d) => { body += d; if (body.length > 1e6) req.destroy(); });
-      req.on('end', () => {
-        let payload = {};
-        try { payload = JSON.parse(body || '{}'); } catch {}
-        // Never trust the client page: re-resolve it under root and require an existing .html.
-        const turnPage = typeof payload.page === 'string' ? payload.page : '/';
-        const pageFile = resolveUnder(turnPage);
-        if (!pageFile || extname(pageFile) !== '.html' || !existsSync(pageFile)) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          return res.end('{"error":"unknown page"}');
-        }
-        const turnId = randomUUID();
-        snapshot(pageFile, root, turnId);
-        turnSnapshots.set(turnId, pageFile);
-        activeTurnPage = turnPage;
-        activeTurn = runTurn(pageFile, buildPrompt(payload, basename(pageFile)), (frame) => {
-          frame.turnId = turnId;
-          frame.page = activeTurnPage; // page-scope every frame so other-page windows ignore this turn
-          broadcast(frame);
-          const ended = frame.type === 'status' && (frame.done || frame.state === 'idle' || frame.state === 'error');
-          if (ended) {
-            activeTurn = null;
-            if (reloadPending) {
-              reloadPending = false;
-              broadcast(isDir ? { type: 'reload', page: activeTurnPage } : { type: 'reload' });
-            }
-            activeTurnPage = null;
-          }
-        });
-        res.writeHead(202, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ ok: true, turnId }));
-      });
-      return;
-    }
-
-    // --- undo a turn's edits (restore its pre-turn snapshot to the page it edited) ---
-    if (path === '/__sandpaper/undo' && req.method === 'POST') {
-      let body = '';
-      req.on('data', (d) => { body += d; if (body.length > 1e5) req.destroy(); });
-      req.on('end', () => {
-        let p = {}; try { p = JSON.parse(body || '{}'); } catch {}
-        const snap = snapshotPath(root, p.turnId);
-        const pageFile = turnSnapshots.get(p.turnId); // the file THIS turn snapshotted — not the client's claim
-        if (snap && existsSync(snap) && pageFile && extname(pageFile) === '.html') {
-          try {
-            copyFileSync(snap, pageFile); // → watcher → reload
-            turnSnapshots.delete(p.turnId);
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            return res.end('{"ok":true}');
-          } catch {}
-        }
-        res.writeHead(404, { 'Content-Type': 'application/json' });
-        res.end('{"error":"no snapshot for that turn"}');
-      });
-      return;
-    }
-
-    // --- a direct (no-AI) in-place edit: the browser edited one element; persist it to the file ---
-    // The browser owns the new content; we splice ONLY that element's inner HTML back into the
-    // source by data-cid, leaving the rest of the file untouched. No Claude, no turn, no snapshot.
-    if (path === '/__sandpaper/write' && req.method === 'POST') {
-      let body = '';
-      req.on('data', (d) => { body += d; if (body.length > 2e6) req.destroy(); });
-      req.on('end', () => {
-        let p = {}; try { p = JSON.parse(body || '{}'); } catch {}
-        const pageFile = resolveUnder(typeof p.page === 'string' ? p.page : '/');
-        const cid = typeof p.cid === 'string' ? p.cid : '';
-        if (!pageFile || extname(pageFile) !== '.html' || !existsSync(pageFile) ||
-            !/^[\w:-]{1,64}$/.test(cid) || typeof p.html !== 'string') {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          return res.end('{"error":"bad write request"}');
-        }
-        const r = applyDirect(pageFile, (src) => replaceInner(src, cid, p.html));
-        res.writeHead(r.code, { 'Content-Type': 'application/json' });
-        res.end(r.body);
-      });
-      return;
-    }
-
-    // --- a direct (no-AI) STRUCTURAL edit: delete or move an element by data-cid (the "Hands") ---
-    if (path === '/__sandpaper/dom' && req.method === 'POST') {
-      let body = '';
-      req.on('data', (d) => { body += d; if (body.length > 1e5) req.destroy(); });
-      req.on('end', () => {
-        let p = {}; try { p = JSON.parse(body || '{}'); } catch {}
-        const okCid = (c) => typeof c === 'string' && /^[\w:-]{1,64}$/.test(c);
-        const pageFile = resolveUnder(typeof p.page === 'string' ? p.page : '/');
-        if (!pageFile || extname(pageFile) !== '.html' || !existsSync(pageFile) || !okCid(p.cid) ||
-            (p.op !== 'delete' && p.op !== 'move') || (p.op === 'move' && !okCid(p.target))) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          return res.end('{"error":"bad dom request"}');
-        }
-        const mode = p.mode === 'after' ? 'after' : 'before';
-        const r = applyDirect(pageFile, (src) => {
-          const out = p.op === 'delete' ? removeElement(src, p.cid) : moveElement(src, p.cid, p.target, mode);
-          return out ? out.html : null;
-        });
-        res.writeHead(r.code, { 'Content-Type': 'application/json' });
-        res.end(r.body);
-      });
-      return;
-    }
-
-    // --- undo the LAST direct edit on a page (restore its pre-edit snapshot) ---
-    if (path === '/__sandpaper/undo-direct' && req.method === 'POST') {
-      let body = '';
-      req.on('data', (d) => { body += d; if (body.length > 1e4) req.destroy(); });
-      req.on('end', () => {
-        let p = {}; try { p = JSON.parse(body || '{}'); } catch {}
-        const pageFile = resolveUnder(typeof p.page === 'string' ? p.page : '/');
-        const snap = pageFile && directSnaps.get(pageFile);
-        if (snap && existsSync(snap)) {
-          try {
-            suppressReloadUntil = 0;          // we WANT the restore to reload the page
-            copyFileSync(snap, pageFile);     // → watcher → reload
-            directSnaps.delete(pageFile);
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            return res.end('{"ok":true}');
-          } catch { /* fall through to 404 */ }
-        }
-        res.writeHead(404, { 'Content-Type': 'application/json' });
-        res.end('{"error":"nothing to undo"}');
-      });
-      return;
-    }
-
-    // --- toolbar assets (dev chrome, served from the package; never written to disk) ---
     if (path.startsWith('/__sandpaper/') && (path.endsWith('.js') || path.endsWith('.css'))) {
-      return serveFile(join(PUBLIC, basename(path)), res); // toolbar.js / toolbar.css / sp-markdown.js
+      if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); res.end('method not allowed'); return; }
+      serveFile(join(PUBLIC, basename(path)), req, res);
+      return;
     }
 
-    // --- any file under root: .html gets the toolbar injected, everything else served raw ---
+    if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); res.end('method not allowed'); return; }
     const file = resolveUnder(path);
-    if (!file) { res.writeHead(404); return res.end('not found'); }
+    if (!file) { res.writeHead(404); res.end('not found'); return; }
     if (extname(file) === '.html') {
-      return readFile(file, 'utf8', (err, html) => {
-        if (err) { res.writeHead(404); return res.end('not found'); }
+      readFile(file, 'utf8', (error, html) => {
+        if (error) { res.writeHead(404); res.end('not found'); return; }
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-        res.end(injectToolbar(html));
+        res.end(req.method === 'HEAD' ? undefined : injectToolbar(html));
       });
+      return;
     }
-    return serveFile(file, res);
+    serveFile(file, req, res);
+  });
+  const sockets = new Set();
+  server.on('connection', (socket) => {
+    sockets.add(socket);
+    socket.on('close', () => sockets.delete(socket));
   });
 
-  // Watch the served tree; reload the page whose .html changed.
-  let debounce = null;
-  watch(root, { persistent: true, recursive: isDir }, (_evt, fname) => {
-    if (!fname) { if (isDir) return; fname = defaultDoc; } // null filename: only act in single-doc mode
-    const rel = fname.split(sep).join('/');
-    if (rel.startsWith('.sandpaper')) return;             // our own snapshots/session
-    if (!rel.endsWith('.html')) return;                   // only reload on document changes
-    if (!isDir && basename(rel) !== defaultDoc) return;   // single-doc mode: just the doc
-    const page = (isDir && rel === defaultDoc) ? '/' : '/' + rel; // map the root doc back to '/' like the URL
-    clearTimeout(debounce);
-    debounce = setTimeout(() => {
-      // A direct in-place edit we just wrote: the editing browser already shows it — don't reload.
-      if (Date.now() < suppressReloadUntil) return;
-      // Defer ONLY the active turn's own edit (so its reply isn't cut mid-stream); reload any
-      // other (external) change immediately.
-      if (activeTurn && (!isDir || page === activeTurnPage)) { reloadPending = true; return; }
-      broadcast(isDir ? { type: 'reload', page } : { type: 'reload' });
+  const onWatchChange = (_event, filename) => {
+    let name = filename;
+    if (!name) { if (isDir) return; name = defaultDoc; }
+    const rel = String(name).split(sep).join('/');
+    if (rel.startsWith('.sandpaper') || !rel.endsWith('.html')) return;
+    if (!isDir && basename(rel) !== defaultDoc) return;
+    const page = !isDir || rel === defaultDoc ? '/' : `/${rel}`;
+    clearTimeout(reloadTimers.get(page));
+    const timer = setTimeout(() => {
+      reloadTimers.delete(page);
+      const expected = expectedWatcherEchoes.get(page);
+      const pageFile = resolveUnder(page, { mutable: true });
+      const hash = pageFile ? fileHash(pageFile) : null;
+      if (expected && now() < expected.expiresAt && hash === expected.hash) {
+        expectedWatcherEchoes.delete(page);
+        return;
+      }
+      if (expected) expectedWatcherEchoes.delete(page);
+      if (activeTurn && activeTurn.page === page && !activeTurn.terminal) {
+        activeTurn.reloadPending = true;
+        return;
+      }
+      broadcastReload(page);
     }, 120);
-  });
-
-  // Listen on `port`, or the next free port if it's taken — so several repos' Sandpapers
-  // can run at once without colliding on 4848. Resolves with the URL of the port we landed on.
-  return new Promise((resolve, reject) => {
-    let p = port, tries = 0;
-    server.on('error', (e) => {
-      if (e.code === 'EADDRINUSE' && tries++ < 50) { p++; setTimeout(() => server.listen(p, '127.0.0.1'), 0); }
-      else reject(e);
-    });
-    server.on('listening', () => resolve(`http://127.0.0.1:${p}/`));
-    server.listen(p, '127.0.0.1');
-  });
-}
-
-// Pre-turn snapshot of the edited page, so a turn's edits can be undone and recovered.
-function snapshotPath(root, turnId) {
-  const safe = String(turnId || '').replace(/[^a-fA-F0-9-]/g, ''); // turnId is a uuid; reject anything else
-  return safe ? join(root, '.sandpaper', 'snapshots', safe + '.html') : null;
-}
-function snapshot(pageFile, root, turnId) {
+    reloadTimers.set(page, timer);
+  };
   try {
-    const dir = join(root, '.sandpaper', 'snapshots');
-    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-    copyFileSync(pageFile, snapshotPath(root, turnId));
-  } catch { /* best-effort; never block a turn */ }
+    watcher = watch(root, { persistent: true, recursive: isDir }, onWatchChange);
+  } catch (error) {
+    if (!isDir || !recursiveWatchUnavailable(error)) throw error;
+    watcher = createFallbackTreeWatcher(root, watch, onWatchChange);
+  }
+
+  let listeningPromise = null;
+  let rejectPendingListen = null;
+  let listenSettled = false;
+  const closedListenError = () => Object.assign(new Error('Sandpaper server closed before listening'), { code: 'SERVER_CLOSED' });
+  const listen = (port = 0) => {
+    if (listeningPromise) return listeningPromise;
+    if (closed) return Promise.reject(closedListenError());
+    listeningPromise = new Promise((resolve, reject) => {
+      rejectPendingListen = reject;
+      let requestedPort = port;
+      let attempts = 0;
+      const settleResolve = (value) => {
+        if (listenSettled) return;
+        listenSettled = true;
+        resolve(value);
+      };
+      const settleReject = (error) => {
+        if (listenSettled) return;
+        listenSettled = true;
+        reject(error);
+      };
+      const onError = (error) => {
+        if (closed) {
+          settleReject(closedListenError());
+          return;
+        }
+        if (error.code === 'EADDRINUSE' && requestedPort !== 0 && attempts++ < 50) {
+          requestedPort += 1;
+          let timer;
+          timer = scheduleRetry(() => {
+            listenRetryTimers.delete(timer);
+            if (closed) {
+              settleReject(closedListenError());
+              return;
+            }
+            server.listen(requestedPort, '127.0.0.1');
+          }, 0);
+          listenRetryTimers.add(timer);
+          return;
+        }
+        settleReject(error);
+      };
+      server.on('error', onError);
+      server.on('listening', () => {
+        if (closed) {
+          server.close(() => {});
+          settleReject(closedListenError());
+          return;
+        }
+        const address = server.address();
+        settleResolve(`http://127.0.0.1:${address.port}/`);
+      });
+      server.listen(requestedPort, '127.0.0.1');
+    });
+    return listeningPromise;
+  };
+
+  const close = () => {
+    if (closed) return Promise.resolve();
+    closed = true;
+    if (activeTurn?.runnerHandle && typeof activeTurn.runnerHandle.kill === 'function') {
+      try { activeTurn.runnerHandle.kill(); } catch { /* best-effort */ }
+    }
+    for (const timer of listenRetryTimers) cancelRetry(timer);
+    listenRetryTimers.clear();
+    if (!listenSettled && rejectPendingListen) {
+      listenSettled = true;
+      rejectPendingListen(closedListenError());
+    }
+    try { watcher?.close(); } catch { /* best-effort */ }
+    for (const timer of reloadTimers.values()) clearTimeout(timer);
+    reloadTimers.clear();
+    expectedWatcherEchoes.clear();
+    for (const res of allResponses()) {
+      try { res.end(); } catch { /* best-effort */ }
+    }
+    clients.clear();
+    currentStatusByPage.clear();
+    if (!server.listening) return Promise.resolve();
+    const stopped = new Promise((resolve) => server.close(() => resolve()));
+    for (const socket of sockets) socket.destroy();
+    return stopped;
+  };
+
+  return { server, listen, close };
 }
 
-// Turn a toolbar payload into a scoped prompt for Claude.
+export function startServer(target, port, opts = {}) {
+  return createSandpaperServer(target, opts).listen(port);
+}
+
 function buildPrompt(payload, docName) {
   const { prompt = '', cid, selector, snippet } = payload;
   if (cid || selector) {
     const where = cid ? `the element with data-cid="${cid}"` : `the element matching CSS selector \`${selector}\``;
-    const ctx = snippet ? `\nFor reference, its current content begins: "${snippet}"` : '';
-    return `In ${docName}, edit ONLY ${where}.${ctx}\n\nRequested change: ${prompt}\n\n` +
+    const context = snippet ? `\nFor reference, its current content begins: "${snippet}"` : '';
+    return `In ${docName}, edit ONLY ${where}.${context}\n\nRequested change: ${prompt}\n\n` +
       'Make the smallest edit that satisfies this and leave the rest of the document unchanged.';
   }
   return `In ${docName}: ${prompt}\n\nMake the smallest edit that satisfies this; do not regenerate unrelated parts of the document.`;

@@ -2,6 +2,7 @@
 // Holds the back-and-forth with Claude on the page: streams replies, shows what each
 // turn changed (and undo), survives the live-reload, and keeps the document the star.
 import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
+import { createSandpaperClient } from '/__sandpaper/sp-client.js';
 
 (function () {
   'use strict';
@@ -12,6 +13,17 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
   };
   var BUSY = ['init', 'thinking', 'editing', 'tool_using', 'waiting'];
   var SKEY = 'sp-thread:' + location.pathname; // transcript persists per-document
+  var bootstrap = document.querySelector('script[type="module"][src="/__sandpaper/toolbar.js"][data-sandpaper-token]');
+  var token = bootstrap ? bootstrap.getAttribute('data-sandpaper-token') : '';
+  var clientId = (window.crypto && typeof window.crypto.randomUUID === 'function')
+    ? window.crypto.randomUUID()
+    : 'page-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+  var client = createSandpaperClient({
+    base: API,
+    token: token,
+    clientId: clientId,
+    fetchImpl: window.fetch.bind(window),
+  });
 
   // crisp stroke icons (centre perfectly via viewBox; inherit the button's currentColor) —
   // the ⌖/✎ glyphs sat off-centre and read muddy at 36px.
@@ -27,21 +39,21 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
   panel.className = 'sp-collapsed';
   panel.innerHTML =
     '<div id="sp-head">' +
-      '<span id="sp-chip"><span id="sp-led"></span><span id="sp-who">Claude&nbsp;Code</span><span id="sp-label">idle</span></span>' +
+      '<span id="sp-chip" role="status" aria-live="polite" aria-atomic="true"><span id="sp-led"></span><span id="sp-who">Claude&nbsp;Code</span><span id="sp-label">idle</span></span>' +
       '<span id="sp-cost"></span>' +
-      '<button type="button" id="sp-undo" hidden title="Undo the last direct edit">⟲ undo</button>' +
-      '<button type="button" id="sp-min" title="Minimize">–</button>' +
-      '<button type="button" id="sp-toggle" aria-label="Expand or collapse">▸</button>' +
+      '<button type="button" id="sp-undo" hidden aria-label="Undo the last direct edit" title="Undo the last direct edit">⟲ undo</button>' +
+      '<button type="button" id="sp-min" aria-label="Minimize Sandpaper" title="Minimize">–</button>' +
+      '<button type="button" id="sp-toggle" aria-label="Expand or collapse conversation" aria-controls="sp-thread" aria-expanded="false">▸</button>' +
     '</div>' +
-    '<div id="sp-thread" hidden></div>' +
+    '<div id="sp-thread" role="log" aria-label="Sandpaper conversation" aria-live="off" hidden></div>' +
     '<div id="sp-target" hidden></div>' +
     '<form id="sp-form">' +
-      '<input id="sp-input" placeholder="Ask, discuss, or describe a change…" autocomplete="off" />' +
+      '<input id="sp-input" aria-label="Message Claude Code" placeholder="Ask, discuss, or describe a change…" autocomplete="off" />' +
       '<div id="sp-actions">' +
-        '<button type="button" id="sp-pick" title="Scope — point at an element to target your message">' + ICON_PICK + '</button>' +
-        '<button type="button" id="sp-edit" title="Edit text in place — your words, no AI">' + ICON_EDIT + '</button>' +
+        '<button type="button" id="sp-pick" aria-label="Pick a page element" aria-pressed="false" aria-disabled="false" title="Scope — point at an element to target your message">' + ICON_PICK + '</button>' +
+        '<button type="button" id="sp-edit" aria-label="Edit page content directly" aria-pressed="false" aria-disabled="false" title="Edit text in place — your words, no AI">' + ICON_EDIT + '</button>' +
         '<span class="sp-spring"></span>' +
-        '<button type="button" id="sp-sling" title="Send to terminal — copy a ready instruction to paste into your Claude session">&gt;_</button>' +
+        '<button type="button" id="sp-sling" aria-label="Copy instruction for terminal" title="Send to terminal — copy a ready instruction to paste into your Claude session">&gt;_</button>' +
         '<button type="submit" id="sp-send">Sand</button>' +
       '</div>' +
     '</form>';
@@ -99,17 +111,116 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
 
   var turns = Object.create(null);  // turnId -> live turn record
   var pendingTurn = null;           // optimistic user turn awaiting its server turnId
-  var sel = null, picking = false;
+  var sel = null, mode = 'idle', picking = false;
   var lastChangedCids = [];
   var stickBottom = true;
+  var directQueue = Promise.resolve();
+  var directPending = 0, turnBusy = false, modeVersion = 0;
+  var disclosureSeq = 0;
 
   // ---------- small helpers ----------
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
-  function expand() { panel.classList.remove('sp-collapsed'); thread.hidden = false; toggleBtn.textContent = '▾'; }
-  function collapse() { panel.classList.add('sp-collapsed'); thread.hidden = true; toggleBtn.textContent = '▸'; }
+  function expand() { panel.classList.remove('sp-collapsed'); thread.hidden = false; toggleBtn.textContent = '▾'; toggleBtn.setAttribute('aria-expanded', 'true'); }
+  function collapse() { panel.classList.add('sp-collapsed'); thread.hidden = true; toggleBtn.textContent = '▸'; toggleBtn.setAttribute('aria-expanded', 'false'); }
   function expandIfContent() { if (panel.classList.contains('sp-collapsed')) expand(); }
   function atBottom() { return thread.scrollHeight - thread.scrollTop - thread.clientHeight < 40; }
   function stick() { if (stickBottom) thread.scrollTop = thread.scrollHeight; }
+  function syncUndoAvailability() {
+    var disabled = turnBusy || directPending > 0;
+    undoBtn.disabled = disabled;
+    Array.prototype.forEach.call(thread.querySelectorAll('.sp-undo'), function (button) { button.disabled = disabled; });
+  }
+  function syncDirectLockState() {
+    var locked = directPending > 0;
+    pickBtn.disabled = locked; editBtn.disabled = locked;
+    pickBtn.setAttribute('aria-disabled', String(locked));
+    editBtn.setAttribute('aria-disabled', String(locked));
+    if (delBtn) { delBtn.disabled = locked; delBtn.setAttribute('aria-disabled', String(locked)); }
+    if (grip) {
+      grip.setAttribute('draggable', String(!locked));
+      grip.setAttribute('aria-disabled', String(locked));
+    }
+    if (locked && rowctl) rowctl.hidden = true;
+  }
+  function setBusy(busy) {
+    turnBusy = busy;
+    chip.classList.toggle('sp-busy', busy);
+    input.disabled = busy; sendBtn.disabled = busy;
+    syncUndoAvailability();
+  }
+  function renderScope(scope) {
+    sel = scope || null;
+    if (!sel) { targetTag.hidden = true; targetTag.textContent = ''; return; }
+    var where = sel.cid ? '#' + sel.cid : sel.selector;
+    targetTag.hidden = false;
+    targetTag.textContent = '⌖ ' + where + (sel.snippet ? ' — ' + sel.snippet : '');
+  }
+  function errorMessage(error) {
+    return error && error.message ? error.message : 'Sandpaper request failed';
+  }
+  function reducedMotion() {
+    return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  }
+  function announceRequestError(error) {
+    var message = errorMessage(error);
+    label.textContent = message;
+    led.style.background = COLORS.error;
+    chip.style.color = COLORS.error;
+    persist(); stick();
+  }
+  function confirmedDirectRejection(error) {
+    return !!(error && typeof error.status === 'number' && error.status >= 400 && error.status < 500);
+  }
+  function reconcileDirectOutcome(error) {
+    announceRequestError(new Error(errorMessage(error) + ' · reloading to reconcile'));
+    location.reload();
+  }
+  function rejectPendingTurn(record, error, draft, terminal) {
+    var message = errorMessage(error);
+    if (record && !record.errorShown) {
+      record.box.appendChild(el('div', 'sp-err', message));
+      record.errorShown = true;
+    }
+    if (pendingTurn === record) pendingTurn = null;
+    if (draft != null) input.value = draft;
+    renderScope(record && record.scope ? record.scope : null);
+    setBusy(false);
+    announceRequestError(error);
+    if (record && terminal && terminal.changed) finalizeTurn(record, terminal);
+    persist(); stick(); input.focus();
+  }
+  function queueDirect(path, payload, onSuccess, rollback) {
+    directPending += 1;
+    syncUndoAvailability();
+    syncDirectLockState();
+    var request = directQueue.then(function () { return client.post(path, payload); });
+    var handled = request.then(function (result) {
+      if (onSuccess) onSuccess(result);
+      return result;
+    }).catch(function (error) {
+      if (!confirmedDirectRejection(error)) {
+        reconcileDirectOutcome(error);
+        return null;
+      }
+      try {
+        if (rollback) rollback();
+      } catch (rollbackError) {
+        announceRequestError(new Error('Couldn’t restore the page after a rejected edit'));
+        location.reload();
+        return null;
+      }
+      announceRequestError(error);
+      return null;
+    });
+    var settled = handled.then(function (result) {
+      directPending -= 1;
+      syncUndoAvailability();
+      syncDirectLockState();
+      return result;
+    });
+    directQueue = settled.then(function () {}, function () {});
+    return settled;
+  }
   thread.addEventListener('scroll', function () { stickBottom = atBottom(); });
 
   // ---------- a turn (one user message + Claude's reply/edits) ----------
@@ -123,8 +234,11 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
     }
     var group = el('div', 'sp-asst');
     var think = el('div', 'sp-think'); think.hidden = true;
-    var thinkToggle = el('div', 'sp-think-toggle', '▸ thinking'); thinkToggle.setAttribute('data-act', 'think');
+    var thinkToggle = el('button', 'sp-think-toggle', '▸ thinking'); thinkToggle.type = 'button'; thinkToggle.setAttribute('data-act', 'think');
     var thinkBody = el('div', 'sp-think-body');
+    var thinkId = 'sp-think-body-' + (++disclosureSeq);
+    thinkBody.id = thinkId; thinkBody.hidden = true;
+    thinkToggle.setAttribute('aria-controls', thinkId); thinkToggle.setAttribute('aria-expanded', 'false');
     think.appendChild(thinkToggle); think.appendChild(thinkBody);
     var prose = el('div', 'sp-prose');
     var meta = el('div', 'sp-turnmeta'); meta.hidden = true;
@@ -133,7 +247,8 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
     thread.appendChild(box);
     panel.classList.add('sp-has-thread'); // the input's top rule only shows once a conversation exists
     return { id: turnId, box: box, proseEl: prose, thinkEl: thinkBody, thinkWrap: think, metaEl: meta,
-             editCount: 0, cardEl: null, cardBody: null, cardTitle: null, textBuf: '', thinkBuf: '', raf: 0, changedCids: [] };
+             editCount: 0, cardEl: null, cardBody: null, cardTitle: null, textBuf: '', thinkBuf: '', raf: 0,
+             changedCids: [], draft: userText, scope: null, finalized: false, errorShown: false };
   }
 
   function getTurn(turnId) {
@@ -143,6 +258,12 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
       var pt = pendingTurn; pendingTurn = null; return pt;
     }
     var t = createTurn(turnId, null, null); if (turnId) turns[turnId] = t; return t;
+  }
+
+  function knownTerminalTurn(turnId) {
+    if (turnId && turns[turnId]) return turns[turnId];
+    if (pendingTurn && (!pendingTurn.id || pendingTurn.id === turnId)) return getTurn(turnId);
+    return null;
   }
 
   function scheduleFlush(rec) {
@@ -162,21 +283,33 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
     led.style.background = c; chip.style.color = c;
     if (f.label) label.textContent = f.label;
     var busy = BUSY.indexOf(f.state) >= 0;
-    chip.classList.toggle('sp-busy', busy);
-    input.disabled = busy; sendBtn.disabled = busy;
+    setBusy(busy);
     if (typeof f.cost === 'number') cost.textContent = '$' + f.cost.toFixed(4);
-    if (f.state === 'error' && f.turnId) { var te = getTurn(f.turnId); te.box.appendChild(el('div', 'sp-err', (f.label || 'Error') + (f.detail ? ' — ' + f.detail : ''))); stick(); }
-    if (f.done && f.turnId) finalizeTurn(getTurn(f.turnId), f);
+    if (f.state === 'error' && f.turnId) {
+      var te = knownTerminalTurn(f.turnId);
+      var terminalError = new Error(f.detail || f.label || 'Turn failed');
+      if (te) rejectPendingTurn(te, terminalError, te.draft, f);
+      else announceRequestError(terminalError);
+      return;
+    }
+    if ((f.done || f.phase === 'done') && f.turnId) {
+      var doneTurn = knownTerminalTurn(f.turnId);
+      if (doneTurn) finalizeTurn(doneTurn, f);
+    }
   }
 
   function finalizeTurn(rec, f) {
+    if (rec.finalized) return;
+    rec.finalized = true;
     rec.metaEl.hidden = false;
-    var edited = rec.editCount > 0;
+    var edited = !!f.changed;
     rec.box.classList.add(edited ? 'sp-edited' : 'sp-talked');
     rec.metaEl.textContent = '';
-    rec.metaEl.appendChild(el('span', 'sp-tag', edited ? ('Saved · ' + rec.editCount + (rec.editCount > 1 ? ' changes' : ' change')) : 'Replied'));
+    var saveLabel = 'Saved';
+    if (edited && rec.editCount) saveLabel += ' · ' + rec.editCount + (rec.editCount > 1 ? ' changes' : ' change');
+    rec.metaEl.appendChild(el('span', 'sp-tag', edited ? saveLabel : 'Replied'));
     if (typeof f.cost === 'number') rec.metaEl.appendChild(el('span', 'sp-tagcost', ' · $' + f.cost.toFixed(4)));
-    if (edited) {
+    if (f.undoable) {
       var u = el('button', 'sp-undo', 'Undo'); u.setAttribute('data-act', 'undo'); if (rec.id) u.setAttribute('data-turn', rec.id);
       rec.metaEl.appendChild(u);
     }
@@ -190,10 +323,12 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
     (f.cids || []).forEach(function (c) { if (rec.changedCids.indexOf(c) < 0) rec.changedCids.push(c); });
     if (!rec.cardEl) {
       rec.cardEl = el('div', 'sp-card');
-      var head = el('div', 'sp-card-head'); head.setAttribute('data-act', 'card');
+      var head = el('button', 'sp-card-head'); head.type = 'button'; head.setAttribute('data-act', 'card');
       rec.cardTitle = el('span', 'sp-card-title', '');
       head.appendChild(rec.cardTitle); head.appendChild(el('span', 'sp-card-chev', '▸'));
       rec.cardBody = el('div', 'sp-card-body'); rec.cardBody.hidden = true;
+      var cardId = 'sp-card-body-' + (++disclosureSeq);
+      rec.cardBody.id = cardId; head.setAttribute('aria-controls', cardId); head.setAttribute('aria-expanded', 'false');
       rec.cardEl.appendChild(head); rec.cardEl.appendChild(rec.cardBody);
       rec.box.querySelector('.sp-asst').appendChild(rec.cardEl);
     }
@@ -207,11 +342,46 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
   }
   function diffRow(sign, text) {
     var t = text.length > 400 ? text.slice(0, 400) + '…' : text;
-    return el('div', sign === '+' ? 'sp-add' : 'sp-del', sign + ' ' + t);
+    return el('div', sign === '+' ? 'sp-add' : 'sp-diff-del', sign + ' ' + t);
   }
 
+  function rehydrateTranscript() {
+    var saved = null;
+    try { saved = sessionStorage.getItem(SKEY); } catch (e) {}
+    if (!saved) return;
+    thread.innerHTML = saved;
+    panel.classList.add('sp-has-thread');
+    for (var key in turns) delete turns[key];
+    Array.prototype.forEach.call(thread.querySelectorAll('[id^="sp-think-body-"], [id^="sp-card-body-"]'), function (node) {
+      var match = node.id.match(/-(\d+)$/);
+      if (match) disclosureSeq = Math.max(disclosureSeq, parseInt(match[1], 10));
+    });
+    Array.prototype.forEach.call(thread.querySelectorAll('.sp-turn[data-turn]'), function (box) {
+      var id = box.getAttribute('data-turn');
+      var meta = box.querySelector('.sp-turnmeta');
+      var card = box.querySelector('.sp-card');
+      turns[id] = {
+        id: id, box: box,
+        proseEl: box.querySelector('.sp-prose'),
+        thinkEl: box.querySelector('.sp-think-body'),
+        thinkWrap: box.querySelector('.sp-think'),
+        metaEl: meta,
+        editCount: box.querySelectorAll('.sp-hunkfile').length,
+        cardEl: card,
+        cardBody: card ? card.querySelector('.sp-card-body') : null,
+        cardTitle: card ? card.querySelector('.sp-card-title') : null,
+        textBuf: '', thinkBuf: '', raf: 0, changedCids: [], draft: null, scope: null,
+        finalized: !!(meta && !meta.hidden && meta.querySelector('.sp-tag')),
+        errorShown: !!box.querySelector('.sp-err'),
+      };
+    });
+    expand(); thread.scrollTop = thread.scrollHeight;
+  }
+
+  rehydrateTranscript();
+
   // ---------- SSE: the live conversation ----------
-  var es = new EventSource(API + '/events');
+  var es = new EventSource(client.eventUrl() + '&page=' + encodeURIComponent(location.pathname));
   es.onmessage = function (m) {
     var f; try { f = JSON.parse(m.data); } catch (e) { return; }
     if (f.page && f.page !== location.pathname) return; // frames are page-scoped; ignore other pages' turns
@@ -239,18 +409,20 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
     var prompt = input.value.trim(); if (!prompt) return;
     var attach = sel ? ((sel.cid ? '#' + sel.cid : sel.selector) + (sel.snippet ? ' — ' + sel.snippet : '')) : null;
     pendingTurn = createTurn(null, prompt, attach);
+    pendingTurn.scope = sel ? { cid: sel.cid, selector: sel.selector, snippet: sel.snippet } : null;
+    var submitted = pendingTurn;
     expand();
     var payload = { prompt: prompt, page: location.pathname };
     if (sel) { payload.cid = sel.cid; payload.selector = sel.selector; payload.snippet = sel.snippet; }
     setChip({ state: 'thinking', label: 'Sending…' });
-    fetch(API + '/turn', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-      .then(function (r) { return r.ok ? r.json() : null; })
+    client.post('/turn', payload)
       .then(function (j) {
-        if (j && j.turnId && pendingTurn && !pendingTurn.id) {
-          pendingTurn.id = j.turnId; turns[j.turnId] = pendingTurn; pendingTurn.box.setAttribute('data-turn', j.turnId); pendingTurn = null;
+        if (j && j.turnId && submitted && !submitted.id) {
+          submitted.id = j.turnId; turns[j.turnId] = submitted; submitted.box.setAttribute('data-turn', j.turnId);
+          if (pendingTurn === submitted) pendingTurn = null;
         }
       })
-      .catch(function () { setChip({ state: 'error', label: 'Bridge unreachable' }); });
+      .catch(function (error) { rejectPendingTurn(submitted, error, prompt); });
     input.value = ''; clearScope();
   });
 
@@ -279,17 +451,24 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
       var body = node.parentNode.querySelector('.sp-think-body');
       var open = node.classList.toggle('sp-open');
       node.textContent = (open ? '▾' : '▸') + ' thinking';
-      body.style.display = open ? 'block' : 'none';
+      node.setAttribute('aria-expanded', String(open));
+      body.hidden = !open;
     } else if (act === 'card') {
       var cardBody = node.parentNode.querySelector('.sp-card-body');
       var chev = node.querySelector('.sp-card-chev');
       cardBody.hidden = !cardBody.hidden;
+      node.setAttribute('aria-expanded', String(!cardBody.hidden));
       if (chev) chev.textContent = cardBody.hidden ? '▸' : '▾';
     } else if (act === 'undo') {
       var id = node.getAttribute('data-turn');
       node.disabled = true; node.textContent = 'Undoing…';
-      fetch(API + '/undo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ turnId: id, page: location.pathname }) })
-        .catch(function () { node.textContent = 'Undo failed'; });
+      client.post('/undo', { turnId: id, page: location.pathname })
+        .then(function () { node.hidden = true; })
+        .catch(function (error) {
+          node.disabled = false; node.textContent = 'Undo'; node.hidden = false;
+          syncUndoAvailability();
+          announceRequestError(error);
+        });
     }
   });
   toggleBtn.addEventListener('click', function () { panel.classList.contains('sp-collapsed') ? expand() : collapse(); });
@@ -310,7 +489,7 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
     }
     return parts.join(' > ');
   }
-  function clearScope() { sel = null; targetTag.hidden = true; }
+  function clearScope() { renderScope(null); }
   function onOver(e) { if (picking && !panel.contains(e.target)) e.target.classList.add('sp-hl'); }
   function onOut(e) { if (e.target.classList) e.target.classList.remove('sp-hl'); }
   function onClick(e) {
@@ -321,15 +500,38 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
     var snip = (t.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 80);
     sel = { cid: cid, selector: cid ? null : cssPath(t), snippet: snip };
     targetTag.hidden = false; targetTag.textContent = '⌖ ' + (cid ? '#' + cid : sel.selector) + (snip ? ' — ' + snip : '');
-    stopPick(); input.focus();
+    setMode('idle'); input.focus();
   }
-  function startPick() { picking = true; pickBtn.classList.add('sp-on'); document.body.classList.add('sp-picking'); }
-  function stopPick() { picking = false; pickBtn.classList.remove('sp-on'); document.body.classList.remove('sp-picking'); }
-  pickBtn.addEventListener('click', function () { picking ? stopPick() : startPick(); });
+  function applyMode(next) {
+    mode = next;
+    picking = next === 'pick';
+    editing = next === 'hands';
+    pickBtn.classList.toggle('sp-on', picking);
+    editBtn.classList.toggle('sp-on', editing);
+    pickBtn.setAttribute('aria-pressed', String(picking));
+    editBtn.setAttribute('aria-pressed', String(editing));
+    document.body.classList.toggle('sp-picking', picking);
+    document.body.classList.toggle('sp-editing', editing);
+    markEditables(editing);
+    if (!editing && rowctl) { rowctl.hidden = true; clearDrag(); }
+  }
+  function setMode(next) {
+    if (directPending > 0) return Promise.resolve();
+    var version = ++modeVersion;
+    if (next !== 'idle' && next !== 'pick' && next !== 'hands') next = 'idle';
+    if (next === mode) next = 'idle';
+    if (mode === 'hands' && current) {
+      applyMode('idle');
+      return Promise.resolve(commitEdit()).then(function () { if (version === modeVersion) applyMode(next); });
+    }
+    applyMode(next);
+    return Promise.resolve();
+  }
+  pickBtn.addEventListener('click', function () { void setMode(mode === 'pick' ? 'idle' : 'pick'); });
   document.addEventListener('mouseover', onOver, true);
   document.addEventListener('mouseout', onOut, true);
   document.addEventListener('click', onClick, true);
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { stopPick(); clearScope(); } });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && mode === 'pick') { void setMode('idle'); clearScope(); } });
 
   // ---------- ✎ edit-in-place — change text directly, no AI (the "Hands") ----------
   // Clicking a LEAF record (a data-cid element with no data-cid descendants) makes it editable;
@@ -343,9 +545,7 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
       if (on && leaf) n.classList.add('sp-editable'); else n.classList.remove('sp-editable');
     });
   }
-  function startEditMode() { editing = true; editBtn.classList.add('sp-on'); document.body.classList.add('sp-editing'); markEditables(true); if (picking) stopPick(); }
-  function stopEditMode() { if (current) commitEdit(); editing = false; editBtn.classList.remove('sp-on'); document.body.classList.remove('sp-editing'); markEditables(false); rowctl.hidden = true; clearDrag(); }
-  editBtn.addEventListener('click', function () { editing ? stopEditMode() : startEditMode(); });
+  editBtn.addEventListener('click', function () { void setMode(mode === 'hands' ? 'idle' : 'hands'); });
 
   function detach(rec) {
     rec.el.removeEventListener('keydown', rec.onKey);
@@ -353,7 +553,11 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
     rec.el.removeAttribute('contenteditable');
   }
   function beginEdit(elm) {
-    if (current) commitEdit();
+    if (directPending > 0) return;
+    if (current) {
+      commitEdit();
+      if (directPending > 0) return;
+    }
     var rec = { el: elm, cid: elm.getAttribute('data-cid'), original: elm.innerHTML };
     rec.onKey = function (ev) {
       if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); elm.blur(); }        // Enter commits
@@ -367,20 +571,21 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
   }
   function cancelEdit() { if (!current) return; var rec = current; current = null; rec.el.innerHTML = rec.original; detach(rec); }
   function commitEdit() {
-    if (!current) return;
+    if (!current) return Promise.resolve();
     var rec = current; current = null; detach(rec);
     var next = rec.el.innerHTML;
-    if (next === rec.original) return; // nothing changed
-    fetch(API + '/write', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ page: location.pathname, cid: rec.cid, html: next }) })
-      .then(function (r) { if (!r.ok) throw new Error('write rejected'); return r.json(); })
-      .then(function () { directDone('Saved'); rec.el.classList.add('sp-saved'); setTimeout(function () { rec.el.classList.remove('sp-saved'); }, 1300); })
-      .catch(function () { rec.el.innerHTML = rec.original; setChip({ state: 'error', label: 'Couldn’t save that edit' }); }); // keep file & page in sync on failure
+    if (next === rec.original) return Promise.resolve(); // nothing changed
+    return queueDirect('/write', { page: location.pathname, cid: rec.cid, html: next }, function (result) {
+        directDone('Saved', result.undoable);
+        rec.el.classList.add('sp-saved'); setTimeout(function () { rec.el.classList.remove('sp-saved'); }, 1300);
+      }, function () {
+        rec.el.innerHTML = rec.original;
+      }); // keep file & page in sync on failure
   }
 
   // capture-phase so a click on a leaf record edits it instead of following links / scoping
   document.addEventListener('click', function (e) {
-    if (!editing || panel.contains(e.target)) return;
+    if (!editing || directPending > 0 || panel.contains(e.target)) return;
     var elm = e.target.closest ? e.target.closest('[data-cid]') : null;
     if (!elm || elm.querySelector('[data-cid]')) return; // only leaf records are editable
     if (current && current.el === elm) return;           // already editing this one — let the caret move
@@ -392,7 +597,7 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
   // A small handle cluster floats over the hovered record; the grip drags, the × deletes.
   var rowctl = el('div'); rowctl.id = 'sp-rowctl'; rowctl.hidden = true;
   var grip = el('span', 'sp-grip', '⠿'); grip.setAttribute('draggable', 'true'); grip.title = 'Drag to reorder';
-  var delBtn = el('button', 'sp-del', '×'); delBtn.type = 'button'; delBtn.title = 'Delete this block';
+  var delBtn = el('button', 'sp-row-delete', '×'); delBtn.type = 'button'; delBtn.title = 'Delete this block';
   rowctl.appendChild(grip); rowctl.appendChild(delBtn);
   document.body.appendChild(rowctl);
 
@@ -415,7 +620,7 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
   }
 
   document.addEventListener('mouseover', function (e) {
-    if (!editing || dragEl || current) return; // no handle while a text edit is in progress
+    if (!editing || directPending > 0 || dragEl || current) return; // no handle while a text edit is in progress
     if (rowctl.contains(e.target)) { clearTimeout(hideT); return; }
     var elm = e.target.closest ? e.target.closest('.sp-editable') : null;
     if (elm && !panel.contains(elm)) { clearTimeout(hideT); showCtl(elm); }
@@ -429,14 +634,21 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
 
   delBtn.addEventListener('click', function (e) {
     e.preventDefault(); e.stopPropagation();
-    if (!hoverRow) return;
-    var cid = hoverRow.getAttribute('data-cid');
-    hoverRow.remove(); rowctl.hidden = true; hoverRow = null;   // optimistic; resync on failure
-    domOp({ op: 'delete', cid: cid }, 'Deleted');
+    if (directPending > 0 || !hoverRow) return;
+    var removed = hoverRow, cid = removed.getAttribute('data-cid');
+    var anchor = document.createComment('sandpaper-delete-rollback');
+    removed.parentNode.insertBefore(anchor, removed);
+    removed.remove(); rowctl.hidden = true; hoverRow = null;
+    queueDirect('/dom', { op: 'delete', cid: cid, page: location.pathname }, function (result) {
+      anchor.remove(); directDone('Deleted', result.undoable);
+    }, function () {
+      if (!anchor.parentNode) throw new Error('delete rollback anchor is gone');
+      anchor.parentNode.insertBefore(removed, anchor); anchor.remove();
+    });
   });
 
   grip.addEventListener('dragstart', function (e) {
-    if (!hoverRow || current) { e.preventDefault(); return; }
+    if (directPending > 0 || !hoverRow || current) { e.preventDefault(); return; }
     dragEl = hoverRow; dragCid = dragEl.getAttribute('data-cid');
     e.dataTransfer.effectAllowed = 'move';
     try { e.dataTransfer.setData('text/plain', dragCid); } catch (x) {}
@@ -446,7 +658,7 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
   });
   grip.addEventListener('dragend', clearDrag);
   document.addEventListener('dragover', function (e) {
-    if (!dragEl) return;
+    if (directPending > 0 || !dragEl) return;
     var elm = e.target.closest ? e.target.closest('.sp-editable') : null;
     if (!elm || panel.contains(elm) || elm === dragEl || dragEl.contains(elm) || elm.parentNode !== dragEl.parentNode) return; // reorder among siblings only
     e.preventDefault(); e.dataTransfer.dropEffect = 'move';
@@ -458,32 +670,36 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
     elm.classList.toggle('sp-drop-after', dropMode === 'after');
   }, true);
   document.addEventListener('drop', function (e) {
+    if (directPending > 0) { clearDrag(); return; }
     if (!dragEl || !dropTarget) { clearDrag(); return; }
     e.preventDefault();
     var moved = dragEl, cid = dragCid, tgt = dropTarget, mode = dropMode, tcid = tgt.getAttribute('data-cid');
     tgt.classList.remove('sp-drop-before', 'sp-drop-after');
+    var anchor = document.createComment('sandpaper-move-rollback');
+    moved.parentNode.insertBefore(anchor, moved);
     if (mode === 'before') tgt.parentNode.insertBefore(moved, tgt);            // optimistic DOM move
     else tgt.parentNode.insertBefore(moved, tgt.nextSibling);
     clearDrag();
-    domOp({ op: 'move', cid: cid, target: tcid, mode: mode }, 'Moved');
+    queueDirect('/dom', { op: 'move', cid: cid, target: tcid, mode: mode, page: location.pathname }, function (result) {
+      anchor.remove(); directDone('Moved', result.undoable);
+    }, function () {
+      if (!anchor.parentNode) throw new Error('move rollback anchor is gone');
+      anchor.parentNode.insertBefore(moved, anchor); anchor.remove();
+    });
   }, true);
 
-  // shared POST for structural ops; on failure resync the page from disk
-  function domOp(payload, okLabel) {
-    payload.page = location.pathname;
-    fetch(API + '/dom', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-      .then(function (r) { if (!r.ok) throw new Error(); return r.json(); })
-      .then(function () { directDone(okLabel); })
-      .catch(function () { setChip({ state: 'error', label: 'Couldn’t save — reloading' }); setTimeout(function () { location.reload(); }, 600); });
-  }
-
   // undo affordance after ANY direct edit (text · delete · move) — one level, server-snapshotted
-  function directDone(label) { setChip({ state: 'done', label: label + ' · no AI' }); undoBtn.hidden = false; }
+  function directDone(label, undoable) { setChip({ state: 'done', label: label + ' · no AI' }); undoBtn.hidden = !undoable; }
   undoBtn.addEventListener('click', function () {
-    undoBtn.hidden = true;
-    fetch(API + '/undo-direct', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ page: location.pathname }) })
-      .then(function (r) { if (!r.ok) throw new Error(); /* server restores → watcher → reload */ })
-      .catch(function () { setChip({ state: 'error', label: 'Nothing to undo' }); });
+    if (directPending > 0) return;
+    undoBtn.disabled = true; undoBtn.textContent = 'Undoing…';
+    client.post('/undo-direct', { page: location.pathname })
+      .then(function () { undoBtn.hidden = true; undoBtn.disabled = false; undoBtn.textContent = '⟲ undo'; })
+      .catch(function (error) {
+        undoBtn.hidden = false; undoBtn.disabled = false; undoBtn.textContent = '⟲ undo';
+        syncUndoAvailability();
+        announceRequestError(error);
+      });
   });
 
   // ---------- first-run welcome — a one-time, on-page tour of the three tools ----------
@@ -503,14 +719,15 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
 
   function maybeWelcome() {
     if (welcomed()) return;
-    var w = el('div'); w.id = 'sp-welcome'; w.setAttribute('role', 'dialog'); w.setAttribute('aria-modal', 'true'); w.setAttribute('aria-label', 'Welcome to Sandpaper');
+    var previousFocus = document.activeElement;
+    var w = el('div'); w.id = 'sp-welcome'; w.setAttribute('role', 'dialog'); w.setAttribute('aria-modal', 'true'); w.setAttribute('aria-labelledby', 'sp-welcome-title');
     if (hostSkin) for (var sk in hostSkin) w.style.setProperty(sk, hostSkin[sk]); // the tour wears the host skin too
     w.innerHTML =                                                        // static template — no untrusted data
       '<div class="sp-w-card">' +
         '<div class="sp-w-head"><span class="sp-w-mark">Sand<span>paper</span></span>' +
           '<button type="button" class="sp-w-x" aria-label="Close">×</button></div>' +
         '<div class="sp-w-body">' +
-          '<h2 class="sp-w-title">This page is your project&rsquo;s brain.</h2>' +
+          '<h2 class="sp-w-title" id="sp-welcome-title">This page is your project&rsquo;s brain.</h2>' +
           '<p class="sp-w-lede">It mirrors where the project stands — and you refine it right here, in the page. Three ways:</p>' +
           '<ul class="sp-w-tools">' +
             '<li><span class="sp-w-g sp-w-sand">Sand</span><div><b>Say a change</b><span class="d">Describe it in plain words — Claude edits the page, scoped to whatever you point at.</span></div></li>' +
@@ -528,9 +745,21 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
       setWelcomed();
       w.classList.remove('sp-w-in');
       document.removeEventListener('keydown', onKey, true);
-      setTimeout(function () { w.remove(); pulsePanel(); }, 240);       // then nudge the eye to the real toolbar
+      setTimeout(function () {
+        w.remove();
+        if (previousFocus && previousFocus.isConnected && typeof previousFocus.focus === 'function') previousFocus.focus();
+        pulsePanel();
+      }, reducedMotion() ? 0 : 240);       // then nudge the eye to the real toolbar
     }
-    function onKey(e) { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); } }
+    function onKey(e) {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); return; }
+      if (e.key !== 'Tab') return;
+      var focusable = Array.prototype.slice.call(w.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'));
+      if (!focusable.length) { e.preventDefault(); w.focus(); return; }
+      var first = focusable[0], last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
     w.querySelector('.sp-w-go').addEventListener('click', close);
     w.querySelector('.sp-w-x').addEventListener('click', close);
     w.addEventListener('click', function (e) { if (e.target === w) close(); }); // click the backdrop to dismiss
@@ -544,8 +773,6 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
 
   window.addEventListener('load', function () {
     try { var y = sessionStorage.getItem('sp-scroll'); if (y !== null) { window.scrollTo(0, parseInt(y, 10)); sessionStorage.removeItem('sp-scroll'); } } catch (e) {}
-    // rehydrate the conversation (our own serialized, escaped DOM)
-    try { var saved = sessionStorage.getItem(SKEY); if (saved) { thread.innerHTML = saved; panel.classList.add('sp-has-thread'); expand(); thread.scrollTop = thread.scrollHeight; } } catch (e) {}
     // flash the changed elements so the eye lands on what moved
     try {
       var cids = JSON.parse(sessionStorage.getItem('sp-flash') || '[]'); sessionStorage.removeItem('sp-flash');
@@ -558,7 +785,7 @@ import { renderMarkdown } from '/__sandpaper/sp-markdown.js';
           setTimeout(function () { n.classList.remove('sp-flash'); }, 2200);
         });
       });
-      if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (first) first.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'center' });
     } catch (e) {}
   });
 })();
