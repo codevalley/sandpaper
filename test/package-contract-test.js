@@ -157,6 +157,8 @@ test('relative ESM import discovery covers static, re-export, side-effect, and d
     "const dynamicLine = import( // dynamic line note",
     "  './dynamic-line.js');",
     "const dynamicOptions = import('./dynamic-options.json', { assert: { type: 'json' } });",
+    "import '\\x2e/escaped-hex.js';",
+    "const escapedUnicode = import('\\u002e/escaped-unicode.js');",
     "import value from 'node:fs';",
     "api.import('./member-call.js');",
     "api?.import('./optional-member-call.js');",
@@ -171,6 +173,72 @@ test('relative ESM import discovery covers static, re-export, side-effect, and d
   assert.deepEqual(relativeEsmImports(source), [
     './side-effect.js', '../one.js', './two.js', './lazy.js', './commented.js', './three.js',
     './side-line.js', './from-line.js', './from-block.js', './export-block.js', './export-line.js',
-    './dynamic-block.js', './dynamic-line.js', './dynamic-options.json',
+    './dynamic-block.js', './dynamic-line.js', './dynamic-options.json', './escaped-hex.js',
+    './escaped-unicode.js',
   ]);
+});
+
+test('template raw text stays ignored while every nested substitution is lexed', () => {
+  const source = [
+    "const raw = `raw import('./raw-template.js')`;",
+    "const direct = `before ${import('./template-expression.js')} after`;",
+    "const nested = `outer ${`inner raw import('./raw-inner.js') ${import('./nested-template.js')}`} tail`;",
+    "const complex = `raw ${(() => {",
+    "  const text = \"import('./template-string.js')\";",
+    "  // import('./template-comment.js')",
+    "  if (ok) /import(\".\\/template-regex.js\")/.test(value);",
+    "  return { nested: { value: import('./template-deep.js') } };",
+    "})()} end`;",
+  ].join('\n');
+  assert.deepEqual(relativeEsmImports(source), [
+    './template-expression.js', './nested-template.js', './template-deep.js',
+  ]);
+});
+
+test('only the initial hashbang line is skipped before real imports are scanned', () => {
+  const source = [
+    "#!/usr/bin/env -S node --import './loader.js'",
+    "import './real-after-hashbang.js';",
+  ].join('\n');
+  assert.deepEqual(relativeEsmImports(source), ['./real-after-hashbang.js']);
+});
+
+test('regex literals after control flow and division never become fake imports', () => {
+  const source = [
+    "if (ok) /import(\".\\/if-fake.js\")/.test(value);",
+    "while (ok) /import(\".\\/while-fake.js\")/.exec(value);",
+    "if (ok) run(); else /import(\".\\/else-fake.js\")/.test(value);",
+    "do /import(\".\\/do-fake.js\")/.test(value); while (false);",
+    "for (; ok;) /import(\".\\/for-fake.js\")/.test(value);",
+    "const ratio = 6 / /import(\".\\/division-fake.js\")/.source.length;",
+    "const loaded = total / import('./division-real.js');",
+    "import './real-after-regex.js';",
+  ].join('\n');
+  assert.deepEqual(relativeEsmImports(source), ['./division-real.js', './real-after-regex.js']);
+});
+
+test('semicolon-free export stress has deterministic linear work', () => {
+  for (const count of [4_000, 8_000, 12_000]) {
+    const source = Array.from({ length: count }, (_, index) => `export { value${index} }\n`).join('');
+    const metrics = {};
+    assert.deepEqual(relativeEsmImports(source, { metrics }), []);
+    assert.equal(metrics.characters, source.length);
+    assert.ok(metrics.work <= source.length * 8, `${count} exports used ${metrics.work} work for ${source.length} chars`);
+  }
+});
+
+test('malformed or unterminated lexical and delimiter input fails closed', () => {
+  for (const source of [
+    "'unterminated string",
+    '/* unterminated block comment',
+    '`unterminated template',
+    "`unterminated substitution ${ import('./hidden.js') }",
+    '/unterminated[regex/',
+    "import('./missing-close.js'",
+    "export { missingClose from './missing-close-export.js';",
+    "import('\\xZZ/malformed-escape.js');",
+    "import('\\uZZZZ/malformed-unicode.js');",
+  ]) {
+    assert.throws(() => relativeEsmImports(source), /unterminated|malformed|unbalanced/i, source);
+  }
 });

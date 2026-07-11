@@ -149,156 +149,297 @@ export function expectedPackedPaths() {
 const MAX_ESM_SCAN_CHARACTERS = MAX_UNPACKED_KB * 1024;
 const isIdentifierStart = (character) => /[A-Za-z_$]/.test(character || '');
 const isIdentifierPart = (character) => /[A-Za-z0-9_$]/.test(character || '');
-
-function readStringToken(text, start) {
-  const quote = text[start];
-  let value = '';
-  let index = start + 1;
-  while (index < text.length) {
-    const character = text[index];
-    if (character === quote) return { token: { type: 'string', value, start }, next: index + 1 };
-    if (character !== '\\') {
-      value += character;
-      index += 1;
-      continue;
-    }
-    const escaped = text[index + 1];
-    if (escaped === undefined) break;
-    if (escaped === '\n') { index += 2; continue; }
-    if (escaped === '\r') { index += text[index + 2] === '\n' ? 3 : 2; continue; }
-    const simple = { b: '\b', f: '\f', n: '\n', r: '\r', t: '\t', v: '\v', 0: '\0' };
-    if (Object.hasOwn(simple, escaped)) {
-      value += simple[escaped];
-      index += 2;
-      continue;
-    }
-    if (escaped === 'x' && /^[0-9A-Fa-f]{2}$/.test(text.slice(index + 2, index + 4))) {
-      value += String.fromCodePoint(Number.parseInt(text.slice(index + 2, index + 4), 16));
-      index += 4;
-      continue;
-    }
-    if (escaped === 'u') {
-      const braced = text.slice(index + 2).match(/^\{([0-9A-Fa-f]{1,6})\}/);
-      const fixed = text.slice(index + 2, index + 6);
-      if (braced && Number.parseInt(braced[1], 16) <= 0x10ffff) {
-        value += String.fromCodePoint(Number.parseInt(braced[1], 16));
-        index += 2 + braced[0].length;
-        continue;
-      }
-      if (/^[0-9A-Fa-f]{4}$/.test(fixed)) {
-        value += String.fromCodePoint(Number.parseInt(fixed, 16));
-        index += 6;
-        continue;
-      }
-    }
-    value += escaped;
-    index += 2;
-  }
-  return { token: null, next: text.length };
-}
-
-function skipRegularExpression(text, start) {
-  let index = start + 1;
-  let characterClass = false;
-  while (index < text.length) {
-    if (text[index] === '\\') { index += 2; continue; }
-    if (text[index] === '[') characterClass = true;
-    else if (text[index] === ']') characterClass = false;
-    else if (text[index] === '/' && !characterClass) {
-      index += 1;
-      while (/[A-Za-z]/.test(text[index] || '')) index += 1;
-      return index;
-    }
-    if (text[index] === '\n' || text[index] === '\r') return start + 1;
-    index += 1;
-  }
-  return start + 1;
-}
-
-function regularExpressionCanStart(tokens) {
-  if (!tokens.length) return true;
-  const previous = tokens[tokens.length - 1];
-  return previous.type === 'punctuator' && '([{=,:;!?&|+-*%^~<>'.includes(previous.value)
-    || previous.type === 'identifier' && ['await', 'case', 'delete', 'return', 'throw', 'typeof', 'void', 'yield'].includes(previous.value);
-}
+const CONTROL_PAREN_KEYWORDS = new Set(['catch', 'for', 'if', 'switch', 'while', 'with']);
+const REGEX_PREFIX_KEYWORDS = new Set([
+  'await', 'case', 'delete', 'do', 'else', 'in', 'instanceof', 'new', 'of',
+  'return', 'throw', 'typeof', 'void', 'yield',
+]);
 
 function tokenizeModuleSource(source) {
   const text = String(source);
   if (text.length > MAX_ESM_SCAN_CHARACTERS) throw new Error('ESM source exceeds the bounded import scan');
+
   const tokens = [];
-  for (let index = 0; index < text.length;) {
+  const delimiters = [];
+  const modes = [{ kind: 'code', canStartRegex: true, controlPending: false }];
+  let index = 0;
+  let work = 0;
+
+  const token = (type, value, start, depth = delimiters.length) => {
+    tokens.push({ type, value, start, depth });
+  };
+  const step = (amount = 1) => { index += amount; work += amount; };
+  const fail = (message) => { throw new Error(`Malformed ESM source: ${message}`); };
+
+  while (index < text.length) {
+    const mode = modes[modes.length - 1];
     const character = text[index];
     const next = text[index + 1];
-    if (/\s/.test(character)) { index += 1; continue; }
+
+    if (mode.kind === 'template') {
+      if (character === '\\') {
+        if (next === undefined) fail('unterminated template escape');
+        step(2);
+      } else if (character === '`') {
+        step();
+        modes.pop();
+        const parent = modes[modes.length - 1];
+        if (!parent || parent.kind !== 'code') fail('unbalanced template');
+        parent.canStartRegex = false;
+        parent.controlPending = false;
+      } else if (character === '$' && next === '{') {
+        const start = index;
+        step(2);
+        delimiters.push({ character: '{', templateExpression: true });
+        token('boundary', 'template-start', start);
+        modes.push({ kind: 'code', canStartRegex: true, controlPending: false });
+      } else {
+        step();
+      }
+      continue;
+    }
+
+    if (index === 0 && character === '#' && next === '!') {
+      step(2);
+      while (index < text.length && text[index] !== '\n' && text[index] !== '\r') step();
+      continue;
+    }
+    if (/\s/.test(character)) { step(); continue; }
     if (character === '/' && next === '/') {
-      index += 2;
-      while (index < text.length && text[index] !== '\n' && text[index] !== '\r') index += 1;
+      step(2);
+      while (index < text.length && text[index] !== '\n' && text[index] !== '\r') step();
       continue;
     }
     if (character === '/' && next === '*') {
-      index += 2;
-      while (index < text.length && !(text[index] === '*' && text[index + 1] === '/')) index += 1;
-      index += Math.min(2, text.length - index);
+      step(2);
+      while (index < text.length && !(text[index] === '*' && text[index + 1] === '/')) step();
+      if (index >= text.length) fail('unterminated block comment');
+      step(2);
       continue;
     }
     if (character === "'" || character === '"') {
-      const read = readStringToken(text, index);
-      if (read.token) tokens.push(read.token);
-      index = read.next;
+      const quote = character;
+      const start = index;
+      let value = '';
+      step();
+      let closed = false;
+      while (index < text.length) {
+        const current = text[index];
+        if (current === quote) { step(); closed = true; break; }
+        if (current === '\n' || current === '\r') fail('unterminated string');
+        if (current !== '\\') { value += current; step(); continue; }
+        const escaped = text[index + 1];
+        if (escaped === undefined) fail('unterminated string escape');
+        if (escaped === '\n') { step(2); continue; }
+        if (escaped === '\r') { step(text[index + 2] === '\n' ? 3 : 2); continue; }
+        const simple = { b: '\b', f: '\f', n: '\n', r: '\r', t: '\t', v: '\v', 0: '\0' };
+        if (Object.hasOwn(simple, escaped)) { value += simple[escaped]; step(2); continue; }
+        if (escaped === 'x') {
+          const digits = text.slice(index + 2, index + 4);
+          if (!/^[0-9A-Fa-f]{2}$/.test(digits)) fail('malformed hexadecimal string escape');
+          value += String.fromCodePoint(Number.parseInt(digits, 16));
+          step(4);
+          continue;
+        }
+        if (escaped === 'u') {
+          const braced = text.slice(index + 2, index + 10).match(/^\{([0-9A-Fa-f]{1,6})\}/);
+          const fixed = text.slice(index + 2, index + 6);
+          if (braced && Number.parseInt(braced[1], 16) <= 0x10ffff) {
+            value += String.fromCodePoint(Number.parseInt(braced[1], 16));
+            step(2 + braced[0].length);
+            continue;
+          }
+          if (/^[0-9A-Fa-f]{4}$/.test(fixed)) {
+            value += String.fromCodePoint(Number.parseInt(fixed, 16));
+            step(6);
+            continue;
+          }
+          fail('malformed Unicode string escape');
+        }
+        value += escaped;
+        step(2);
+      }
+      if (!closed) fail('unterminated string');
+      token('string', value, start);
+      mode.canStartRegex = false;
+      mode.controlPending = false;
       continue;
     }
     if (character === '`') {
-      index += 1;
-      while (index < text.length) {
-        if (text[index] === '\\') index += 2;
-        else if (text[index] === '`') { index += 1; break; }
-        else index += 1;
-      }
+      step();
+      mode.controlPending = false;
+      modes.push({ kind: 'template' });
       continue;
     }
-    if (character === '/' && regularExpressionCanStart(tokens)) {
-      const after = skipRegularExpression(text, index);
-      if (after > index + 1) { index = after; continue; }
+    if (character === '/' && mode.canStartRegex) {
+      const start = index;
+      let characterClass = false;
+      let closed = false;
+      step();
+      while (index < text.length) {
+        const current = text[index];
+        if (current === '\n' || current === '\r') fail('unterminated regular expression');
+        if (current === '\\') {
+          if (text[index + 1] === undefined) fail('unterminated regular expression escape');
+          step(2);
+          continue;
+        }
+        if (current === '[') characterClass = true;
+        else if (current === ']') characterClass = false;
+        else if (current === '/' && !characterClass) {
+          step();
+          while (/[A-Za-z]/.test(text[index] || '')) step();
+          closed = true;
+          break;
+        }
+        step();
+      }
+      if (!closed || characterClass) fail('unterminated regular expression');
+      token('regex', '', start);
+      mode.canStartRegex = false;
+      mode.controlPending = false;
+      continue;
     }
     if (isIdentifierStart(character)) {
       const start = index;
-      index += 1;
-      while (isIdentifierPart(text[index])) index += 1;
-      tokens.push({ type: 'identifier', value: text.slice(start, index), start });
+      step();
+      while (isIdentifierPart(text[index])) step();
+      const value = text.slice(start, index);
+      token('identifier', value, start);
+      mode.controlPending = CONTROL_PAREN_KEYWORDS.has(value);
+      mode.canStartRegex = REGEX_PREFIX_KEYWORDS.has(value);
       continue;
     }
-    tokens.push({ type: 'punctuator', value: character, start: index });
-    index += 1;
+    if (/[0-9]/.test(character)) {
+      const start = index;
+      step();
+      while (/[A-Za-z0-9_.]/.test(text[index] || '')) step();
+      token('number', text.slice(start, index), start);
+      mode.canStartRegex = false;
+      mode.controlPending = false;
+      continue;
+    }
+
+    if (character === '}' && delimiters[delimiters.length - 1]?.templateExpression) {
+      const start = index;
+      step();
+      delimiters.pop();
+      modes.pop();
+      token('boundary', 'template-end', start);
+      continue;
+    }
+
+    const start = index;
+    if (character === '(' || character === '[' || character === '{') {
+      const control = character === '(' && mode.controlPending;
+      token('punctuator', character, start);
+      delimiters.push({ character, control });
+      step();
+      mode.canStartRegex = true;
+      mode.controlPending = false;
+      continue;
+    }
+    if (character === ')' || character === ']' || character === '}') {
+      const expected = { ')': '(', ']': '[', '}': '{' }[character];
+      const opened = delimiters.pop();
+      if (!opened || opened.character !== expected || opened.templateExpression) fail(`unbalanced ${character}`);
+      step();
+      token('punctuator', character, start);
+      mode.canStartRegex = character === ')' && Boolean(opened.control);
+      mode.controlPending = false;
+      continue;
+    }
+    if ((character === '+' || character === '-') && next === character) {
+      token('punctuator', character + next, start);
+      step(2);
+      mode.canStartRegex = false;
+      mode.controlPending = false;
+      continue;
+    }
+
+    token('punctuator', character, start);
+    step();
+    mode.controlPending = false;
+    if (character === '.') mode.canStartRegex = false;
+    else if (character === '/') mode.canStartRegex = true;
+    else if (character === ';' || character === ',' || character === ':' || character === '?'
+      || '=!&|+-*%^~<>'.includes(character)) mode.canStartRegex = true;
+    else mode.canStartRegex = false;
   }
-  return tokens;
+
+  if (modes.length !== 1 || modes[0].kind !== 'code') fail('unterminated template or substitution');
+  if (delimiters.length) fail(`unbalanced ${delimiters[delimiters.length - 1].character}`);
+  return { tokens, work };
 }
 
-export function relativeEsmImports(source) {
-  const tokens = tokenizeModuleSource(source);
+export function relativeEsmImports(source, options = {}) {
+  const text = String(source);
+  const { tokens, work: lexicalWork } = tokenizeModuleSource(text);
   const found = [];
-  const addString = (token) => {
-    if (token?.type === 'string' && token.value.startsWith('.')) found.push({ index: token.start, specifier: token.value });
+  let candidate = null;
+  let previous = null;
+
+  const addString = (current) => {
+    if (current?.type === 'string' && current.value.startsWith('.')) {
+      found.push({ index: current.start, specifier: current.value });
+    }
   };
-  for (let index = 0; index < tokens.length; index += 1) {
-    const token = tokens[index];
-    if (token.type !== 'identifier' || (token.value !== 'import' && token.value !== 'export')) continue;
-    const previous = tokens[index - 1];
-    if (token.value === 'import' && previous?.type === 'punctuator' && (previous.value === '.' || previous.value === '#')) continue;
-    const next = tokens[index + 1];
-    if (token.value === 'import' && next?.type === 'string') {
-      addString(next);
+
+  for (const current of tokens) {
+    if (current.type === 'boundary') {
+      candidate = null;
+      previous = current;
       continue;
     }
-    if (token.value === 'import' && next?.value === '(') {
-      if (tokens[index + 3]?.value === ')' || tokens[index + 3]?.value === ',') addString(tokens[index + 2]);
+
+    const isModuleKeyword = current.type === 'identifier'
+      && (current.value === 'import' || current.value === 'export')
+      && !(previous?.type === 'punctuator' && (previous.value === '.' || previous.value === '#'));
+    if (isModuleKeyword) {
+      candidate = {
+        kind: current.value,
+        stage: current.value === 'import' ? 'after-import' : 'after-export',
+        depth: current.depth,
+      };
+      previous = current;
       continue;
     }
-    for (let cursor = index + 1; cursor < tokens.length && tokens[cursor].value !== ';'; cursor += 1) {
-      if (tokens[cursor].type === 'identifier' && tokens[cursor].value === 'from') {
-        addString(tokens[cursor + 1]);
-        break;
+
+    if (candidate?.stage === 'after-import') {
+      if (current.type === 'string') { addString(current); candidate = null; }
+      else if (current.value === '(') candidate.stage = 'dynamic-first';
+      else if (current.value === '.') candidate = null;
+      else {
+        candidate.stage = 'static';
+        if (current.type === 'identifier' && current.value === 'from' && current.depth === candidate.depth) {
+          candidate.stage = 'from-specifier';
+        }
       }
+    } else if (candidate?.stage === 'after-export') {
+      if ((current.value === '*' || current.value === '{') && current.depth === candidate.depth) {
+        candidate.stage = 'static';
+      } else {
+        candidate = null;
+      }
+    } else if (candidate?.stage === 'dynamic-first') {
+      addString(current);
+      candidate = null;
+    } else if (candidate?.stage === 'static') {
+      if (current.value === ';' && current.depth === candidate.depth) candidate = null;
+      else if (current.type === 'identifier' && current.value === 'from' && current.depth === candidate.depth) {
+        candidate.stage = 'from-specifier';
+      }
+    } else if (candidate?.stage === 'from-specifier') {
+      addString(current);
+      candidate = null;
     }
+
+    previous = current;
   }
-  return found.sort((left, right) => left.index - right.index).map(({ specifier }) => specifier);
+
+  if (options.metrics && typeof options.metrics === 'object') {
+    options.metrics.characters = text.length;
+    options.metrics.work = lexicalWork + tokens.length;
+  }
+  return found.map(({ specifier }) => specifier);
 }
