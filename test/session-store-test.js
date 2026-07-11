@@ -6,6 +6,26 @@ import { tmpdir } from 'node:os';
 import { createSessionStore } from '../src/session-store.js';
 import { createProviderPreferenceStore } from '../src/provider-preferences.js';
 
+function assertCorruptSession(t, state, label) {
+  const root = mkdtempSync(join(tmpdir(), 'sandpaper-session-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const directory = join(root, '.sandpaper');
+  const file = join(directory, 'session.json');
+  mkdirSync(directory);
+  const original = JSON.stringify(state, null, 2) + '\n';
+  writeFileSync(file, original);
+  const store = createSessionStore(root);
+  assert.deepEqual(store.inspect(), { version: 2, pages: {}, corrupt: true }, label);
+  assert.equal(store.get({ page: '/', provider: 'claude' }), null, label);
+  assert.throws(
+    () => store.set({ page: '/', provider: 'claude', resumeId: 'replacement' }),
+    /Session state is corrupt/,
+    label,
+  );
+  assert.throws(() => store.clear({ page: '/', provider: 'claude' }), /Session state is corrupt/, label);
+  assert.equal(readFileSync(file, 'utf8'), original, label);
+}
+
 test('empty session state starts at version 2 without creating a file', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'sandpaper-session-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
@@ -56,6 +76,22 @@ test('session writes replace the file atomically and reject corrupt state', (t) 
     /Session state is corrupt/,
   );
   assert.throws(() => store.clear({ page: '/', provider: 'claude' }), /Session state is corrupt/);
+});
+
+test('version 2 session state rejects an array pages collection without mutating it', (t) => {
+  assertCorruptSession(t, { version: 2, pages: [] }, 'array pages');
+});
+
+test('version 2 session state rejects malformed page, provider, and resume records', (t) => {
+  const cases = [
+    ['invalid page key', { version: 2, pages: { 'brain/index.html': { claude: { resumeId: 'claude-1' } } } }],
+    ['array page record', { version: 2, pages: { '/': [] } }],
+    ['unknown provider key', { version: 2, pages: { '/': { other: { resumeId: 'other-1' } } } }],
+    ['array provider record', { version: 2, pages: { '/': { claude: [] } } }],
+    ['empty resume ID', { version: 2, pages: { '/': { claude: { resumeId: '' } } } }],
+    ['non-string resume ID', { version: 2, pages: { '/': { codex: { resumeId: 42 } } } }],
+  ];
+  for (const [label, state] of cases) assertCorruptSession(t, state, label);
 });
 
 test('session store strictly validates keys and resume IDs', (t) => {

@@ -4,6 +4,18 @@ import { join } from 'node:path';
 export const SESSION_VERSION = 2;
 const validProvider = (value) => value === 'claude' || value === 'codex';
 const validPage = (value) => typeof value === 'string' && value.startsWith('/');
+const validObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
+const validState = (value) => {
+  if (!validObject(value.pages)) return false;
+  for (const [page, providers] of Object.entries(value.pages)) {
+    if (!validPage(page) || !validObject(providers)) return false;
+    for (const [provider, session] of Object.entries(providers)) {
+      if (!validProvider(provider) || !validObject(session)) return false;
+      if (typeof session.resumeId !== 'string' || !session.resumeId) return false;
+    }
+  }
+  return true;
+};
 
 export function createSessionStore(root, { legacyPage = '/' } = {}) {
   const directory = join(root, '.sandpaper');
@@ -12,7 +24,10 @@ export function createSessionStore(root, { legacyPage = '/' } = {}) {
     if (!existsSync(file)) return { version: SESSION_VERSION, pages: {} };
     try {
       const value = JSON.parse(readFileSync(file, 'utf8'));
-      if (value.version === SESSION_VERSION && value.pages && typeof value.pages === 'object') return value;
+      if (value.version === SESSION_VERSION) {
+        if (validState(value)) return value;
+        return { version: SESSION_VERSION, pages: {}, corrupt: true };
+      }
       if (typeof value.sessionId === 'string' && value.sessionId) {
         return { version: SESSION_VERSION, pages: { [legacyPage]: { claude: { resumeId: value.sessionId } } }, migrated: true };
       }
