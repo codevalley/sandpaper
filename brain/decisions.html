@@ -44,6 +44,11 @@
   </section>
 
   <section class="band" style="border-top:0;padding-top:0">
+    <article class="entry entry--decision" data-lens="engineering project" data-kind="decision" id="d-first-class-providers" data-cid="d-first-class-providers" data-status="accepted" data-date="2026-07-11" data-ref="../docs/superpowers/specs/2026-07-11-v0.3.0-first-class-codex-design.md" data-tags="providers claude codex registry sessions toolbar install skill hooks shared truth v0.3.0 future plugins">
+      <div class="entry-head"><span class="entry-id">D-026</span><h3>Claude and Codex are first-party adapters over one Sandpaper truth</h3><span class="badge accepted">Accepted</span></div>
+      <p>Use an internal provider registry, install both integrations by default, and keep page/provider sessions and transcripts independent. The toolbar may switch providers explicitly but never transfers hidden context or falls back silently; repository files and the brain remain shared authority. Keep the registry internal in <code>v0.3.0</code> and document the requirements for a later public plugin API. <a class="ref" href="../docs/superpowers/specs/2026-07-11-v0.3.0-first-class-codex-design.md">approved design →</a></p>
+    </article>
+
     <article class="entry entry--decision" data-lens="project" data-kind="decision" id="d-v021-release-contract" data-cid="d-v021-release-contract" data-status="accepted" data-date="2026-07-10" data-ref="../docs/superpowers/specs/2026-07-10-v0.2.1-stabilization-design.md" data-tags="release v0.2.1 patch gates changelog provenance registry npx fresh-install immutable">
       <div class="entry-head"><span class="entry-id">D-025</span><h3><code>v0.2.1</code> requires package-level release evidence</h3><span class="badge accepted">Accepted</span></div>
       <p>Keep the sweep a patch release and gate it on shipped-JavaScript syntax, Node and browser suites, doctor, packed-package installation, one disposable Claude smoke, and a human-confirmed tag. Release is complete only after registry, provenance, fresh <code>npx</code>, and clean-install verification; corrections use a new immutable patch. <a class="ref" href="../docs/superpowers/specs/2026-07-10-v0.2.1-stabilization-design.md">release contract →</a></p>
