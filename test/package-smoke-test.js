@@ -22,6 +22,8 @@ import {
   APPROVED_FILE_RULES,
   MAX_PACKED_KB,
   MAX_UNPACKED_KB,
+  RUNTIME_DEPENDENCY_FIELDS,
+  assertNoRuntimeDependencyMetadata,
   containsSecretPattern,
   expectedPackedPaths,
   isForbiddenPackagePath,
@@ -31,6 +33,13 @@ import {
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const ACTIONS = ['canvas', 'decide', 'help', 'init', 'learn', 'log', 'open', 'plan', 'release', 'serve', 'stamp', 'sync', 'theme'];
+
+test('packed gate rejects every runtime dependency metadata field while allowing dev dependencies', () => {
+  assert.doesNotThrow(() => assertNoRuntimeDependencyMetadata({ devDependencies: { testOnly: '1.0.0' } }));
+  for (const field of RUNTIME_DEPENDENCY_FIELDS) {
+    assert.throws(() => assertNoRuntimeDependencyMetadata({ [field]: {} }), new RegExp(field));
+  }
+});
 
 function run(command, args, options = {}) {
   return execFileSync(command, args, {
@@ -249,7 +258,7 @@ test('packed artifact exactly matches the contract and survives dual-provider li
 
   const sourceManifest = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
   assert.deepEqual(sourceManifest.files, APPROVED_FILE_RULES);
-  assert.deepEqual(sourceManifest.dependencies || {}, {});
+  assertNoRuntimeDependencyMetadata(sourceManifest);
   assert.deepEqual(
     ['prepack', 'prepare', 'postpack', 'prepublishOnly'].filter((name) => Object.hasOwn(sourceManifest.scripts || {}, name)),
     [],
@@ -285,6 +294,7 @@ test('packed artifact exactly matches the contract and survives dual-provider li
 
   const main = installPackedRepository(repositories, 'main', tarball, env);
   const installedFiles = strictFilesUnder(main.installedRoot);
+  assertNoRuntimeDependencyMetadata(JSON.parse(readFileSync(join(main.installedRoot, 'package.json'), 'utf8')));
   const installedRelative = installedFiles.map((file) => normalizePackagePath(relative(main.installedRoot, file).split(sep).join('/'))).sort();
   assert.deepEqual(installedRelative, packedPaths);
   assert.notEqual(statSync(join(main.installedRoot, 'bin', 'cli.js')).mode & 0o111, 0, 'installed CLI must be executable');

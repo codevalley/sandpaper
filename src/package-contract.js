@@ -67,6 +67,27 @@ export const APPROVED_FILE_RULES = Object.freeze([
 export const MAX_PACKED_KB = 140;
 export const MAX_UNPACKED_KB = 450;
 
+// Development-only tooling is allowed in devDependencies. Every npm field that can
+// install, bundle, advertise, relax, or rewrite runtime dependencies is forbidden.
+export const RUNTIME_DEPENDENCY_FIELDS = Object.freeze([
+  'dependencies',
+  'optionalDependencies',
+  'peerDependencies',
+  'peerDependenciesMeta',
+  'bundledDependencies',
+  'bundleDependencies',
+  'overrides',
+]);
+
+export function assertNoRuntimeDependencyMetadata(manifest) {
+  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
+    throw new TypeError('Package manifest must be an object');
+  }
+  const present = RUNTIME_DEPENDENCY_FIELDS.filter((field) => Object.hasOwn(manifest, field));
+  if (present.length) throw new Error(`Runtime dependency metadata must remain absent: ${present.join(', ')}`);
+  return manifest;
+}
+
 // Hidden config/state is forbidden at any depth. The named non-hidden paths are
 // repository-only surfaces that must never become package content.
 export const FORBIDDEN_PATH = /(?:^|\/)(?:\.[^/]+|docs|node_modules|playwright-report|site|test|test-results)(?:\/|$)|^(?:agents\.md|claude\.md|engg-spec\.html|playwright\.config\.js|sandpaper\.html)$/i;
@@ -125,43 +146,158 @@ export function expectedPackedPaths() {
   return [...expected].sort();
 }
 
-export function relativeEsmImports(source) {
-  const text = String(source);
-  const code = new Uint8Array(text.length);
-  for (let index = 0; index < text.length;) {
-    const current = text[index];
-    const next = text[index + 1];
-    if (current === '/' && next === '/') {
-      index += 2;
-      while (index < text.length && text[index] !== '\n') index += 1;
+const MAX_ESM_SCAN_CHARACTERS = MAX_UNPACKED_KB * 1024;
+const isIdentifierStart = (character) => /[A-Za-z_$]/.test(character || '');
+const isIdentifierPart = (character) => /[A-Za-z0-9_$]/.test(character || '');
+
+function readStringToken(text, start) {
+  const quote = text[start];
+  let value = '';
+  let index = start + 1;
+  while (index < text.length) {
+    const character = text[index];
+    if (character === quote) return { token: { type: 'string', value, start }, next: index + 1 };
+    if (character !== '\\') {
+      value += character;
+      index += 1;
       continue;
     }
-    if (current === '/' && next === '*') {
+    const escaped = text[index + 1];
+    if (escaped === undefined) break;
+    if (escaped === '\n') { index += 2; continue; }
+    if (escaped === '\r') { index += text[index + 2] === '\n' ? 3 : 2; continue; }
+    const simple = { b: '\b', f: '\f', n: '\n', r: '\r', t: '\t', v: '\v', 0: '\0' };
+    if (Object.hasOwn(simple, escaped)) {
+      value += simple[escaped];
+      index += 2;
+      continue;
+    }
+    if (escaped === 'x' && /^[0-9A-Fa-f]{2}$/.test(text.slice(index + 2, index + 4))) {
+      value += String.fromCodePoint(Number.parseInt(text.slice(index + 2, index + 4), 16));
+      index += 4;
+      continue;
+    }
+    if (escaped === 'u') {
+      const braced = text.slice(index + 2).match(/^\{([0-9A-Fa-f]{1,6})\}/);
+      const fixed = text.slice(index + 2, index + 6);
+      if (braced && Number.parseInt(braced[1], 16) <= 0x10ffff) {
+        value += String.fromCodePoint(Number.parseInt(braced[1], 16));
+        index += 2 + braced[0].length;
+        continue;
+      }
+      if (/^[0-9A-Fa-f]{4}$/.test(fixed)) {
+        value += String.fromCodePoint(Number.parseInt(fixed, 16));
+        index += 6;
+        continue;
+      }
+    }
+    value += escaped;
+    index += 2;
+  }
+  return { token: null, next: text.length };
+}
+
+function skipRegularExpression(text, start) {
+  let index = start + 1;
+  let characterClass = false;
+  while (index < text.length) {
+    if (text[index] === '\\') { index += 2; continue; }
+    if (text[index] === '[') characterClass = true;
+    else if (text[index] === ']') characterClass = false;
+    else if (text[index] === '/' && !characterClass) {
+      index += 1;
+      while (/[A-Za-z]/.test(text[index] || '')) index += 1;
+      return index;
+    }
+    if (text[index] === '\n' || text[index] === '\r') return start + 1;
+    index += 1;
+  }
+  return start + 1;
+}
+
+function regularExpressionCanStart(tokens) {
+  if (!tokens.length) return true;
+  const previous = tokens[tokens.length - 1];
+  return previous.type === 'punctuator' && '([{=,:;!?&|+-*%^~<>'.includes(previous.value)
+    || previous.type === 'identifier' && ['await', 'case', 'delete', 'return', 'throw', 'typeof', 'void', 'yield'].includes(previous.value);
+}
+
+function tokenizeModuleSource(source) {
+  const text = String(source);
+  if (text.length > MAX_ESM_SCAN_CHARACTERS) throw new Error('ESM source exceeds the bounded import scan');
+  const tokens = [];
+  for (let index = 0; index < text.length;) {
+    const character = text[index];
+    const next = text[index + 1];
+    if (/\s/.test(character)) { index += 1; continue; }
+    if (character === '/' && next === '/') {
+      index += 2;
+      while (index < text.length && text[index] !== '\n' && text[index] !== '\r') index += 1;
+      continue;
+    }
+    if (character === '/' && next === '*') {
       index += 2;
       while (index < text.length && !(text[index] === '*' && text[index + 1] === '/')) index += 1;
       index += Math.min(2, text.length - index);
       continue;
     }
-    if (current === "'" || current === '"' || current === '`') {
-      const quote = current;
+    if (character === "'" || character === '"') {
+      const read = readStringToken(text, index);
+      if (read.token) tokens.push(read.token);
+      index = read.next;
+      continue;
+    }
+    if (character === '`') {
       index += 1;
       while (index < text.length) {
         if (text[index] === '\\') index += 2;
-        else if (text[index] === quote) { index += 1; break; }
+        else if (text[index] === '`') { index += 1; break; }
         else index += 1;
       }
       continue;
     }
-    code[index] = 1;
+    if (character === '/' && regularExpressionCanStart(tokens)) {
+      const after = skipRegularExpression(text, index);
+      if (after > index + 1) { index = after; continue; }
+    }
+    if (isIdentifierStart(character)) {
+      const start = index;
+      index += 1;
+      while (isIdentifierPart(text[index])) index += 1;
+      tokens.push({ type: 'identifier', value: text.slice(start, index), start });
+      continue;
+    }
+    tokens.push({ type: 'punctuator', value: character, start: index });
     index += 1;
   }
+  return tokens;
+}
 
+export function relativeEsmImports(source) {
+  const tokens = tokenizeModuleSource(source);
   const found = [];
-  const staticImport = /\b(?:import|export)(?:\s|\/\*[\s\S]*?\*\/)+(?:[^'";]*?\bfrom(?:\s|\/\*[\s\S]*?\*\/)+)?(['"])(\.[^'"]+)\1/g;
-  const dynamicImport = /\bimport(?:\s|\/\*[\s\S]*?\*\/)*\(\s*(['"])(\.[^'"]+)\1\s*\)/g;
-  for (const pattern of [staticImport, dynamicImport]) {
-    for (const match of text.matchAll(pattern)) {
-      if (code[match.index]) found.push({ index: match.index, specifier: match[2] });
+  const addString = (token) => {
+    if (token?.type === 'string' && token.value.startsWith('.')) found.push({ index: token.start, specifier: token.value });
+  };
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (token.type !== 'identifier' || (token.value !== 'import' && token.value !== 'export')) continue;
+    const previous = tokens[index - 1];
+    if (token.value === 'import' && previous?.type === 'punctuator' && (previous.value === '.' || previous.value === '#')) continue;
+    const next = tokens[index + 1];
+    if (token.value === 'import' && next?.type === 'string') {
+      addString(next);
+      continue;
+    }
+    if (token.value === 'import' && next?.value === '(') {
+      if (tokens[index + 3]?.value === ')' || tokens[index + 3]?.value === ',') addString(tokens[index + 2]);
+      continue;
+    }
+    for (let cursor = index + 1; cursor < tokens.length && tokens[cursor].value !== ';'; cursor += 1) {
+      if (tokens[cursor].type === 'identifier' && tokens[cursor].value === 'from') {
+        addString(tokens[cursor + 1]);
+        break;
+      }
     }
   }
   return found.sort((left, right) => left.index - right.index).map(({ specifier }) => specifier);

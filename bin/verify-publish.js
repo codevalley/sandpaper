@@ -24,6 +24,7 @@ import {
   APPROVED_FILE_RULES,
   MAX_PACKED_KB,
   MAX_UNPACKED_KB,
+  assertNoRuntimeDependencyMetadata,
   containsSecretPattern,
   expectedPackedPaths,
   isForbiddenPackagePath,
@@ -157,8 +158,8 @@ let failed = false;
 try {
   const env = minimalEnvironment(scratch);
   const manifest = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
-  if (Object.keys(manifest.dependencies || {}).length) fail('runtime dependencies must remain empty');
-  ok('zero runtime dependencies');
+  assertNoRuntimeDependencyMetadata(manifest);
+  ok('no runtime dependency metadata');
 
   const lifecycle = ['prepack', 'prepare', 'postpack', 'prepublishOnly']
     .filter((name) => Object.hasOwn(manifest.scripts || {}, name));
