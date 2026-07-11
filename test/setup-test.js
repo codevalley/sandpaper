@@ -7,13 +7,16 @@ import {
   lstatSync,
   mkdirSync,
   mkdtempSync,
+  openSync,
   readFileSync,
   readdirSync,
+  renameSync,
   rmSync,
   statSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -27,6 +30,12 @@ function write(target, relative, contents) {
   const file = join(target, relative);
   mkdirSync(join(file, '..'), { recursive: true });
   writeFileSync(file, contents);
+}
+
+function thrown(fn) {
+  let error;
+  assert.throws(fn, (value) => { error = value; return true; });
+  return error;
 }
 
 function page(body, meta = META) {
@@ -44,11 +53,12 @@ function repositorySnapshot(target) {
         entries.push({ path: `${relative}/`, type: 'directory', mode: stats.mode & 0o777 });
         walk(file, relative);
       } else {
+        const type = stats.isSymbolicLink() ? 'symlink' : stats.isFile() ? 'file' : 'special';
         entries.push({
           path: relative,
-          type: stats.isSymbolicLink() ? 'symlink' : 'file',
+          type,
           mode: stats.mode & 0o777,
-          bytes: stats.isSymbolicLink() ? null : readFileSync(file).toString('base64'),
+          bytes: type === 'file' ? readFileSync(file).toString('base64') : null,
         });
       }
     }
@@ -61,10 +71,10 @@ const ACTIONS = ['canvas', 'decide', 'help', 'init', 'learn', 'log', 'open', 'pl
 const BEGIN = '<!-- sandpaper:begin -->';
 const END = '<!-- sandpaper:end -->';
 
-function quietInstall(target, options) {
+function quietInstall(target, options, dependencies) {
   const log = console.log;
   console.log = () => {};
-  try { setup.installSkill(target, PACKAGE, options); } finally { console.log = log; }
+  try { setup.installSkill(target, PACKAGE, options, dependencies); } finally { console.log = log; }
 }
 
 function managedCount(file) {
@@ -299,6 +309,252 @@ test('invalid managed markers abort integration refresh before namespace mutatio
     /Invalid Sandpaper managed markers/,
   );
   assert.deepEqual(repositorySnapshot(target), before);
+});
+
+test('repositorySnapshot classifies special files before reading bytes', {
+  skip: process.platform === 'win32',
+}, (t) => {
+  assert.match(repositorySnapshot.toString(), /isFile\(\)/);
+  const root = mkdtempSync(join(tmpdir(), 'sandpaper-special-snapshot-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  execFileSync('mkfifo', [join(root, 'pipe')]);
+  assert.deepEqual(repositorySnapshot(root), [{
+    path: 'pipe',
+    type: 'special',
+    mode: lstatSync(join(root, 'pipe')).mode & 0o777,
+    bytes: null,
+  }]);
+});
+
+function taskThreeSnapshot(target) {
+  if (!existsSync(target)) return [];
+  return repositorySnapshot(target).filter((entry) => (
+    entry.path === '.sandpaper/manifest.json'
+    || entry.path === 'CLAUDE.md'
+    || entry.path === 'AGENTS.md'
+    || entry.path.startsWith('.claude/commands/sandpaper')
+    || entry.path.startsWith('.agents/skills/sandpaper')
+  ));
+}
+
+test('multi-surface integration commit failure rolls back every selected namespace and block', (t) => {
+  const target = mkdtempSync(join(tmpdir(), 'sandpaper-multi-rollback-'));
+  t.after(() => rmSync(target, { recursive: true, force: true }));
+  write(target, 'CLAUDE.md', 'claude user\n');
+  write(target, 'AGENTS.md', 'codex user\n');
+  const before = taskThreeSnapshot(target);
+  let renames = 0;
+
+  assert.throws(() => installIntegrations(
+    target,
+    PACKAGE,
+    { integrations: ['claude', 'codex'] },
+    {
+      fs: {
+        renameSync(from, to) {
+          renames += 1;
+          if (renames === 4) throw Object.assign(new Error('injected surface commit failure'), { code: 'EIO' });
+          return renameSync(from, to);
+        },
+      },
+    },
+  ), /Could not commit Sandpaper integration transaction/);
+
+  assert.deepEqual(taskThreeSnapshot(target), before);
+  assert.deepEqual(readdirSync(target).filter((name) => name.startsWith('.sandpaper-integrations-')), []);
+});
+
+test('multi-surface rollback preserves concurrent user data and its recovery backup', (t) => {
+  const target = mkdtempSync(join(tmpdir(), 'sandpaper-multi-recovery-'));
+  t.after(() => rmSync(target, { recursive: true, force: true }));
+  write(target, '.claude/commands/sandpaper/old.md', 'old namespace\n');
+  write(target, 'CLAUDE.md', 'user claude\n');
+  const namespace = join(target, '.claude', 'commands', 'sandpaper');
+  const displaced = join(target, 'displaced-installed');
+
+  const error = thrown(() => installIntegrations(
+    target,
+    PACKAGE,
+    { integrations: ['claude', 'codex'] },
+    {
+      hooks: {
+        afterInstall(operation) {
+          if (operation.label !== 'claude-namespace') return;
+          renameSync(namespace, displaced);
+          mkdirSync(namespace);
+          writeFileSync(join(namespace, 'concurrent.md'), 'concurrent user data\n');
+          throw new Error('injected later failure');
+        },
+      },
+    },
+  ));
+
+  assert.equal(error.code, 'SANDPAPER_RECOVERY_REQUIRED');
+  assert.equal(readFileSync(join(namespace, 'concurrent.md'), 'utf8'), 'concurrent user data\n');
+  assert.equal(readFileSync(join(displaced, 'help.md'), 'utf8'), readFileSync(join(PACKAGE, 'skill/sandpaper/commands/help.md'), 'utf8'));
+  assert.equal(readFileSync(join(error.recoveryPath, 'previous-0', 'old.md'), 'utf8'), 'old namespace\n');
+});
+
+test('multi-surface stage, backup, and install faults leave every surface unchanged', (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'sandpaper-multi-phases-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+
+  const runCase = (name, dependencies, pattern) => {
+    const target = join(root, name);
+    mkdirSync(target);
+    write(target, '.claude/commands/sandpaper/old.md', 'old claude\n');
+    write(target, 'CLAUDE.md', 'claude user\n');
+    write(target, 'AGENTS.md', 'codex user\n');
+    const before = taskThreeSnapshot(target);
+    assert.throws(
+      () => installIntegrations(target, PACKAGE, { integrations: ['claude', 'codex'] }, dependencies),
+      pattern,
+    );
+    assert.deepEqual(taskThreeSnapshot(target), before, name);
+    assert.deepEqual(readdirSync(target).filter((entry) => entry.startsWith('.sandpaper-integrations-')), []);
+  };
+
+  runCase('stage', {
+    fs: { writeFileSync() { throw Object.assign(new Error('stage fault'), { code: 'EIO' }); } },
+  }, /Could not prepare Sandpaper integration transaction/);
+
+  let backupRenames = 0;
+  runCase('backup', {
+    fs: {
+      renameSync(from, to) {
+        backupRenames += 1;
+        if (backupRenames === 1) throw Object.assign(new Error('backup fault'), { code: 'EIO' });
+        return renameSync(from, to);
+      },
+    },
+  }, /Could not commit Sandpaper integration transaction/);
+
+  let installRenames = 0;
+  runCase('install', {
+    fs: {
+      renameSync(from, to) {
+        installRenames += 1;
+        if (installRenames === 2) throw Object.assign(new Error('install fault'), { code: 'EIO' });
+        return renameSync(from, to);
+      },
+    },
+  }, /Could not commit Sandpaper integration transaction/);
+});
+
+test('multi-surface restore failure retains the only namespace backup for recovery', (t) => {
+  const target = mkdtempSync(join(tmpdir(), 'sandpaper-multi-restore-'));
+  t.after(() => rmSync(target, { recursive: true, force: true }));
+  write(target, '.claude/commands/sandpaper/old.md', 'only namespace backup\n');
+  let renames = 0;
+
+  const error = thrown(() => installIntegrations(
+    target,
+    PACKAGE,
+    { integrations: ['claude', 'codex'] },
+    {
+      fs: {
+        renameSync(from, to) {
+          renames += 1;
+          if (renames === 2 || renames === 3) throw Object.assign(new Error('restore fault'), { code: 'EIO' });
+          return renameSync(from, to);
+        },
+      },
+    },
+  ));
+
+  assert.equal(error.code, 'SANDPAPER_RECOVERY_REQUIRED');
+  assert.equal(error.message, 'Sandpaper transaction recovery required');
+  assert.equal(readFileSync(join(error.recoveryPath, 'previous-0', 'old.md'), 'utf8'), 'only namespace backup\n');
+  assert.equal(existsSync(join(target, '.claude/commands/sandpaper')), false);
+});
+
+test('fresh install keeps manifest and integration intent absent when later setup work fails', (t) => {
+  const target = mkdtempSync(join(tmpdir(), 'sandpaper-fresh-atomic-'));
+  t.after(() => rmSync(target, { recursive: true, force: true }));
+  write(target, 'package.json', JSON.stringify({ name: '@fixture/fresh-atomic' }));
+  const before = taskThreeSnapshot(target);
+
+  assert.throws(() => quietInstall(target, {
+    integrations: ['codex'],
+    defaultProvider: 'codex',
+    hooksEnabled: false,
+  }, {
+    beforeIntegrationCommit() { throw new Error('injected hook or asset failure'); },
+  }), /injected hook or asset failure/);
+
+  assert.deepEqual(taskThreeSnapshot(target), before);
+});
+
+test('existing install keeps prior manifest and surfaces when later setup work fails', (t) => {
+  const target = mkdtempSync(join(tmpdir(), 'sandpaper-existing-atomic-'));
+  t.after(() => rmSync(target, { recursive: true, force: true }));
+  write(target, 'package.json', JSON.stringify({ name: '@fixture/existing-atomic' }));
+  quietInstall(target, { integrations: ['claude'], defaultProvider: 'claude', hooksEnabled: false });
+  const before = taskThreeSnapshot(target);
+
+  assert.throws(() => quietInstall(target, {
+    integrations: ['codex'],
+    defaultProvider: 'codex',
+    hooksEnabled: false,
+  }, {
+    beforeIntegrationCommit() { throw new Error('injected hook or asset failure'); },
+  }), /injected hook or asset failure/);
+
+  assert.deepEqual(taskThreeSnapshot(target), before);
+});
+
+test('manifest staging failure leaves fresh and existing Task 3 state unchanged', (t) => {
+  for (const existing of [false, true]) {
+    const target = mkdtempSync(join(tmpdir(), `sandpaper-manifest-stage-${existing}-`));
+    t.after(() => rmSync(target, { recursive: true, force: true }));
+    write(target, 'package.json', JSON.stringify({ name: `@fixture/manifest-${existing}` }));
+    if (existing) quietInstall(target, { integrations: ['claude'], defaultProvider: 'claude', hooksEnabled: false });
+    const before = taskThreeSnapshot(target);
+
+    assert.throws(() => quietInstall(target, {
+      integrations: ['codex'],
+      defaultProvider: 'codex',
+      hooksEnabled: false,
+    }, {
+      integrationFs: {
+        openSync(path, ...args) {
+          if (typeof path === 'string' && path.includes('next-manifest')) {
+            throw Object.assign(new Error('injected manifest stage failure'), { code: 'EIO' });
+          }
+          return openSync(path, ...args);
+        },
+      },
+    }), /Could not prepare Sandpaper integration transaction/);
+
+    assert.deepEqual(taskThreeSnapshot(target), before, `existing=${existing}`);
+  }
+});
+
+test('integration commit failure leaves fresh and existing manifest selection consistent with surfaces', (t) => {
+  for (const existing of [false, true]) {
+    const target = mkdtempSync(join(tmpdir(), `sandpaper-install-commit-${existing}-`));
+    t.after(() => rmSync(target, { recursive: true, force: true }));
+    write(target, 'package.json', JSON.stringify({ name: `@fixture/commit-${existing}` }));
+    if (existing) quietInstall(target, { integrations: ['claude'], defaultProvider: 'claude', hooksEnabled: false });
+    const before = taskThreeSnapshot(target);
+    let renames = 0;
+
+    assert.throws(() => quietInstall(target, {
+      integrations: ['codex'],
+      defaultProvider: 'codex',
+      hooksEnabled: false,
+    }, {
+      integrationFs: {
+        renameSync(from, to) {
+          renames += 1;
+          if (renames === 2) throw Object.assign(new Error('injected integration commit failure'), { code: 'EIO' });
+          return renameSync(from, to);
+        },
+      },
+    }), /Could not commit Sandpaper integration transaction/);
+
+    assert.deepEqual(taskThreeSnapshot(target), before, `existing=${existing}`);
+  }
 });
 
 function populatedBrain(t) {

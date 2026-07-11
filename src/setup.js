@@ -4,9 +4,9 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, copyFileSync, statSync, renameSync } from 'node:fs';
 import { join, dirname, basename, extname, relative, resolve, sep } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { installIntegrations } from './integrations.js';
+import { prepareInstallIntegrations } from './integrations.js';
 import { PATH_REASONS, resolveRepositoryPath } from './path-policy.js';
-import { migrateManifest, PROVIDERS, readManifest, writeManifest } from './manifest.js';
+import { migrateManifest, PROVIDERS, readManifest, serializeManifest, writeManifest } from './manifest.js';
 
 const ok = (m) => console.log('  ✓ ' + m);
 const warn = (m) => console.log('  · ' + m);
@@ -179,26 +179,48 @@ export function ensureSourceMeta(brain, source) {
   return touched;
 }
 
+function freshManifest(target, pkg, setupOptions) {
+  return migrateManifest({
+    version: 2,
+    project: projectName(target),
+    created: today(),
+    theme: 'brain/assets/theme.css',
+    pkg,
+    port: 4848,
+    lenses: ['product', 'engineering', 'project'],
+    books: ['log', 'decisions', 'learnings'],
+    cidPrefixes: { worklog: 'w', task: 't', decision: 'd', learning: 'l', initiative: 'i' },
+    counters: { w: 1, t: 0, d: 0, l: 0, i: 0 },
+    ...setupOptions,
+  });
+}
+
+function planInstallationManifest(target, pkg, setupOptions) {
+  const file = join(target, '.sandpaper', 'manifest.json');
+  const hadMan = existsSync(file);
+  const existing = hadMan ? readManifest(file) : null;
+  const value = existing
+    ? migrateManifest({ ...existing, ...setupOptions })
+    : freshManifest(target, pkg, setupOptions);
+  return { file, hadMan, existing, value, bytes: Buffer.from(serializeManifest(value)), mode: 0o600 };
+}
+
 // Do the brain scaffold work (assets · manifest · multi-page skeleton) and print its BRAIN rows.
-function scaffoldBrain(target, pkg, options, { updateExistingManifest = false, updateInstallationManifest = false } = {}) {
+function scaffoldBrain(target, pkg, options, {
+  updateExistingManifest = false,
+  manifestPlan = null,
+  skipManifestWrite = false,
+} = {}) {
   const brain = join(target, 'brain'), project = projectName(target), date = today();
   const setupOptions = normalizeSetupOptions(options);
-  const manPath = join(target, '.sandpaper', 'manifest.json'), hadMan = existsSync(manPath);
-  const existingManifest = hadMan ? readManifest(manPath) : null;
+  const manPath = join(target, '.sandpaper', 'manifest.json');
+  const hadMan = manifestPlan ? manifestPlan.hadMan : existsSync(manPath);
+  const existingManifest = manifestPlan ? manifestPlan.existing : hadMan ? readManifest(manPath) : null;
   let manifestToWrite = null;
-  if (!existingManifest) {
-    manifestToWrite = migrateManifest({
-      version: 2, project, created: date, theme: 'brain/assets/theme.css', pkg, port: 4848,
-      lenses: ['product', 'engineering', 'project'], books: ['log', 'decisions', 'learnings'],
-      cidPrefixes: { worklog: 'w', task: 't', decision: 'd', learning: 'l', initiative: 'i' },
-      counters: { w: 1, t: 0, d: 0, l: 0, i: 0 },
-      ...setupOptions,
-    });
-  } else if (updateInstallationManifest) {
-    manifestToWrite = migrateManifest({
-      ...existingManifest,
-      ...setupOptions,
-    });
+  if (manifestPlan) {
+    manifestToWrite = manifestPlan.value;
+  } else if (!existingManifest) {
+    manifestToWrite = freshManifest(target, pkg, setupOptions);
   } else if (updateExistingManifest && options !== undefined) {
     manifestToWrite = migrateManifest({
       ...existingManifest,
@@ -209,7 +231,7 @@ function scaffoldBrain(target, pkg, options, { updateExistingManifest = false, u
   const nA = copyDirFiles(join(pkg, 'brain', 'assets'), join(brain, 'assets'), true); // never clobber a skin
   row('design system', 'brain/assets/', nA ? 'theme · engine · search' : 'kept your skin');
   ensureDir(join(target, '.sandpaper'));
-  if (manifestToWrite) writeManifest(manPath, manifestToWrite);
+  if (manifestToWrite && !skipManifestWrite) writeManifest(manPath, manifestToWrite);
   const source = repoSource(target);
   const nSkel = writeSkeleton(brain, project, date, source);
   row('multi-page shell', nSkel ? 'cover · 3 lenses · 3 books' : 'already present', nSkel ? 'nav wired · ready to fill' : '');
@@ -251,35 +273,45 @@ function wireHooks(target) {
   catch (e) { return { ok: false, reason: 'could not write .claude/settings.json (' + e.message + ')' }; }
 }
 
-export function installSkill(target, pkg, opts = {}) {
+export function installSkill(target, pkg, opts = {}, dependencies = {}) {
   const options = normalizeSetupOptions(opts);
-  const manifestPath = join(target, '.sandpaper', 'manifest.json');
-  if (existsSync(manifestPath)) readManifest(manifestPath);
-  banner();
-  console.log(`  ${clay('▸')} installing into  ${bold(projectName(target))}\n`);
-  section('SKILL');
-  const installed = installIntegrations(target, pkg, options);
-  if (installed.claude) row('13 slash commands', '.claude/commands/sandpaper/', '/sandpaper:<name>');
-  else row('Claude integration', '.claude/commands/sandpaper/', 'not selected');
-  if (installed.codex) row('Codex skill', '.agents/skills/sandpaper/', '$sandpaper <action>');
-  else row('Codex integration', '.agents/skills/sandpaper/', 'not selected');
-  const hookDir = join(target, '.sandpaper', 'hooks');
-  ensureDir(hookDir);
-  for (const h of ['brain-inject.js', 'brain-stamp-check.js']) copyFileSync(join(pkg, 'bin', h), join(hookDir, h));
-  if (!options.hooksEnabled) {
-    row('2 auto-hooks', '.sandpaper/hooks/', 'not wired (--no-hooks)');
-    console.log('\n' + hooksSnippet());
-  } else {
-    const r = wireHooks(target);
-    row('2 auto-hooks', '.sandpaper/hooks/', r.ok ? (r.added ? 'wired · keeps the brain current' : 'already wired') : 'needs wiring by hand');
-    if (!r.ok) { console.log('   ' + dim(r.reason)); console.log('\n' + hooksSnippet()); }
+  const manifestPlan = planInstallationManifest(target, pkg, options);
+  const installation = prepareInstallIntegrations(target, pkg, options, {
+    fs: dependencies.integrationFs,
+    hooks: dependencies.integrationHooks,
+    manifest: manifestPlan,
+  });
+  try {
+    banner();
+    console.log(`  ${clay('▸')} installing into  ${bold(projectName(target))}\n`);
+    section('SKILL');
+    if (installation.claude) row('13 slash commands', '.claude/commands/sandpaper/', '/sandpaper:<name>');
+    else row('Claude integration', '.claude/commands/sandpaper/', 'not selected');
+    if (installation.codex) row('Codex skill', '.agents/skills/sandpaper/', '$sandpaper <action>');
+    else row('Codex integration', '.agents/skills/sandpaper/', 'not selected');
+    const hookDir = join(target, '.sandpaper', 'hooks');
+    ensureDir(hookDir);
+    for (const h of ['brain-inject.js', 'brain-stamp-check.js']) copyFileSync(join(pkg, 'bin', h), join(hookDir, h));
+    if (!options.hooksEnabled) {
+      row('2 auto-hooks', '.sandpaper/hooks/', 'not wired (--no-hooks)');
+      console.log('\n' + hooksSnippet());
+    } else {
+      const r = wireHooks(target);
+      row('2 auto-hooks', '.sandpaper/hooks/', r.ok ? (r.added ? 'wired · keeps the brain current' : 'already wired') : 'needs wiring by hand');
+      if (!r.ok) { console.log('   ' + dim(r.reason)); console.log('\n' + hooksSnippet()); }
+    }
+    console.log('');
+    // Scaffold first; integration surfaces and manifest selection commit together only after this succeeds.
+    section('BRAIN');
+    scaffoldBrain(target, pkg, options, { manifestPlan, skipManifestWrite: true });
+    dependencies.beforeIntegrationCommit?.();
+    installation.commit();
+    nextStep(options.integrations);
+  } catch (error) {
+    try { installation.abort(); }
+    catch (recoveryError) { throw recoveryError; }
+    throw error;
   }
-  console.log('');
-  // Scaffold the brain from THIS package now, so /sandpaper:init has the design-system assets
-  // + the multi-page skeleton LOCALLY and never has to hunt the filesystem for a reference brain.
-  section('BRAIN');
-  scaffoldBrain(target, pkg, options, { updateInstallationManifest: true });
-  nextStep(options.integrations);
 }
 
 // ---- init: scaffold brain/ (assets + manifest + the multi-page skeleton) — the mechanical part ----

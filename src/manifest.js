@@ -85,6 +85,11 @@ export function readManifest(file) {
   return migrateManifest(value);
 }
 
+export function serializeManifest(value) {
+  const normalized = migrateManifest(value);
+  return `${JSON.stringify(normalized, null, 2)}\n`;
+}
+
 function createTemporaryManifest(file, randomBytes) {
   const directory = dirname(file);
   for (let attempt = 0; attempt < MAX_TEMPORARY_ATTEMPTS; attempt += 1) {
@@ -115,7 +120,7 @@ export function writeManifest(file, value, { randomBytes = secureRandomBytes } =
   let descriptor = created.descriptor;
   let temporary = created.temporary;
   try {
-    writeFileSync(descriptor, `${JSON.stringify(normalized, null, 2)}\n`);
+    writeFileSync(descriptor, serializeManifest(normalized));
     fchmodSync(descriptor, 0o600);
     closeSync(descriptor);
     descriptor = null;
