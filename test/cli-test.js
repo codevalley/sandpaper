@@ -171,23 +171,46 @@ test('legacy preference fallback selects Claude when no explicit provider is sup
   assert.equal(fixture.calls.starts[0][2].initialProvider, 'claude');
 });
 
-test('plumbing subcommands preserve aliases and reject provider or unrelated options', async () => {
+test('setup subcommands forward normalized provider options and preserve lifecycle aliases', async () => {
   const calls = [];
   const deps = {
     cwd: () => '/repo',
     installSkill: (...args) => calls.push(['install', args]),
+    scaffold: (...args) => calls.push(['scaffold', args]),
     upgrade: (...args) => calls.push(['upgrade', args]),
     rebuild: (...args) => calls.push(['rebuild', args]),
     doctor: (...args) => calls.push(['doctor', args]),
     log() {},
   };
-  await runCli(['install-skill', '--no-hooks'], deps);
+  await runCli([
+    'install-skill',
+    '--integration', 'codex',
+    '--provider', 'codex',
+    '--no-hooks',
+  ], deps);
+  await runCli(['init', '--provider', 'codex'], deps);
   await runCli(['update'], deps);
   await runCli(['reset'], deps);
   assert.equal(calls[0][0], 'install');
-  assert.deepEqual(calls[0][1][2], { noHooks: true });
-  assert.deepEqual(calls.slice(1).map(([name]) => name), ['upgrade', 'rebuild']);
+  assert.deepEqual(calls[0][1][2], {
+    integrations: ['codex'], defaultProvider: 'codex', hooksEnabled: false,
+  });
+  assert.equal(calls[1][0], 'scaffold');
+  assert.deepEqual(calls[1][1][2], {
+    integrations: ['claude', 'codex'], defaultProvider: 'codex', hooksEnabled: true,
+  });
+  assert.deepEqual(calls.slice(2).map(([name]) => name), ['upgrade', 'rebuild']);
   await assert.rejects(runCli(['doctor', '--provider', 'codex'], deps), /does not accept options/);
-  await assert.rejects(runCli(['init', '--provider', 'codex'], deps), /does not accept options/);
-  await assert.rejects(runCli(['install-skill', '--provider', 'codex'], deps), /Unknown install-skill option/);
+  await assert.rejects(runCli(['init', '--integration', 'codex'], deps), /Unknown init option/);
+  await assert.rejects(runCli(['init', '--no-hooks'], deps), /Unknown init option/);
+  await assert.rejects(runCli(['init', '--unknown'], deps), /Unknown init option/);
+});
+
+test('help exposes the provider-aware setup grammar without changing serve overrides', async () => {
+  const output = [];
+  await runCli(['help'], { cwd: () => '/repo', log: (value) => output.push(value) });
+  const help = output.join('\n');
+  assert.match(help, /install-skill \[--integration claude\|codex\] \[--provider claude\|codex\] \[--no-hooks\]/);
+  assert.match(help, /init \[--provider claude\|codex\]/);
+  assert.match(help, /open \[--provider claude\|codex\]/);
 });

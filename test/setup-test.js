@@ -133,6 +133,22 @@ test('inspectBrain accepts a fresh scaffold as a healthy empty editorial state',
   console.log = () => {};
   try { setup.scaffold(target, PACKAGE); } finally { console.log = log; }
 
+  assert.deepEqual(JSON.parse(readFileSync(join(target, '.sandpaper', 'manifest.json'), 'utf8')), {
+    version: 2,
+    project: '@fixture/fresh',
+    created: new Date().toISOString().slice(0, 10),
+    theme: 'brain/assets/theme.css',
+    pkg: PACKAGE,
+    port: 4848,
+    lenses: ['product', 'engineering', 'project'],
+    books: ['log', 'decisions', 'learnings'],
+    cidPrefixes: { worklog: 'w', task: 't', decision: 'd', learning: 'l', initiative: 'i' },
+    counters: { w: 1, t: 0, d: 0, l: 0, i: 0 },
+    defaultProvider: 'claude',
+    integrations: ['claude', 'codex'],
+    hooksEnabled: true,
+  });
+
   const result = inspect(target);
   assert.deepEqual(result.problems, []);
   assert.deepEqual(result.facts, {
@@ -143,6 +159,76 @@ test('inspectBrain accepts a fresh scaffold as a healthy empty editorial state',
     learnings: 0,
     components: { built: 0, total: 0 },
   });
+});
+
+test('scaffold forwards an explicit provider into a fresh v2 manifest', (t) => {
+  const target = mkdtempSync(join(tmpdir(), 'sandpaper-scaffold-provider-'));
+  t.after(() => rmSync(target, { recursive: true, force: true }));
+  write(target, 'package.json', JSON.stringify({ name: '@fixture/provider' }));
+  const log = console.log;
+  console.log = () => {};
+  try {
+    setup.scaffold(target, PACKAGE, {
+      integrations: ['claude', 'codex'],
+      defaultProvider: 'codex',
+      hooksEnabled: true,
+    });
+  } finally {
+    console.log = log;
+  }
+
+  const manifest = JSON.parse(readFileSync(join(target, '.sandpaper', 'manifest.json'), 'utf8'));
+  assert.equal(manifest.version, 2);
+  assert.equal(manifest.defaultProvider, 'codex');
+  assert.deepEqual(manifest.integrations, ['claude', 'codex']);
+  assert.equal(manifest.hooksEnabled, true);
+  assert.deepEqual(manifest.counters, { w: 1, t: 0, d: 0, l: 0, i: 0 });
+});
+
+test('explicit init provider updates an existing scaffold manifest without losing identity', (t) => {
+  const target = mkdtempSync(join(tmpdir(), 'sandpaper-scaffold-existing-provider-'));
+  t.after(() => rmSync(target, { recursive: true, force: true }));
+  write(target, 'package.json', JSON.stringify({ name: '@fixture/existing-provider' }));
+  const log = console.log;
+  console.log = () => {};
+  try {
+    setup.scaffold(target, PACKAGE);
+    const file = join(target, '.sandpaper', 'manifest.json');
+    const before = JSON.parse(readFileSync(file, 'utf8'));
+    before.brainIdentity = { id: 'brain-existing' };
+    before.counters.w = 41;
+    before.integrations = ['codex'];
+    before.defaultProvider = 'codex';
+    before.hooksEnabled = false;
+    writeFileSync(file, `${JSON.stringify(before, null, 2)}\n`);
+
+    setup.scaffold(target, PACKAGE, {
+      integrations: ['claude', 'codex'],
+      defaultProvider: 'codex',
+      hooksEnabled: true,
+    });
+
+    const after = JSON.parse(readFileSync(file, 'utf8'));
+    assert.equal(after.defaultProvider, 'codex');
+    assert.deepEqual(after.integrations, ['codex']);
+    assert.equal(after.hooksEnabled, false);
+    assert.deepEqual(after.brainIdentity, { id: 'brain-existing' });
+    assert.equal(after.counters.w, 41);
+    assert.equal(after.project, '@fixture/existing-provider');
+
+    const stableBytes = readFileSync(file, 'utf8');
+    assert.throws(
+      () => setup.scaffold(target, PACKAGE, {
+        integrations: ['claude', 'codex'],
+        defaultProvider: 'claude',
+        hooksEnabled: true,
+      }),
+      /not installed/,
+    );
+    assert.equal(readFileSync(file, 'utf8'), stableBytes);
+  } finally {
+    console.log = log;
+  }
 });
 
 test('inspectBrain reports stale stamped fallback counts and progress', (t) => {

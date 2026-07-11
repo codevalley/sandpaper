@@ -5,6 +5,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, copyFi
 import { join, dirname, basename, extname, relative, resolve, sep } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { PATH_REASONS, resolveRepositoryPath } from './path-policy.js';
+import { migrateManifest, PROVIDERS, readManifest, writeManifest } from './manifest.js';
 
 const ok = (m) => console.log('  ✓ ' + m);
 const warn = (m) => console.log('  · ' + m);
@@ -28,6 +29,65 @@ const projectName = (target) => {
   catch { return basename(target); }
 };
 const today = () => new Date().toISOString().slice(0, 10);
+
+export function parseSetupOptions(argv) {
+  const integrations = [];
+  let defaultProvider = 'claude';
+  let providerSeen = false;
+  let hooksEnabled = true;
+  let noHooksSeen = false;
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const option = argv[index];
+    if (option === '--integration') {
+      const provider = argv[index + 1];
+      if (provider === undefined || provider.startsWith('-')) {
+        throw new Error('--integration requires a value');
+      }
+      if (!PROVIDERS.includes(provider)) throw new Error(`Unknown integration: ${provider}`);
+      integrations.push(provider);
+      index += 1;
+      continue;
+    }
+    if (option === '--provider') {
+      if (providerSeen) throw new Error('--provider may only be specified once');
+      providerSeen = true;
+      const provider = argv[index + 1];
+      if (provider === undefined || provider.startsWith('-')) {
+        throw new Error('--provider requires a value');
+      }
+      if (!PROVIDERS.includes(provider)) throw new Error(`Unknown provider: ${provider}`);
+      defaultProvider = provider;
+      index += 1;
+      continue;
+    }
+    if (option === '--no-hooks') {
+      if (noHooksSeen) throw new Error('--no-hooks may only be specified once');
+      noHooksSeen = true;
+      hooksEnabled = false;
+      continue;
+    }
+    if (option.startsWith('-')) throw new Error(`Unknown setup option: ${option}`);
+    throw new Error(`Unexpected setup argument: ${option}`);
+  }
+
+  const normalizedIntegrations = integrations.length
+    ? PROVIDERS.filter((provider) => integrations.includes(provider))
+    : [...PROVIDERS];
+  if (!normalizedIntegrations.includes(defaultProvider)) {
+    throw new Error(`Default provider ${defaultProvider} is not installed`);
+  }
+  return { integrations: normalizedIntegrations, defaultProvider, hooksEnabled };
+}
+
+function normalizeSetupOptions(options = {}) {
+  const manifest = migrateManifest({ version: 2, ...parseSetupOptions([]), ...options });
+  return {
+    integrations: manifest.integrations,
+    defaultProvider: manifest.defaultProvider,
+    hooksEnabled: manifest.hooksEnabled,
+  };
+}
 
 // ---- branded terminal output (degrades to plain on a non-TTY or with NO_COLOR) ----
 const useColor = (process.stdout.isTTY || process.env.FORCE_COLOR) && !process.env.NO_COLOR;
@@ -114,18 +174,26 @@ export function ensureSourceMeta(brain, source) {
 }
 
 // Do the brain scaffold work (assets · manifest · multi-page skeleton) and print its BRAIN rows.
-function scaffoldBrain(target, pkg) {
+function scaffoldBrain(target, pkg, options, { updateExistingManifest = false } = {}) {
   const brain = join(target, 'brain'), project = projectName(target), date = today();
+  const setupOptions = normalizeSetupOptions(options);
   const nA = copyDirFiles(join(pkg, 'brain', 'assets'), join(brain, 'assets'), true); // never clobber a skin
   row('design system', 'brain/assets/', nA ? 'theme · engine · search' : 'kept your skin');
   ensureDir(join(target, '.sandpaper'));
   const manPath = join(target, '.sandpaper', 'manifest.json'), hadMan = existsSync(manPath);
-  if (!hadMan) writeFileSync(manPath, JSON.stringify({
-    version: 1, project, created: date, theme: 'brain/assets/theme.css', pkg, port: 4848,
+  if (!hadMan) writeManifest(manPath, {
+    version: 2, project, created: date, theme: 'brain/assets/theme.css', pkg, port: 4848,
     lenses: ['product', 'engineering', 'project'], books: ['log', 'decisions', 'learnings'],
     cidPrefixes: { worklog: 'w', task: 't', decision: 'd', learning: 'l', initiative: 'i' },
     counters: { w: 1, t: 0, d: 0, l: 0, i: 0 },
-  }, null, 2) + '\n');
+    ...setupOptions,
+  });
+  else if (updateExistingManifest && options !== undefined) {
+    writeManifest(manPath, {
+      ...readManifest(manPath),
+      defaultProvider: setupOptions.defaultProvider,
+    });
+  }
   const source = repoSource(target);
   const nSkel = writeSkeleton(brain, project, date, source);
   row('multi-page shell', nSkel ? 'cover · 3 lenses · 3 books' : 'already present', nSkel ? 'nav wired · ready to fill' : '');
@@ -168,6 +236,7 @@ function wireHooks(target) {
 }
 
 export function installSkill(target, pkg, opts = {}) {
+  const options = normalizeSetupOptions(opts);
   banner();
   console.log(`  ${clay('▸')} installing into  ${bold(projectName(target))}\n`);
   section('SKILL');
@@ -176,7 +245,7 @@ export function installSkill(target, pkg, opts = {}) {
   const hookDir = join(target, '.sandpaper', 'hooks');
   ensureDir(hookDir);
   for (const h of ['brain-inject.js', 'brain-stamp-check.js']) copyFileSync(join(pkg, 'bin', h), join(hookDir, h));
-  if (opts.noHooks) {
+  if (!options.hooksEnabled) {
     row('2 auto-hooks', '.sandpaper/hooks/', 'not wired (--no-hooks)');
     console.log('\n' + hooksSnippet());
   } else {
@@ -188,16 +257,16 @@ export function installSkill(target, pkg, opts = {}) {
   // Scaffold the brain from THIS package now, so /sandpaper:init has the design-system assets
   // + the multi-page skeleton LOCALLY and never has to hunt the filesystem for a reference brain.
   section('BRAIN');
-  scaffoldBrain(target, pkg);
+  scaffoldBrain(target, pkg, options);
   nextStep();
 }
 
 // ---- init: scaffold brain/ (assets + manifest + the multi-page skeleton) — the mechanical part ----
-export function scaffold(target, pkg) {
+export function scaffold(target, pkg, options) {
   banner();
   console.log(`  ${clay('▸')} scaffolding the brain into  ${bold(projectName(target))}\n`);
   section('BRAIN');
-  scaffoldBrain(target, pkg);
+  scaffoldBrain(target, pkg, options, { updateExistingManifest: true });
   nextStep();
 }
 

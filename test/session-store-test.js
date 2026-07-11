@@ -173,7 +173,12 @@ test('preference defaults legacy manifests to Claude and preserves unrelated fie
   assert.equal(prefs.getDefaultProvider(), 'claude');
   prefs.setDefaultProvider('codex');
   assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), {
-    version: 1, project: 'Fixture', port: 4848, defaultProvider: 'codex',
+    version: 2,
+    project: 'Fixture',
+    port: 4848,
+    defaultProvider: 'codex',
+    integrations: ['claude', 'codex'],
+    hooksEnabled: true,
   });
 });
 

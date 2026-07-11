@@ -8,7 +8,7 @@ import { startServer } from '../src/server.js';
 import { createFirstPartyRegistry } from '../src/provider-registry.js';
 import { createProviderPreferenceStore } from '../src/provider-preferences.js';
 import { createSessionStore } from '../src/session-store.js';
-import { installSkill, scaffold, doctor, upgrade, rebuild } from '../src/setup.js';
+import { installSkill, parseSetupOptions, scaffold, doctor, upgrade, rebuild } from '../src/setup.js';
 
 const PKG = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PROVIDERS = new Set(['claude', 'codex']);
@@ -47,8 +47,10 @@ export function parseServeArguments(argv) {
 const usageText = `
   🪵  sandpaper — a living project brain
 
-  sandpaper install-skill      install the /sandpaper commands + hooks into this repo
-  sandpaper init               scaffold brain/ (assets + manifest + a starter cover)
+  sandpaper install-skill [--integration claude|codex] [--provider claude|codex] [--no-hooks]
+                              install the Sandpaper integration + hooks into this repo
+  sandpaper init [--provider claude|codex]
+                              scaffold brain/ with an optional initial provider
   sandpaper upgrade            bring an existing brain up to date (assets · hooks · commands · canvas)
   sandpaper rebuild            full reset — back up the old brain + lay down a fresh skeleton
   sandpaper doctor             health-check a Sandpaper setup
@@ -140,12 +142,15 @@ export async function runCli(argv = process.argv.slice(2), injected = {}) {
     return;
   }
   if (command === 'install-skill') {
-    if (rest.some((value) => value !== '--no-hooks') || rest.filter((value) => value === '--no-hooks').length > 1) {
-      throw new Error(`Unknown install-skill option: ${rest.join(' ')}`);
-    }
-    return runtime.installSkill(cwd, PKG, { noHooks: rest[0] === '--no-hooks' });
+    return runtime.installSkill(cwd, PKG, parseSetupOptions(rest));
   }
-  if (command === 'init') { rejectArguments(command); return runtime.scaffold(cwd, PKG); }
+  if (command === 'init') {
+    for (let index = 0; index < rest.length; index += 2) {
+      if (rest[index] !== '--provider') throw new Error(`Unknown init option: ${rest[index]}`);
+    }
+    const options = parseSetupOptions(rest);
+    return runtime.scaffold(cwd, PKG, rest.length ? options : undefined);
+  }
   if (command === 'upgrade' || command === 'update') {
     rejectArguments(command); return runtime.upgrade(cwd, PKG);
   }
