@@ -39,7 +39,7 @@ export function diagnoseClaude(runCommand = defaultRunCommand) {
   if (missing(version)) return missingDiagnosis();
   if (version.status !== 0) {
     return {
-      available: true,
+      available: false,
       compatible: false,
       authMethod: null,
       unavailableCode: 'incompatible',
@@ -59,7 +59,7 @@ export function diagnoseCodex(runCommand = defaultRunCommand) {
   if (missing(version)) return missingDiagnosis();
   if (version.status !== 0) {
     return {
-      available: true,
+      available: false,
       compatible: false,
       authMethod: null,
       unavailableCode: 'incompatible',
@@ -92,7 +92,7 @@ export function diagnoseCodex(runCommand = defaultRunCommand) {
   }
 
   return {
-    available: true,
+    available: compatible && authMethod !== null,
     compatible,
     authMethod,
     version: version.stdout.trim(),

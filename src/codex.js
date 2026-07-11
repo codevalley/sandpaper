@@ -123,8 +123,9 @@ export function runCodexTurn({ pageFile, prompt, resumeId, onSession, onFrame },
     if (terminalEmitted) return;
     const terminal = frame.type === 'status'
       && (frame.done || frame.state === 'done' || frame.state === 'error');
+    try { onFrame(frame); }
+    catch { return; }
     if (terminal) terminalEmitted = true;
-    onFrame(frame);
   };
 
   emit({ type: 'status', state: 'init', label: 'starting…' });
@@ -136,8 +137,14 @@ export function runCodexTurn({ pageFile, prompt, resumeId, onSession, onFrame },
     let event;
     try { event = JSON.parse(line); } catch { return; }
     const threadId = getCodexThreadId(event);
-    if (threadId) onSession(threadId);
-    for (const frame of mapCodexEvent(event, basename(pageFile))) emit(frame);
+    if (threadId) {
+      try { onSession(threadId); }
+      catch { emit({ type: 'warning', label: 'Codex session could not be saved' }); }
+    }
+    let frames;
+    try { frames = mapCodexEvent(event, basename(pageFile)); }
+    catch { emit({ type: 'warning', label: 'Codex returned an invalid event' }); return; }
+    for (const frame of frames) emit(frame);
   };
 
   child.stdout.on('data', (chunk) => {

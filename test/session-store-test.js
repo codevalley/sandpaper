@@ -60,6 +60,65 @@ test('legacy session migrates to the requested page Claude entry', (t) => {
   assert.equal(store.inspect().version, 2);
 });
 
+test('nested legacy Claude session is claimed once by the current page', (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'sandpaper-session-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const brain = join(root, 'brain');
+  mkdirSync(join(brain, '.sandpaper'), { recursive: true });
+  const legacyFile = join(brain, '.sandpaper', 'session.json');
+  const legacyBytes = '{"sessionId":"nested-legacy"}\n';
+  writeFileSync(join(brain, 'index.html'), '<!doctype html>');
+  writeFileSync(join(brain, 'decisions.html'), '<!doctype html>');
+  writeFileSync(legacyFile, legacyBytes);
+  const store = createSessionStore(root);
+
+  assert.equal(store.claimLegacy({
+    page: '/brain/index.html', provider: 'claude', pageFile: join(brain, 'index.html'),
+  }), 'nested-legacy');
+  assert.equal(store.get({ page: '/brain/index.html', provider: 'claude' }), 'nested-legacy');
+  assert.equal(store.get({ page: '/brain/index.html', provider: 'codex' }), null);
+  assert.equal(store.claimLegacy({
+    page: '/brain/decisions.html', provider: 'claude', pageFile: join(brain, 'decisions.html'),
+  }), null);
+  assert.equal(store.get({ page: '/brain/decisions.html', provider: 'claude' }), null);
+  store.clear({ page: '/brain/index.html', provider: 'claude' });
+  assert.equal(store.claimLegacy({
+    page: '/brain/index.html', provider: 'claude', pageFile: join(brain, 'index.html'),
+  }), null);
+  assert.equal(readFileSync(legacyFile, 'utf8'), legacyBytes);
+});
+
+test('unknown session schemas fail closed without changing their bytes', (t) => {
+  const cases = [
+    ['future version', { version: 3, pages: {} }, true],
+    ['future version with legacy id', { version: 3, sessionId: 'do-not-migrate' }, true],
+    ['unknown object', { sessionId: 'legacy', extra: true }, false],
+    ['array', ['legacy'], false],
+  ];
+  for (const [label, value, unsupportedVersion] of cases) {
+    const root = mkdtempSync(join(tmpdir(), 'sandpaper-session-'));
+    t.after(() => rmSync(root, { recursive: true, force: true }));
+    const directory = join(root, '.sandpaper');
+    mkdirSync(directory);
+    const file = join(directory, 'session.json');
+    const original = JSON.stringify(value, null, 2) + '\n';
+    writeFileSync(file, original);
+    const store = createSessionStore(root);
+    assert.deepEqual(store.inspect(), {
+      version: 2, pages: {}, corrupt: true, ...(unsupportedVersion ? { unsupportedVersion: true } : {}),
+    }, label);
+    assert.equal(store.get({ page: '/', provider: 'claude' }), null, label);
+    assert.throws(
+      () => store.set({ page: '/', provider: 'claude', resumeId: 'replacement' }),
+      /Session state is corrupt/,
+      label,
+    );
+    assert.throws(() => store.clear({ page: '/', provider: 'claude' }), /Session state is corrupt/, label);
+    assert.equal(readFileSync(file, 'utf8'), original, label);
+    assert.doesNotMatch(JSON.stringify(store.inspect()), /do-not-migrate|legacy/);
+  }
+});
+
 test('session writes replace the file atomically and reject corrupt state', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'sandpaper-session-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));

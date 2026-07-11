@@ -15,7 +15,7 @@ test('Claude diagnosis distinguishes a missing binary from a failed version prob
 
   const incompatible = diagnoseClaude(() => result(2, '', 'bad invocation'));
   assert.deepEqual(incompatible, {
-    available: true,
+    available: false,
     compatible: false,
     authMethod: null,
     unavailableCode: 'incompatible',
@@ -76,7 +76,7 @@ test('Codex diagnosis distinguishes missing, incompatible, and unauthenticated s
     if (args[0] === 'login') return result(0, 'Logged in using an API key');
     return result(0, 'incomplete help');
   });
-  assert.equal(incompatible.available, true);
+  assert.equal(incompatible.available, false);
   assert.equal(incompatible.compatible, false);
   assert.equal(incompatible.authMethod, 'api-key');
   assert.equal(incompatible.unavailableCode, 'incompatible');
@@ -117,11 +117,23 @@ test('Codex diagnosis distinguishes missing, incompatible, and unauthenticated s
     return result(1, '', 'Not logged in token=do-not-leak');
   });
   assert.deepEqual(unauthenticated, {
-    available: true,
+    available: false,
     compatible: true,
     authMethod: null,
     version: 'codex-cli 1',
     unavailableCode: 'unauthenticated',
   });
   assert.doesNotMatch(JSON.stringify(unauthenticated), /do-not-leak/);
+
+  const unknownAuth = diagnoseCodex((_command, args) => {
+    const key = args.join(' ');
+    if (key === '--version') return result(0, 'codex-cli 1');
+    if (key === '--help') return result(0, '--ask-for-approval --sandbox --config --disable');
+    if (key === 'exec --help') return result(0, 'resume --json --ignore-user-config --ignore-rules');
+    if (key === 'exec resume --help') return result(0, 'Usage: codex exec resume --config --json --ignore-user-config --ignore-rules [SESSION_ID] [PROMPT]');
+    return result(0, 'Logged in');
+  });
+  assert.equal(unknownAuth.available, true);
+  assert.equal(unknownAuth.authMethod, 'unknown');
+  assert.equal(unknownAuth.unavailableCode, null);
 });

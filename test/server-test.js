@@ -661,6 +661,32 @@ test('default server runner resumes and persists its page-scoped Claude session'
   );
 });
 
+test('repository serve migrates the nested v0.2.1 Claude session to its current page', async (t) => {
+  const repo = makeRepo();
+  t.after(() => repo.cleanup());
+  const brain = join(repo.root, 'brain');
+  mkdirSync(join(brain, '.sandpaper'), { recursive: true });
+  writeFileSync(join(brain, 'index.html'), '<!doctype html><body>brain</body>');
+  writeFileSync(join(brain, '.sandpaper', 'session.json'), '{"sessionId":"nested-session"}\n');
+  const child = fakeChild();
+  let invocation;
+  const controller = createSandpaperServer(repo.root, { brain: true }, {
+    claude: { spawn: (...args) => { invocation = args; return child; } },
+    tokenFactory: () => 'test-token',
+    watch: () => ({ close() {} }),
+  });
+  t.after(() => controller.close());
+  const url = await controller.listen();
+
+  const accepted = await requestJson(url, '/__sandpaper/turn', {
+    body: { page: '/brain/index.html', prompt: 'continue' },
+  });
+  assert.equal(accepted.status, 202);
+  assert.deepEqual(invocation[1].slice(-2), ['--resume', 'nested-session']);
+  const canonical = JSON.parse(readFileSync(join(repo.root, '.sandpaper', 'session.json'), 'utf8'));
+  assert.equal(canonical.pages['/brain/index.html'].claude.resumeId, 'nested-session');
+});
+
 test('server reuses injected provider services without changing the default runner', async (t) => {
   const repo = makeRepo();
   t.after(() => repo.cleanup());
@@ -785,6 +811,46 @@ test('Claude uses the controlled invocation contract and emits one terminal fram
     resultFrames.filter((frame) => frame.type === 'status').map((frame) => frame.state),
     ['init', 'init', 'done'],
   );
+});
+
+test('Claude contains malformed blocks and session callback failures until one terminal', () => {
+  const child = fakeChild();
+  const frames = [];
+  runClaudeTurn({
+    pageFile: '/tmp/project/page.html', prompt: 'prompt', resumeId: null,
+    onSession() { throw new Error('secret session persistence failure'); },
+    onFrame: (frame) => frames.push(frame),
+  }, { spawn: () => child, onClaudePlan: () => false });
+  child.stdout.write(`${JSON.stringify({ type: 'system', subtype: 'init', session_id: 'new-session' })}\n`);
+  child.stdout.write(`${JSON.stringify({
+    type: 'assistant', message: { content: [null, 7, { type: 'tool_use', name: 'MultiEdit', input: { edits: [null, {}] } }] },
+  })}\n`);
+  child.stdout.end(`${JSON.stringify({ type: 'result', subtype: 'success', result: 'ok' })}\n`);
+  child.emit('close', 0);
+  assert.ok(frames.some((frame) => frame.type === 'warning'));
+  assert.doesNotMatch(JSON.stringify(frames), /secret session persistence failure/);
+  const terminals = frames.filter((frame) => frame.type === 'status'
+    && (frame.done || frame.state === 'done' || frame.state === 'error'));
+  assert.equal(terminals.length, 1);
+  assert.equal(terminals[0].state, 'done');
+});
+
+test('Claude contains a transient frame callback failure', () => {
+  const child = fakeChild();
+  const frames = [];
+  let first = true;
+  runClaudeTurn({
+    pageFile: '/tmp/project/page.html', prompt: 'prompt', resumeId: null, onSession() {},
+    onFrame(frame) {
+      if (first) { first = false; throw new Error('frame consumer failed'); }
+      frames.push(frame);
+    },
+  }, { spawn: () => child, onClaudePlan: () => false });
+  child.stdout.end(`${JSON.stringify({ type: 'result', subtype: 'success', result: 'ok' })}\n`);
+  child.emit('close', 0);
+  const terminals = frames.filter((frame) => frame.type === 'status'
+    && (frame.done || frame.state === 'done' || frame.state === 'error'));
+  assert.equal(terminals.length, 1);
 });
 
 test('Claude removes the API key only when subscription auth is active', (t) => {

@@ -195,6 +195,40 @@ test('Codex ignores malformed JSON noise and emits one failure terminal', () => 
   }]);
 });
 
+test('Codex contains session callback failures and still reaches one terminal', () => {
+  const child = fakeChild();
+  const frames = [];
+  runCodexTurn({
+    ...input(child, frames),
+    onSession() { throw new Error('secret session persistence failure'); },
+  }, { spawn: () => child });
+  child.stdout.write(`${JSON.stringify({ type: 'thread.started', thread_id: 'thread-1' })}\n`);
+  child.stdout.end(`${JSON.stringify({
+    type: 'turn.completed', usage: { input_tokens: 2, output_tokens: 1 },
+  })}\n`);
+  child.emit('close', 0, null);
+  assert.equal(frames.filter((frame) => frame.type === 'warning').length, 1);
+  assert.doesNotMatch(JSON.stringify(frames), /secret session persistence failure/);
+  assert.equal(terminals(frames).length, 1);
+  assert.equal(terminals(frames)[0].state, 'done');
+});
+
+test('Codex contains a transient frame callback failure', () => {
+  const child = fakeChild();
+  const frames = [];
+  let first = true;
+  runCodexTurn({
+    ...input(child, frames),
+    onFrame(frame) {
+      if (first) { first = false; throw new Error('frame consumer failed'); }
+      frames.push(frame);
+    },
+  }, { spawn: () => child });
+  child.stdout.end(`${JSON.stringify({ type: 'turn.completed' })}\n`);
+  child.emit('close', 0, null);
+  assert.equal(terminals(frames).length, 1);
+});
+
 test('Codex survives malformed structured file changes and still emits one terminal', () => {
   const child = fakeChild();
   const frames = [];

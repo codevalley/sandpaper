@@ -324,10 +324,14 @@ export function createSandpaperServer(target, opts = {}, deps = {}) {
   const runner = deps.runner || (({ pageFile, prompt, onFrame }) => {
     const page = pageForFile(pageFile);
     const key = { page, provider: 'claude' };
+    const storedResumeId = sessions.get(key);
+    const resumeId = storedResumeId || (typeof sessions.claimLegacy === 'function'
+      ? sessions.claimLegacy({ ...key, pageFile })
+      : null);
     return runClaudeTurn({
       pageFile,
       prompt,
-      resumeId: sessions.get(key),
+      resumeId,
       onSession(resumeId) { sessions.set({ ...key, resumeId }); },
       onFrame,
     }, claudeDeps);

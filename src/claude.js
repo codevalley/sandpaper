@@ -25,7 +25,8 @@ const SESSION_TOOLS = ['Read', 'Edit', 'Write', 'MultiEdit'];
 
 // Returns a session id if this event carries one (the init system event), else null.
 export function getSessionId(ev) {
-  return ev && ev.type === 'system' && ev.subtype === 'init' && ev.session_id
+  return ev && ev.type === 'system' && ev.subtype === 'init'
+    && typeof ev.session_id === 'string' && ev.session_id
     ? ev.session_id
     : null;
 }
@@ -34,16 +35,24 @@ export function getSessionId(ev) {
 // message, where `input` is fully formed — never from partial input_json_delta) into a
 // typed `edit` frame for the conversation surface's "what changed" card.
 function summarizeEdit(block, docName) {
-  const input = block.input || {};
+  if (!block || typeof block !== 'object' || Array.isArray(block)
+      || !block.input || typeof block.input !== 'object' || Array.isArray(block.input)) return null;
+  const input = block.input;
   const name = block.name;
   let hunks;
   if (name === 'MultiEdit' && Array.isArray(input.edits)) {
-    hunks = input.edits.map((e) => ({ oldText: e.old_string || '', newText: e.new_string || '' }));
+    hunks = input.edits
+      .filter((edit) => edit && typeof edit === 'object' && !Array.isArray(edit)
+        && typeof edit.old_string === 'string' && typeof edit.new_string === 'string')
+      .map((edit) => ({ oldText: edit.old_string, newText: edit.new_string }));
   } else if (name === 'Write') {
-    hunks = [{ oldText: '', newText: input.content || '' }];
+    if (typeof input.content !== 'string') return null;
+    hunks = [{ oldText: '', newText: input.content }];
   } else {
-    hunks = [{ oldText: input.old_string || '', newText: input.new_string || '' }];
+    if (typeof input.old_string !== 'string' || typeof input.new_string !== 'string') return null;
+    hunks = [{ oldText: input.old_string, newText: input.new_string }];
   }
+  if (!hunks.length) return null;
   let added = 0, removed = 0;
   const cids = new Set();
   for (const h of hunks) {
@@ -53,7 +62,7 @@ function summarizeEdit(block, docName) {
       for (const m of String(t).matchAll(/data-cid="([^"]+)"/g)) cids.add(m[1]);
     }
   }
-  const file = input.file_path ? basename(input.file_path) : docName;
+  const file = typeof input.file_path === 'string' && input.file_path ? basename(input.file_path) : docName;
   return { type: 'edit', tool: name, file, hunks, added, removed, cids: [...cids] };
 }
 
@@ -97,8 +106,11 @@ export function mapEvents(ev, docName) {
   if (ev.type === 'assistant' && ev.message && Array.isArray(ev.message.content)) {
     const edits = [];
     for (const block of ev.message.content) {
-      if (block.type === 'tool_use' && (block.name === 'Edit' || block.name === 'Write' || block.name === 'MultiEdit')) {
-        edits.push(summarizeEdit(block, docName));
+      if (block && typeof block === 'object' && !Array.isArray(block)
+          && block.type === 'tool_use'
+          && (block.name === 'Edit' || block.name === 'Write' || block.name === 'MultiEdit')) {
+        const summary = summarizeEdit(block, docName);
+        if (summary) edits.push(summary);
       }
     }
     return edits;
@@ -172,10 +184,11 @@ export function runClaudeTurn({ pageFile, prompt, resumeId, onSession, onFrame }
   let terminalEmitted = false;
   const emit = (frame) => {
     if (terminalEmitted) return;
-    if (frame.type === 'status' && (frame.done || frame.state === 'done' || frame.state === 'error')) {
-      terminalEmitted = true;
-    }
-    onFrame(frame);
+    const terminal = frame.type === 'status'
+      && (frame.done || frame.state === 'done' || frame.state === 'error');
+    try { onFrame(frame); }
+    catch { return; }
+    if (terminal) terminalEmitted = true;
   };
 
   emit({ type: 'status', state: 'init', label: 'starting…' });
@@ -189,8 +202,14 @@ export function runClaudeTurn({ pageFile, prompt, resumeId, onSession, onFrame }
     let ev;
     try { ev = JSON.parse(line); } catch { return; } // ignore non-JSON noise
     const id = getSessionId(ev);
-    if (id) onSession(id);
-    for (const frame of mapEvents(ev, docName)) emit(frame);
+    if (id) {
+      try { onSession(id); }
+      catch { emit({ type: 'warning', label: 'Claude session could not be saved' }); }
+    }
+    let frames;
+    try { frames = mapEvents(ev, docName); }
+    catch { emit({ type: 'warning', label: 'Claude returned an invalid event' }); return; }
+    for (const frame of frames) emit(frame);
   };
 
   child.stdout.on('data', (chunk) => {
