@@ -135,7 +135,12 @@ test('release workflow preserves the ordered safety and publication handoff cont
   assert.match(release, /Stop immediately if either verification command fails; do not run the push/i);
   assert.match(
     release,
-    /```sh\nnpm version <bump> -m "chore\(release\): v%s"\n```[\s\S]*```sh\ntest "\$\(node -p "require\('\.\/package\.json'\)\.version"\)" = "X\.Y\.Z"\ntest "\$\(git rev-parse --verify "vX\.Y\.Z\^\{commit\}"\)" = "\$\(git rev-parse HEAD\)"\n```[\s\S]*```sh\ngit push --follow-tags\n```/,
+    /test "\$\(node -p "require\('\.\/package\.json'\)\.version"\)" = "X\.Y\.Z" &&\n\s+test "\$\(git rev-parse --verify "vX\.Y\.Z\^\{commit\}"\)" = "\$\(git rev-parse HEAD\)"/,
+    'package and tag verification must be one fail-closed shell chain',
+  );
+  assert.match(
+    release,
+    /```sh\nnpm version <bump> -m "chore\(release\): v%s"\n```[\s\S]*```sh\ntest "\$\(node -p "require\('\.\/package\.json'\)\.version"\)" = "X\.Y\.Z" &&\n\s+test "\$\(git rev-parse --verify "vX\.Y\.Z\^\{commit\}"\)" = "\$\(git rev-parse HEAD\)"\n```[\s\S]*```sh\ngit push --follow-tags\n```/,
     'version, verification, and push must be separate runnable blocks',
   );
   assert.match(release, /\.github\/workflows\/release\.yml/);

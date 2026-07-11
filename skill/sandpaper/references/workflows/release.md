@@ -97,8 +97,8 @@ npm version <bump> -m "chore(release): v%s"
 tag resolves to the version commit at `HEAD`:
 
 ```sh
-test "$(node -p "require('./package.json').version")" = "X.Y.Z"
-test "$(git rev-parse --verify "vX.Y.Z^{commit}")" = "$(git rev-parse HEAD)"
+test "$(node -p "require('./package.json').version")" = "X.Y.Z" &&
+  test "$(git rev-parse --verify "vX.Y.Z^{commit}")" = "$(git rev-parse HEAD)"
 ```
 
 Stop immediately if either verification command fails; do not run the push. Only after both commands
