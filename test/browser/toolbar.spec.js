@@ -588,7 +588,16 @@ test('rehydrate rejects missing, unknown, and mismatched persisted provider mark
   await page.evaluate((storageKey) => {
     const key = storageKey;
     const saved = sessionStorage.getItem(key);
-    const withId = (html, id) => html.replace(/data-turn="[^"]+"/, `data-turn="${id}"`);
+    const withId = (html, id) => {
+      const holder = document.createElement('div');
+      holder.innerHTML = html;
+      const turn = holder.querySelector('.sp-turn');
+      const targetId = `sp-think-body-${id}`;
+      turn.setAttribute('data-turn', id);
+      turn.querySelector('.sp-think-body').id = targetId;
+      turn.querySelector('.sp-think-toggle').setAttribute('aria-controls', targetId);
+      return holder.innerHTML;
+    };
     sessionStorage.setItem(key, saved
       + withId(saved.replace('data-turn-provider="claude"', 'data-turn-provider="mystery-provider"'), 'mystery-turn')
       + withId(saved.replace(' data-turn-provider="claude"', ''), 'missing-provider-turn')
@@ -615,6 +624,9 @@ test('rehydrate admits only structurally complete turns with safe unique identit
     const copy = (id) => {
       const clone = source.cloneNode(true);
       clone.setAttribute('data-turn', id);
+      const targetId = `sp-think-body-${id || 'empty-id'}`;
+      clone.querySelector('.sp-think-body').id = targetId;
+      clone.querySelector('.sp-think-toggle').setAttribute('aria-controls', targetId);
       return clone;
     };
     const survivor = copy('safe-survivor');
@@ -644,12 +656,34 @@ test('rehydrate admits only structurally complete turns with safe unique identit
       fakeToggle.setAttribute(attribute.name, attribute.value);
     }
     thinkingNotButton.querySelector('.sp-think-toggle').replaceWith(fakeToggle);
+    const thinkingMissingType = copy('thinking-missing-type');
+    thinkingMissingType.querySelector('.sp-think-toggle').removeAttribute('type');
+    const thinkingSubmitType = copy('thinking-submit-type');
+    thinkingSubmitType.querySelector('.sp-think-toggle').setAttribute('type', 'submit');
+    const thinkingRogueToggle = copy('thinking-rogue-toggle');
+    thinkingRogueToggle.querySelector('.sp-asst').appendChild(thinkingRogueToggle.querySelector('.sp-think-toggle').cloneNode(true));
+    const thinkingRogueBody = copy('thinking-rogue-body');
+    thinkingRogueBody.querySelector('.sp-asst').appendChild(thinkingRogueBody.querySelector('.sp-think-body').cloneNode(true));
+    const thinkingUnsafeTarget = copy('thinking-unsafe-target');
+    thinkingUnsafeTarget.querySelector('.sp-think-body').id = 'unsafe target';
+    thinkingUnsafeTarget.querySelector('.sp-think-toggle').setAttribute('aria-controls', 'unsafe target');
+    const duplicateTargetA = copy('duplicate-target-a');
+    duplicateTargetA.querySelector('.sp-think-body').id = 'shared-thinking-target';
+    duplicateTargetA.querySelector('.sp-think-toggle').setAttribute('aria-controls', 'shared-thinking-target');
+    const duplicateTargetB = copy('duplicate-target-b');
+    duplicateTargetB.querySelector('.sp-think-body').id = 'shared-thinking-target';
+    duplicateTargetB.querySelector('.sp-think-toggle').setAttribute('aria-controls', 'shared-thinking-target');
+    const rogueTargetCollision = copy('rogue-target-collision');
+    const rogueTarget = document.createElement('span');
+    rogueTarget.id = rogueTargetCollision.querySelector('.sp-think-body').id;
+    rogueTargetCollision.querySelector('.sp-asst').appendChild(rogueTarget);
     const withCard = (id) => {
       const clone = copy(id);
+      const cardBodyId = `sp-card-body-${id}`;
       const nextCard = document.createElement('div');
       nextCard.className = 'sp-card';
-      nextCard.innerHTML = '<button class="sp-card-head" type="button" data-act="card" aria-controls="sp-card-body-tamper">' +
-        '<span class="sp-card-title">card</span></button><div class="sp-card-body" id="sp-card-body-tamper" hidden></div>';
+      nextCard.innerHTML = `<button class="sp-card-head" type="button" data-act="card" aria-controls="${cardBodyId}">` +
+        `<span class="sp-card-title">card</span></button><div class="sp-card-body" id="${cardBodyId}" hidden></div>`;
       clone.querySelector('.sp-asst').appendChild(nextCard);
       return clone;
     };
@@ -674,6 +708,25 @@ test('rehydrate admits only structurally complete turns with safe unique identit
       fakeHead.appendChild(cardHeadNotButton.querySelector('.sp-card-head').firstChild);
     }
     cardHeadNotButton.querySelector('.sp-card-head').replaceWith(fakeHead);
+    const cardMissingType = withCard('card-missing-type');
+    cardMissingType.querySelector('.sp-card-head').removeAttribute('type');
+    const cardSubmitType = withCard('card-submit-type');
+    cardSubmitType.querySelector('.sp-card-head').setAttribute('type', 'submit');
+    const cardRogueHead = withCard('card-rogue-head');
+    cardRogueHead.querySelector('.sp-asst').appendChild(cardRogueHead.querySelector('.sp-card-head').cloneNode(true));
+    const cardRogueTitle = withCard('card-rogue-title');
+    cardRogueTitle.querySelector('.sp-asst').appendChild(cardRogueTitle.querySelector('.sp-card-title').cloneNode(true));
+    const cardRogueBody = withCard('card-rogue-body');
+    cardRogueBody.querySelector('.sp-asst').appendChild(cardRogueBody.querySelector('.sp-card-body').cloneNode(true));
+    const cardUnsafeTarget = withCard('card-unsafe-target');
+    cardUnsafeTarget.querySelector('.sp-card-body').id = 'unsafe card target';
+    cardUnsafeTarget.querySelector('.sp-card-head').setAttribute('aria-controls', 'unsafe card target');
+    const duplicateCardTargetA = withCard('duplicate-card-target-a');
+    duplicateCardTargetA.querySelector('.sp-card-body').id = 'shared-card-target';
+    duplicateCardTargetA.querySelector('.sp-card-head').setAttribute('aria-controls', 'shared-card-target');
+    const duplicateCardTargetB = withCard('duplicate-card-target-b');
+    duplicateCardTargetB.querySelector('.sp-card-body').id = 'shared-card-target';
+    duplicateCardTargetB.querySelector('.sp-card-head').setAttribute('aria-controls', 'shared-card-target');
     holder.replaceChildren(
       survivor,
       duplicateA,
@@ -687,6 +740,14 @@ test('rehydrate admits only structurally complete turns with safe unique identit
       thinkingWrongControls,
       thinkingWrongAct,
       thinkingNotButton,
+      thinkingMissingType,
+      thinkingSubmitType,
+      thinkingRogueToggle,
+      thinkingRogueBody,
+      thinkingUnsafeTarget,
+      duplicateTargetA,
+      duplicateTargetB,
+      rogueTargetCollision,
       cardNoHead,
       cardMisnestedBody,
       cardMisnestedTitle,
@@ -694,6 +755,14 @@ test('rehydrate admits only structurally complete turns with safe unique identit
       cardDuplicateHead,
       cardWrongAct,
       cardHeadNotButton,
+      cardMissingType,
+      cardSubmitType,
+      cardRogueHead,
+      cardRogueTitle,
+      cardRogueBody,
+      cardUnsafeTarget,
+      duplicateCardTargetA,
+      duplicateCardTargetB,
       Object.assign(document.createElement('div'), { textContent: 'not a turn' }),
     );
     sessionStorage.setItem(storageKey, holder.innerHTML);
@@ -715,8 +784,12 @@ test('rehydrate admits only structurally complete turns with safe unique identit
     'duplicate-id', '', 'missing-prose', 'malformed-card',
     'thinking-no-toggle', 'thinking-misnested', 'thinking-duplicate', 'thinking-wrong-controls',
     'thinking-wrong-act', 'thinking-not-button',
+    'thinking-missing-type', 'thinking-submit-type', 'thinking-rogue-toggle', 'thinking-rogue-body',
+    'thinking-unsafe-target', 'duplicate-target-a', 'duplicate-target-b', 'rogue-target-collision',
     'card-no-head', 'card-misnested-body', 'card-misnested-title', 'card-wrong-controls', 'card-duplicate-head',
     'card-wrong-act', 'card-head-not-button',
+    'card-missing-type', 'card-submit-type', 'card-rogue-head', 'card-rogue-title', 'card-rogue-body',
+    'card-unsafe-target', 'duplicate-card-target-a', 'duplicate-card-target-b',
   ]) {
     await page.evaluate((id) => {
       window.__sandpaperFakeEvents.onmessage({

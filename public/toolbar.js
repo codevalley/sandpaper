@@ -160,6 +160,7 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
   // ---------- small helpers ----------
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
   function safeTurnId(value) { return typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(value); }
+  function safeDisclosureId(value) { return typeof value === 'string' && /^[A-Za-z][A-Za-z0-9._:-]{0,127}$/.test(value); }
   function selectedProviderState() { return selectedProvider ? providersById[selectedProvider] || null : null; }
   function providerRepairGuidance(provider) {
     if (!provider) return 'Choose an available provider to start.';
@@ -665,7 +666,7 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
     return matches.length === 1 ? matches[0] : null;
   }
 
-  function validPersistedTurn(box, idCounts) {
+  function validPersistedTurn(box, idCounts, disclosureIdCounts) {
     if (!box.classList || !box.classList.contains('sp-turn') || box.querySelector('.sp-turn')) return null;
     var id = box.getAttribute('data-turn');
     var provider = box.getAttribute('data-turn-provider');
@@ -679,25 +680,28 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
         box.querySelectorAll('.sp-think').length !== 1 || box.querySelectorAll('.sp-turnmeta').length !== 1) return null;
     var thinkToggle = oneDirectChild(think, 'sp-think-toggle');
     var thinkBody = think && oneDirectChild(think, 'sp-think-body');
-    if (!thinkToggle || !thinkBody || think.querySelectorAll('.sp-think-toggle').length !== 1 ||
-        think.querySelectorAll('.sp-think-body').length !== 1 || thinkToggle.tagName !== 'BUTTON' ||
-        thinkToggle.getAttribute('data-act') !== 'think' || !thinkBody.id ||
+    if (!thinkToggle || !thinkBody || box.querySelectorAll('.sp-think-toggle').length !== 1 ||
+        box.querySelectorAll('.sp-think-body').length !== 1 || thinkToggle.tagName !== 'BUTTON' ||
+        thinkToggle.getAttribute('type') !== 'button' || thinkToggle.getAttribute('data-act') !== 'think' ||
+        !safeDisclosureId(thinkBody.id) || disclosureIdCounts[thinkBody.id] !== 1 ||
         thinkToggle.getAttribute('aria-controls') !== thinkBody.id) return null;
     var cards = Array.prototype.slice.call(box.querySelectorAll('.sp-card'));
+    var heads = box.querySelectorAll('.sp-card-head');
+    var titles = box.querySelectorAll('.sp-card-title');
+    var bodies = box.querySelectorAll('.sp-card-body');
     var card = null, cardBody = null, cardTitle = null, cardHead = null;
     if (cards.length) {
-      if (cards.length !== 1 || cards[0].parentNode !== group) return null;
+      if (cards.length !== 1 || heads.length !== 1 || titles.length !== 1 || bodies.length !== 1 ||
+          cards[0].parentNode !== group) return null;
       card = cards[0];
       cardHead = oneDirectChild(card, 'sp-card-head');
       cardBody = oneDirectChild(card, 'sp-card-body');
       cardTitle = cardHead && oneDirectChild(cardHead, 'sp-card-title');
-      var heads = card.querySelectorAll('.sp-card-head');
-      var titles = card.querySelectorAll('.sp-card-title');
-      var bodies = card.querySelectorAll('.sp-card-body');
-      if (!cardHead || !cardBody || !cardTitle || heads.length !== 1 || titles.length !== 1 || bodies.length !== 1 ||
-          cardHead.tagName !== 'BUTTON' || cardHead.getAttribute('data-act') !== 'card' || !cardBody.id ||
+      if (!cardHead || !cardBody || !cardTitle || cardHead.tagName !== 'BUTTON' ||
+          cardHead.getAttribute('type') !== 'button' || cardHead.getAttribute('data-act') !== 'card' ||
+          !safeDisclosureId(cardBody.id) || disclosureIdCounts[cardBody.id] !== 1 ||
           cardHead.getAttribute('aria-controls') !== cardBody.id) return null;
-    } else if (box.querySelector('.sp-card-head, .sp-card-body, .sp-card-title')) {
+    } else if (heads.length || titles.length || bodies.length) {
       return null;
     }
     return { id: id, provider: provider, group: group, prose: prose, think: think, thinkBody: thinkBody,
@@ -714,6 +718,11 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
     thread.innerHTML = saved;
     var transcriptTurns = Array.prototype.slice.call(thread.children);
     var idCounts = Object.create(null);
+    var disclosureIdCounts = Object.create(null);
+    Array.prototype.forEach.call(thread.querySelectorAll('[id]'), function (node) {
+      var targetId = node.getAttribute('id');
+      if (targetId) disclosureIdCounts[targetId] = (disclosureIdCounts[targetId] || 0) + 1;
+    });
     transcriptTurns.forEach(function (node) {
       if (!node.classList || !node.classList.contains('sp-turn')) return;
       var id = node.getAttribute('data-turn');
@@ -721,7 +730,7 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
     });
     var acceptedTurns = [];
     transcriptTurns.forEach(function (node) {
-      var accepted = validPersistedTurn(node, idCounts);
+      var accepted = validPersistedTurn(node, idCounts, disclosureIdCounts);
       if (!accepted) node.remove();
       else acceptedTurns.push({ box: node, parts: accepted });
     });
