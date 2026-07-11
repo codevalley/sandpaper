@@ -9,9 +9,37 @@ own work — via `/sandpaper:release`, never written from scratch.
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-07-11
+
+### Added
+- Codex is now a first-class provider alongside Claude Code, with saved `codex login`
+  authentication, provider diagnostics, resumable page/provider sessions, and native token usage.
+- The floating toolbar now provides an accessible tab-local provider selector, an explicit
+  `Make default` action, provider-scoped histories, and transactional `New session` reset.
+- Default installation now provisions both Claude Code and Codex integrations; `--integration`
+  supports explicit Claude-only or Codex-only installations and clean upgrades.
+
+### Changed
+- Provider dispatch now runs through one internal registry and provider-neutral hooks, workflows,
+  manifests, setup, lifecycle recovery, CLI diagnostics, and release/package contracts.
+- Toolbar turns, frames, replays, transcripts, usage, edits, and reset state are provider-tagged;
+  switching providers preserves independent continuity without hidden context handoff.
+- Claude displays only supplied cost and Codex displays only supplied token totals, while actual
+  selected-document bytes remain the authority for Saved, Replied, and Undo outcomes.
+
 ### Fixed
 - The GitHub Release job now checks out repository context before creating the release object,
   so a successful npm publish is followed by a successful GitHub Release.
+- Provider validation now occurs before global turn reservation, failed starts release lifecycle
+  exactly once, and unavailable providers report recovery guidance without silent fallback.
+- Integration upgrades, rebuilds, hooks, manifests, sessions, transcript rehydration, disclosure
+  controls, and direct-edit recovery now preserve authoritative bytes across races and failures.
+
+### Security
+- Provider installation and recovery use bounded, transactional, non-following filesystem checks
+  that detect concurrent replacement and preserve user-owned or displaced bytes for recovery.
+- Provider preference, session, mutation, replay, and toolbar state validate ownership and shape;
+  external-path reporting remains best effort and never claims unverifiable undo coverage.
 
 ## [0.2.1] — 2026-07-11
 
@@ -74,7 +102,8 @@ Initial public release.
 - Published to npm as `@nynb/sandpaper` (`sandpaper` was taken; `sand-paper`
   blocked by npm's anti-squatting policy — see `brain/decisions.html#d-npm-scope`).
 
-[Unreleased]: https://github.com/codevalley/sandpaper/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/codevalley/sandpaper/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/codevalley/sandpaper/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/codevalley/sandpaper/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/codevalley/sandpaper/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/codevalley/sandpaper/releases/tag/v0.1.0

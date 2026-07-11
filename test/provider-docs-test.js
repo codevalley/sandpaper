@@ -143,7 +143,7 @@ test('cover has one truthful current board while preserving board 0011 as dated 
     /Claude Code/, /Codex/, /explicit provider selection/i, /no silent fallback/i,
     /page\/provider-scoped resume/i, /project\/page\/provider transcript/i, /New session/,
     /one global lifecycle/i, /selected-document bytes/i, /best-effort external-path warning/i,
-    /58-file/, /334 unit/, /101 Chromium/,
+    /58-file/, /335 unit/, /101 Chromium/,
   ]) assert.match(latest, anchor);
 
   const historical = elementById('brain/index.html', 'article', 'board-0011');
@@ -188,19 +188,56 @@ test('selected historical Claude-specific evidence remains byte-for-byte present
   assert.match(read('brain/index.html'), /data-cid="w-0176"[\s\S]*?wired the SessionStart <strong>handoff<\/strong> so Claude Code uses it\. Dogfood board 002\./);
 });
 
-test('brain stamp completes implementation once while leaving release open', () => {
+test('brain stamp records one qualified release candidate while leaving publication open', () => {
   const project = read('brain/project/index.html');
   assert.match(project, /<li[^>]*data-status="done"[^>]*id="t-0049"/);
-  assert.match(project, /<li[^>]*data-status="todo"[^>]*id="t-0050"/);
+  assert.match(project, /<li[^>]*data-status="wip"[^>]*data-session="S41"[^>]*id="t-0050"/);
+  assert.doesNotMatch(project, /<li[^>]*data-status="done"[^>]*id="t-0050"/);
 
-  const worklog = /id="w-0232"[^>]*[\s\S]*?Completed and reviewed the first-class Claude and Codex toolbar and documentation\./g;
+  const worklog = /id="w-0233"[^>]*[\s\S]*?Qualified the v0\.3\.0 release candidate; awaiting final tag and push confirmation\./g;
   assert.equal((read('brain/log.html').match(worklog) || []).length, 1);
   assert.equal((read('brain/index.html').match(worklog) || []).length, 1);
-  assert.match(read('brain/index.html'), /"focus":\{ "one":"Release qualification for v0\.3\.0 is next\."/);
-  assert.match(read('brain/index.html'), /id="now"[^>]*>Release qualification for <code>v0\.3\.0<\/code> is next\./);
+  assert.match(read('brain/index.html'), /"session":"S41"/);
+  assert.match(read('brain/index.html'), /"focus":\{ "one":"v0\.3\.0 is qualified; awaiting final tag and push confirmation\."/);
+  assert.match(read('brain/index.html'), /id="now"[^>]*><code>v0\.3\.0<\/code> is qualified; awaiting final tag and push confirmation\./);
+
+  const evidence = elementById('brain/engineering/index.html', 'section', 'release-candidate-evidence');
+  for (const exact of [
+    '335 unit', '101 Chromium', '58 files', '129,521 packed bytes', '486,114 unpacked bytes',
+    'Claude 2/2', 'Codex 2/2', 'npm run verify-publish', 'npm pack --dry-run --json',
+  ]) assert.match(evidence, new RegExp(exact.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.match(evidence, /tag[^.<]{0,80}push[^.<]{0,80}publish[^.<]{0,80}(?:not run|remain pending)/i);
+  assert.doesNotMatch(evidence, /resumeId|session[_ -]?id|token|credential/i);
 });
 
 test('the provider docs contract is part of the default unit inventory', () => {
   const manifest = JSON.parse(read('package.json'));
   assert.match(manifest.scripts['test:unit'], /(?:^|\s)test\/provider-docs-test\.js(?:\s|$)/);
+});
+
+test('v0.3.0 release metadata and changelog agree exactly', () => {
+  const manifest = JSON.parse(read('package.json'));
+  const lock = JSON.parse(read('package-lock.json'));
+  const changelog = read('CHANGELOG.md');
+
+  assert.equal(manifest.version, '0.3.0');
+  assert.equal(lock.version, '0.3.0');
+  assert.equal(lock.packages[''].version, '0.3.0');
+  assert.match(manifest.description, /Claude Code/);
+  assert.match(manifest.description, /Codex/);
+  assert.ok(manifest.keywords.includes('claude-code'));
+  assert.ok(manifest.keywords.includes('codex'));
+
+  const unreleasedStart = changelog.indexOf('## [Unreleased]');
+  const releaseStart = changelog.indexOf('## [0.3.0] — 2026-07-11');
+  assert.ok(unreleasedStart >= 0 && releaseStart > unreleasedStart);
+  assert.equal(changelog.slice(unreleasedStart + '## [Unreleased]'.length, releaseStart).trim(), '');
+  const releaseEnd = changelog.indexOf('\n## [0.2.1]', releaseStart);
+  const release = changelog.slice(releaseStart, releaseEnd);
+  for (const heading of ['### Added', '### Changed', '### Fixed', '### Security']) {
+    assert.match(release, new RegExp(`^${heading}$`, 'm'));
+  }
+  assert.match(release, /GitHub Release job/i);
+  assert.match(changelog, /^\[Unreleased\]: https:\/\/github\.com\/codevalley\/sandpaper\/compare\/v0\.3\.0\.\.\.HEAD$/m);
+  assert.match(changelog, /^\[0\.3\.0\]: https:\/\/github\.com\/codevalley\/sandpaper\/compare\/v0\.2\.1\.\.\.v0\.3\.0$/m);
 });

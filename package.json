@@ -1,6 +1,6 @@
 {
   "name": "@nynb/sandpaper",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "A living project brain and refine-in-place toolbar for Claude Code and Codex projects.",
   "type": "module",
   "bin": {

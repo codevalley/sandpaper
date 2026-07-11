@@ -79,6 +79,13 @@
     <p>The one genuinely <strong>open</strong> engineering problem is anchoring. <code>data-cid</code> is both the brain's link target and the unit of scoping, so when Claude regenerates a document wholesale and drops the cids, every open annotation and brain link dangles. The plan: a <code>CLAUDE.md</code> contract that forbids stripping cids, backed by a text-snippet / selector fallback. Until that lands, durable anchoring is the gating risk for P2. <a class="ref" href="../decisions.html#q-anchoring">open question →</a> · <a class="ref" href="../../sandpaper.html#s-risks">risks §07 →</a></p>
   </section>
 
+  <section class="zone" id="release-candidate-evidence" data-cid="release-candidate-evidence">
+    <div class="eyebrow">06 · Release candidate evidence</div>
+    <h2><code>v0.3.0</code> is qualified, not published</h2>
+    <p><code>npm run check:syntax</code>, <code>npm run test:unit</code>, <code>npm run test:browser</code>, <code>npm run test:package</code>, <code>node bin/cli.js doctor</code>, <code>npm run verify-publish</code>, <code>npm pack --dry-run --json</code>, and <code>git diff --check</code> exited zero. Evidence: <strong>335 unit</strong>, <strong>101 Chromium</strong>, and an exact <strong>58 files</strong> at <strong>129,521 packed bytes</strong> / <strong>486,114 unpacked bytes</strong>. <a class="ref" href="../../CHANGELOG.md">candidate notes →</a></p>
+    <p>Disposable real-provider qualification passed <strong>Claude 2/2</strong> and <strong>Codex 2/2</strong> selected-document edit/resume turns, exact disk-byte checks, separate provider scopes, scoped reset, and explicit unavailable-provider recovery. Packed dual, solo, upgrade/rebuild, CLI/open, and desktop/375px/320px behavior passed their release gates. Tag, push, and publish remain pending owner confirmation.</p>
+  </section>
+
   <section class="zone lens-views">
     <div class="eyebrow">Deeper reading</div>
     <div class="cards">
