@@ -628,6 +628,52 @@ test('rehydrate admits only structurally complete turns with safe unique identit
     card.className = 'sp-card';
     card.innerHTML = '<span class="sp-card-title">incomplete</span>';
     malformedCard.querySelector('.sp-asst').appendChild(card);
+    const thinkingNoToggle = copy('thinking-no-toggle');
+    thinkingNoToggle.querySelector('.sp-think-toggle').remove();
+    const thinkingMisnested = copy('thinking-misnested');
+    thinkingMisnested.querySelector('.sp-asst').appendChild(thinkingMisnested.querySelector('.sp-think-toggle'));
+    const thinkingDuplicate = copy('thinking-duplicate');
+    thinkingDuplicate.querySelector('.sp-think').appendChild(thinkingDuplicate.querySelector('.sp-think-toggle').cloneNode(true));
+    const thinkingWrongControls = copy('thinking-wrong-controls');
+    thinkingWrongControls.querySelector('.sp-think-toggle').setAttribute('aria-controls', 'wrong-thinking-body');
+    const thinkingWrongAct = copy('thinking-wrong-act');
+    thinkingWrongAct.querySelector('.sp-think-toggle').setAttribute('data-act', 'card');
+    const thinkingNotButton = copy('thinking-not-button');
+    const fakeToggle = document.createElement('span');
+    for (const attribute of thinkingNotButton.querySelector('.sp-think-toggle').attributes) {
+      fakeToggle.setAttribute(attribute.name, attribute.value);
+    }
+    thinkingNotButton.querySelector('.sp-think-toggle').replaceWith(fakeToggle);
+    const withCard = (id) => {
+      const clone = copy(id);
+      const nextCard = document.createElement('div');
+      nextCard.className = 'sp-card';
+      nextCard.innerHTML = '<button class="sp-card-head" type="button" data-act="card" aria-controls="sp-card-body-tamper">' +
+        '<span class="sp-card-title">card</span></button><div class="sp-card-body" id="sp-card-body-tamper" hidden></div>';
+      clone.querySelector('.sp-asst').appendChild(nextCard);
+      return clone;
+    };
+    const cardNoHead = withCard('card-no-head');
+    cardNoHead.querySelector('.sp-card-head').remove();
+    const cardMisnestedBody = withCard('card-misnested-body');
+    cardMisnestedBody.querySelector('.sp-card-head').appendChild(cardMisnestedBody.querySelector('.sp-card-body'));
+    const cardMisnestedTitle = withCard('card-misnested-title');
+    cardMisnestedTitle.querySelector('.sp-card').appendChild(cardMisnestedTitle.querySelector('.sp-card-title'));
+    const cardWrongControls = withCard('card-wrong-controls');
+    cardWrongControls.querySelector('.sp-card-head').setAttribute('aria-controls', 'wrong-card-body');
+    const cardDuplicateHead = withCard('card-duplicate-head');
+    cardDuplicateHead.querySelector('.sp-card').appendChild(cardDuplicateHead.querySelector('.sp-card-head').cloneNode(true));
+    const cardWrongAct = withCard('card-wrong-act');
+    cardWrongAct.querySelector('.sp-card-head').setAttribute('data-act', 'think');
+    const cardHeadNotButton = withCard('card-head-not-button');
+    const fakeHead = document.createElement('div');
+    for (const attribute of cardHeadNotButton.querySelector('.sp-card-head').attributes) {
+      fakeHead.setAttribute(attribute.name, attribute.value);
+    }
+    while (cardHeadNotButton.querySelector('.sp-card-head').firstChild) {
+      fakeHead.appendChild(cardHeadNotButton.querySelector('.sp-card-head').firstChild);
+    }
+    cardHeadNotButton.querySelector('.sp-card-head').replaceWith(fakeHead);
     holder.replaceChildren(
       survivor,
       duplicateA,
@@ -635,6 +681,19 @@ test('rehydrate admits only structurally complete turns with safe unique identit
       empty,
       missingProse,
       malformedCard,
+      thinkingNoToggle,
+      thinkingMisnested,
+      thinkingDuplicate,
+      thinkingWrongControls,
+      thinkingWrongAct,
+      thinkingNotButton,
+      cardNoHead,
+      cardMisnestedBody,
+      cardMisnestedTitle,
+      cardWrongControls,
+      cardDuplicateHead,
+      cardWrongAct,
+      cardHeadNotButton,
       Object.assign(document.createElement('div'), { textContent: 'not a turn' }),
     );
     sessionStorage.setItem(storageKey, holder.innerHTML);
@@ -652,7 +711,13 @@ test('rehydrate admits only structurally complete turns with safe unique identit
 
   await expect(page.locator('.sp-turn')).toHaveCount(1);
   await expect(page.locator('.sp-turn')).toHaveAttribute('data-turn', 'safe-survivor');
-  for (const turnId of ['duplicate-id', '', 'missing-prose', 'malformed-card']) {
+  for (const turnId of [
+    'duplicate-id', '', 'missing-prose', 'malformed-card',
+    'thinking-no-toggle', 'thinking-misnested', 'thinking-duplicate', 'thinking-wrong-controls',
+    'thinking-wrong-act', 'thinking-not-button',
+    'card-no-head', 'card-misnested-body', 'card-misnested-title', 'card-wrong-controls', 'card-duplicate-head',
+    'card-wrong-act', 'card-head-not-button',
+  ]) {
     await page.evaluate((id) => {
       window.__sandpaperFakeEvents.onmessage({
         data: JSON.stringify({
@@ -745,9 +810,18 @@ test('same-provider peer frames cannot claim a local optimistic turn before its 
       });
     }, { turnId: ownerTurnId, frameText: text });
   }
+  for (const frame of [
+    { type: 'status', turnId: ownerTurnId, provider: 'claude', page: '/hostile.html', state: 'thinking', label: 'owner foreign busy' },
+    { type: 'status', turnId: ownerTurnId, provider: 'claude', page: '/hostile.html', state: 'error', label: 'owner foreign error' },
+    { type: 'status', turnId: ownerTurnId, provider: 'claude', page: '/hostile.html', state: 'done', label: 'owner foreign done', done: true, cost: 42 },
+  ]) {
+    await peer.evaluate((value) => window.__sandpaperFakeEvents.onmessage({ data: JSON.stringify(value) }), frame);
+  }
   await expect(peer.locator('.sp-bubble')).toHaveText('Peer tab rejected turn');
   await expect(peer.locator('#sp-thread')).not.toContainText('owner early frame');
   await expect(peer.locator('.sp-turn')).not.toHaveAttribute('data-turn', ownerTurnId);
+  await expect(peer.locator('#sp-label')).toHaveText('Sending…');
+  await expect(peer.locator('#sp-cost')).toBeHidden();
 
   releaseRejection();
   await expect(peer.locator('#sp-input')).toHaveValue('Peer tab rejected turn');
@@ -760,8 +834,18 @@ test('same-provider peer frames cannot claim a local optimistic turn before its 
       }),
     });
   }, ownerTurnId);
+  for (const frame of [
+    { type: 'status', turnId: ownerTurnId, provider: 'claude', page: '/hostile.html', state: 'thinking', label: 'owner late busy' },
+    { type: 'status', turnId: ownerTurnId, provider: 'claude', page: '/hostile.html', state: 'error', label: 'owner late error' },
+    { type: 'status', turnId: ownerTurnId, provider: 'claude', page: '/hostile.html', state: 'done', label: 'owner late done', done: true, cost: 42 },
+  ]) {
+    await peer.evaluate((value) => window.__sandpaperFakeEvents.onmessage({ data: JSON.stringify(value) }), frame);
+  }
   await expect(peer.locator('#sp-thread')).not.toContainText(/owner (early|second|late) frame/);
   await expect(peer.locator('.sp-turn')).not.toHaveAttribute('data-turn', ownerTurnId);
+  await expect(peer.locator('#sp-label')).toContainText(/turn is already in progress/i);
+  await expect(peer.locator('#sp-input')).toBeEnabled();
+  await expect(peer.locator('#sp-cost')).toBeHidden();
 
   runner.complete(ownerCall);
   await peer.close();
@@ -792,6 +876,9 @@ test('the initiating tab replays only its ordered frames after an exact accepted
   runner.complete(call);
   for (const frame of [
     { type: 'assistant_delta', turnId: 'foreign-turn', provider: 'claude', page: '/hostile.html', kind: 'text', text: 'foreign buffered text' },
+    { type: 'status', turnId: 'foreign-turn', provider: 'claude', page: '/hostile.html', state: 'thinking', label: 'foreign buffered busy' },
+    { type: 'status', turnId: 'foreign-turn', provider: 'claude', page: '/hostile.html', state: 'error', label: 'foreign buffered error' },
+    { type: 'status', turnId: 'foreign-turn', provider: 'claude', page: '/hostile.html', state: 'done', label: 'foreign buffered done', done: true, cost: 99 },
     { type: 'assistant_delta', turnId, provider: 'claude', page: '/hostile.html', kind: 'text', text: 'first then ' },
     { type: 'assistant_delta', turnId, provider: 'claude', page: '/hostile.html', kind: 'text', text: 'second' },
     { type: 'status', turnId, provider: 'claude', page: '/hostile.html', state: 'done', label: 'done', done: true, changed: false, undoable: false },
@@ -800,12 +887,27 @@ test('the initiating tab replays only its ordered frames after an exact accepted
   }
   await expect(page.locator('.sp-prose')).toHaveText('');
   await expect(page.locator('.sp-turnmeta')).toBeHidden();
+  await expect(page.locator('#sp-label')).toHaveText('Sending…');
+  await expect(page.locator('#sp-cost')).toBeHidden();
 
   releaseAccepted();
   await expect(page.locator('.sp-turn')).toHaveAttribute('data-turn', turnId);
   await expect(page.locator('.sp-prose')).toHaveText('first then second');
   await expect(page.locator('.sp-turnmeta .sp-tag')).toHaveText('Replied');
   await expect(page.locator('#sp-thread')).not.toContainText('foreign buffered text');
+  await expect(page.locator('#sp-label')).toHaveText('done');
+  await expect(page.locator('#sp-input')).toBeEnabled();
+  for (const frame of [
+    { type: 'status', turnId: 'foreign-turn', provider: 'claude', page: '/hostile.html', state: 'thinking', label: 'foreign accepted busy' },
+    { type: 'status', turnId: 'foreign-turn', provider: 'claude', page: '/hostile.html', state: 'error', label: 'foreign accepted error' },
+    { type: 'status', turnId: 'foreign-turn', provider: 'claude', page: '/hostile.html', state: 'done', label: 'foreign accepted done', done: true, cost: 99 },
+  ]) {
+    await page.evaluate((value) => window.__sandpaperFakeEvents.onmessage({ data: JSON.stringify(value) }), frame);
+  }
+  await expect(page.locator('#sp-label')).toHaveText('done');
+  await expect(page.locator('#sp-input')).toBeEnabled();
+  await expect(page.locator('#sp-chip')).not.toHaveClass(/sp-busy/);
+  await expect(page.locator('#sp-cost')).toBeHidden();
 });
 
 test('transcript storage write failures stay local and never copy history across provider keys', async ({ page }) => {
@@ -1052,7 +1154,7 @@ test('AI reload rehydrates one completed transcript turn without duplication', a
   await expect(page.locator('.sp-turnmeta .sp-undo')).toHaveCount(1);
 });
 
-test('fresh tab terminal replay updates status without creating a blank transcript turn', async ({ page, context }) => {
+test('fresh tab ignores unowned terminal replay without creating a blank transcript turn', async ({ page, context }) => {
   const call = await submit(page, 'Finish before fresh tab opens');
   runner.complete(call);
   await expect(page.locator('.sp-turnmeta .sp-tag')).toHaveText('Replied');
@@ -1063,7 +1165,7 @@ test('fresh tab terminal replay updates status without creating a blank transcri
     sessionStorage.setItem('sp-welcomed:v1', '1');
   });
   await fresh.goto(new URL('/hostile.html', baseUrl).href);
-  await expect(fresh.locator('#sp-label')).toHaveText('done');
+  await expect(fresh.locator('#sp-label')).toHaveText('idle');
   await expect(fresh.locator('.sp-turn')).toHaveCount(0);
   await expect(fresh.locator('.sp-turnmeta')).toHaveCount(0);
   await fresh.close();

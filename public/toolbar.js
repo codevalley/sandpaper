@@ -671,25 +671,37 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
     var provider = box.getAttribute('data-turn-provider');
     if (!safeTurnId(id) || idCounts[id] !== 1 || provider !== selectedProvider || !providersById[provider]) return null;
     var group = oneDirectChild(box, 'sp-asst');
-    if (!group) return null;
+    if (!group || box.querySelectorAll('.sp-asst').length !== 1) return null;
     var prose = oneDirectChild(group, 'sp-prose');
     var think = oneDirectChild(group, 'sp-think');
     var meta = oneDirectChild(group, 'sp-turnmeta');
+    if (!prose || !think || !meta || box.querySelectorAll('.sp-prose').length !== 1 ||
+        box.querySelectorAll('.sp-think').length !== 1 || box.querySelectorAll('.sp-turnmeta').length !== 1) return null;
+    var thinkToggle = oneDirectChild(think, 'sp-think-toggle');
     var thinkBody = think && oneDirectChild(think, 'sp-think-body');
-    if (!prose || !think || !thinkBody || !meta) return null;
+    if (!thinkToggle || !thinkBody || think.querySelectorAll('.sp-think-toggle').length !== 1 ||
+        think.querySelectorAll('.sp-think-body').length !== 1 || thinkToggle.tagName !== 'BUTTON' ||
+        thinkToggle.getAttribute('data-act') !== 'think' || !thinkBody.id ||
+        thinkToggle.getAttribute('aria-controls') !== thinkBody.id) return null;
     var cards = Array.prototype.slice.call(box.querySelectorAll('.sp-card'));
-    var card = null, cardBody = null, cardTitle = null;
+    var card = null, cardBody = null, cardTitle = null, cardHead = null;
     if (cards.length) {
       if (cards.length !== 1 || cards[0].parentNode !== group) return null;
       card = cards[0];
+      cardHead = oneDirectChild(card, 'sp-card-head');
+      cardBody = oneDirectChild(card, 'sp-card-body');
+      cardTitle = cardHead && oneDirectChild(cardHead, 'sp-card-title');
+      var heads = card.querySelectorAll('.sp-card-head');
       var titles = card.querySelectorAll('.sp-card-title');
       var bodies = card.querySelectorAll('.sp-card-body');
-      if (titles.length !== 1 || bodies.length !== 1) return null;
-      cardTitle = titles[0];
-      cardBody = bodies[0];
+      if (!cardHead || !cardBody || !cardTitle || heads.length !== 1 || titles.length !== 1 || bodies.length !== 1 ||
+          cardHead.tagName !== 'BUTTON' || cardHead.getAttribute('data-act') !== 'card' || !cardBody.id ||
+          cardHead.getAttribute('aria-controls') !== cardBody.id) return null;
+    } else if (box.querySelector('.sp-card-head, .sp-card-body, .sp-card-title')) {
+      return null;
     }
     return { id: id, provider: provider, group: group, prose: prose, think: think, thinkBody: thinkBody,
-      meta: meta, card: card, cardBody: cardBody, cardTitle: cardTitle };
+      meta: meta, card: card, cardHead: cardHead, cardBody: cardBody, cardTitle: cardTitle };
   }
 
   function rehydrateTranscript() {
@@ -792,7 +804,10 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
       setChip(f);
       return;
     }
-    if (f.type === 'status') setChip(f);
+    if (f.type === 'status') {
+      if (!getTurn(f.turnId, f.provider)) return;
+      setChip(f);
+    }
   }
 
   function handleProviderFrame(f) {
