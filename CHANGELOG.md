@@ -9,6 +9,8 @@ own work — via `/sandpaper:release`, never written from scratch.
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-07-11
+
 ### Added
 - Node 18/20/22 integration coverage, Chromium interaction coverage, shipped-JavaScript syntax
   checks, and a fresh-install package smoke that exercises the installed CLI and server.
@@ -68,6 +70,7 @@ Initial public release.
 - Published to npm as `@nynb/sandpaper` (`sandpaper` was taken; `sand-paper`
   blocked by npm's anti-squatting policy — see `brain/decisions.html#d-npm-scope`).
 
-[Unreleased]: https://github.com/codevalley/sandpaper/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/codevalley/sandpaper/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/codevalley/sandpaper/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/codevalley/sandpaper/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/codevalley/sandpaper/releases/tag/v0.1.0
