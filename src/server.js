@@ -284,6 +284,11 @@ export function createSandpaperServer(target, opts = {}, deps = {}) {
   const now = deps.now || Date.now;
   const snapshotLimit = opts.snapshotLimit || 20;
   const sessions = deps.sessions || (deps.runner ? null : createSessionStore(root, { legacyPage: '/' }));
+  // Registry/preferences/initialProvider are intentionally carried into this server boundary now;
+  // Toolbar Task 1 will consume them when it owns provider-aware protocol dispatch.
+  const registry = deps.registry || null;
+  const preferences = deps.preferences || null;
+  const initialProvider = opts.initialProvider || 'claude';
   const claudeDeps = deps.claude || {};
   const watch = deps.watch || watchFiles;
   const writePage = deps.writeFile || writeFileSync;
@@ -880,8 +885,12 @@ export function createSandpaperServer(target, opts = {}, deps = {}) {
   return { server, listen, close };
 }
 
-export function startServer(target, port, opts = {}) {
-  return createSandpaperServer(target, opts).listen(port);
+export function startServer(target, port, opts = {}, deps = {}) {
+  const {
+    registry = null, preferences = null, sessions = null, ...serverOptions
+  } = opts;
+  const createServer = deps.createServer || createSandpaperServer;
+  return createServer(target, serverOptions, { registry, preferences, sessions }).listen(port);
 }
 
 function buildPrompt(payload, docName) {

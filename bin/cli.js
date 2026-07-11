@@ -1,26 +1,50 @@
 #!/usr/bin/env node
-// Sandpaper CLI. Subcommands are the "plumbing" (no AI); a bare path falls through to `serve`.
-//   sandpaper install-skill | init | doctor | open | help | <doc.html|dir>
+// Sandpaper CLI. Subcommands are the "plumbing" (no AI); a bare path falls through to serve.
 import { resolve, dirname, join } from 'node:path';
-import { existsSync, statSync, readFileSync } from 'node:fs';
+import { existsSync, statSync, readFileSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { execFile } from 'node:child_process';
 import { startServer } from '../src/server.js';
+import { createFirstPartyRegistry } from '../src/provider-registry.js';
+import { createProviderPreferenceStore } from '../src/provider-preferences.js';
+import { createSessionStore } from '../src/session-store.js';
 import { installSkill, scaffold, doctor, upgrade, rebuild } from '../src/setup.js';
 
 const PKG = join(dirname(fileURLToPath(import.meta.url)), '..');
-const [cmd, ...rest] = process.argv.slice(2);
+const PROVIDERS = new Set(['claude', 'codex']);
 
-// Starting port: $SANDPAPER_PORT wins, else the repo's pinned .sandpaper/manifest.json "port",
-// else 4848. The server auto-bumps from here if it's taken, so multiple repos never collide.
-const startPort = () => {
-  if (process.env.SANDPAPER_PORT) return Number(process.env.SANDPAPER_PORT);
-  try { const m = JSON.parse(readFileSync(join(process.cwd(), '.sandpaper', 'manifest.json'), 'utf8')); if (m.port) return Number(m.port); } catch {}
-  return 4848;
-};
-const port = startPort();
+export function parseServeArguments(argv) {
+  let target = null;
+  let provider = null;
+  let providerSeen = false;
+  let optionsEnded = false;
 
-const usage = () => console.log(`
+  for (let index = 0; index < argv.length; index += 1) {
+    const value = argv[index];
+    if (!optionsEnded && value === '--') {
+      optionsEnded = true;
+      continue;
+    }
+    if (!optionsEnded && value === '--provider') {
+      if (providerSeen) throw new Error('--provider may only be specified once');
+      providerSeen = true;
+      const selected = argv[index + 1];
+      if (selected === undefined || selected === '--' || selected.startsWith('-')) {
+        throw new Error('--provider requires a value');
+      }
+      if (!PROVIDERS.has(selected)) throw new Error(`Unknown provider: ${selected}`);
+      provider = selected;
+      index += 1;
+      continue;
+    }
+    if (!optionsEnded && value.startsWith('-')) throw new Error(`Unknown option: ${value}`);
+    if (target !== null) throw new Error('Sandpaper accepts only one target');
+    target = value;
+  }
+  return { target, provider };
+}
+
+const usageText = `
   🪵  sandpaper — a living project brain
 
   sandpaper install-skill      install the /sandpaper commands + hooks into this repo
@@ -28,35 +52,122 @@ const usage = () => console.log(`
   sandpaper upgrade            bring an existing brain up to date (assets · hooks · commands · canvas)
   sandpaper rebuild            full reset — back up the old brain + lay down a fresh skeleton
   sandpaper doctor             health-check a Sandpaper setup
-  sandpaper open               serve this repo's brain + open it in a browser
-  sandpaper <doc.html | dir>   serve with the on-page refine toolbar
+  sandpaper open [--provider claude|codex]
+                              serve this repo's brain + open it in a browser
+  sandpaper [--provider claude|codex] <doc.html | dir>
+                              serve with the on-page refine toolbar
   sandpaper help               this
 
   Fresh repo? → sandpaper install-skill, then /sandpaper:init in Claude Code.
-`);
+`;
 
-const serve = async (target, openBrowser) => {
-  const isDir = statSync(target).isDirectory();
-  const url = await startServer(target, port, { brain: isDir });
-  console.log(`\n  🪵  Sandpaper\n  ↳ ${isDir ? 'serving' : 'editing'}  ${target}\n  ↳ open     ${url}\n`);
-  if (openBrowser) {
-    const u = isDir && existsSync(join(target, 'brain', 'index.html')) ? url + 'brain/index.html' : url;
-    const opener = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
-    execFile(opener, [u], () => {}); // best-effort; ignore failures
-  }
-};
+function defaultDependencies() {
+  return {
+    cwd: () => process.cwd(),
+    env: process.env,
+    platform: process.platform,
+    existsSync,
+    statSync,
+    readFileSync,
+    execFile,
+    startServer,
+    createFirstPartyRegistry,
+    createProviderPreferenceStore,
+    createSessionStore,
+    installSkill,
+    scaffold,
+    doctor,
+    upgrade,
+    rebuild,
+    log: console.log,
+  };
+}
 
-(async () => {
+function startPort(runtime, cwd) {
+  if (runtime.env?.SANDPAPER_PORT) return Number(runtime.env.SANDPAPER_PORT);
   try {
-    if (!cmd || cmd === 'help' || cmd === '-h' || cmd === '--help') return usage();
-    if (cmd === 'install-skill') return installSkill(process.cwd(), PKG, { noHooks: rest.includes('--no-hooks') });
-    if (cmd === 'init') return scaffold(process.cwd(), PKG);
-    if (cmd === 'upgrade' || cmd === 'update') return upgrade(process.cwd(), PKG);
-    if (cmd === 'rebuild' || cmd === 'reset') return rebuild(process.cwd(), PKG);
-    if (cmd === 'doctor') return doctor(process.cwd());
-    if (cmd === 'open') return serve(process.cwd(), true);
-    const target = resolve(process.cwd(), cmd);
-    if (!existsSync(target)) { console.error(`\n  sandpaper: unknown command or path: ${cmd}`); usage(); process.exit(1); }
-    return serve(target, false);
-  } catch (e) { console.error('  sandpaper:', e.message); process.exit(1); }
-})();
+    const manifest = JSON.parse(runtime.readFileSync(join(cwd, '.sandpaper', 'manifest.json'), 'utf8'));
+    if (manifest.port) return Number(manifest.port);
+  } catch { /* use the stable default */ }
+  return 4848;
+}
+
+async function serve(parsed, { openBrowser, runtime, cwd }) {
+  const rawTarget = parsed.target || cwd;
+  const target = resolve(cwd, rawTarget);
+  if (!runtime.existsSync(target)) throw new Error(`unknown command or path: ${rawTarget}`);
+
+  const isDir = runtime.statSync(target).isDirectory();
+  const root = isDir ? target : dirname(target);
+  const preferences = runtime.createProviderPreferenceStore(root);
+  const sessions = runtime.createSessionStore(root);
+  const registry = runtime.createFirstPartyRegistry();
+  const initialProvider = parsed.provider || preferences.getDefaultProvider();
+  const url = await runtime.startServer(target, startPort(runtime, root), {
+    brain: isDir,
+    initialProvider,
+    registry,
+    preferences,
+    sessions,
+  });
+
+  runtime.log(`\n  🪵  Sandpaper\n  ↳ ${isDir ? 'serving' : 'editing'}  ${target}\n  ↳ open     ${url}\n`);
+  if (openBrowser) {
+    const browserUrl = isDir && runtime.existsSync(join(target, 'brain', 'index.html'))
+      ? `${url}brain/index.html` : url;
+    const opener = runtime.platform === 'darwin'
+      ? 'open' : runtime.platform === 'win32' ? 'start' : 'xdg-open';
+    runtime.execFile(opener, [browserUrl], () => {});
+  }
+}
+
+export async function runCli(argv = process.argv.slice(2), injected = {}) {
+  const runtime = { ...defaultDependencies(), ...injected };
+  const cwd = runtime.cwd();
+  const [command, ...rest] = argv;
+
+  const rejectArguments = (name) => {
+    if (rest.length) throw new Error(`${name} does not accept options or arguments`);
+  };
+
+  if (!command) {
+    runtime.log(usageText);
+    return;
+  }
+  if (command === 'help' || command === '-h' || command === '--help') {
+    rejectArguments(command);
+    runtime.log(usageText);
+    return;
+  }
+  if (command === 'install-skill') {
+    if (rest.some((value) => value !== '--no-hooks') || rest.filter((value) => value === '--no-hooks').length > 1) {
+      throw new Error(`Unknown install-skill option: ${rest.join(' ')}`);
+    }
+    return runtime.installSkill(cwd, PKG, { noHooks: rest[0] === '--no-hooks' });
+  }
+  if (command === 'init') { rejectArguments(command); return runtime.scaffold(cwd, PKG); }
+  if (command === 'upgrade' || command === 'update') {
+    rejectArguments(command); return runtime.upgrade(cwd, PKG);
+  }
+  if (command === 'rebuild' || command === 'reset') {
+    rejectArguments(command); return runtime.rebuild(cwd, PKG);
+  }
+  if (command === 'doctor') { rejectArguments(command); return runtime.doctor(cwd); }
+  if (command === 'open') {
+    return serve(parseServeArguments(rest), { openBrowser: true, runtime, cwd });
+  }
+  return serve(parseServeArguments(argv), { openBrowser: false, runtime, cwd });
+}
+
+function isMainModule() {
+  if (!process.argv[1]) return false;
+  try { return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)); }
+  catch { return false; }
+}
+
+if (isMainModule()) {
+  runCli().catch((error) => {
+    console.error('  sandpaper:', error.message);
+    process.exitCode = 1;
+  });
+}

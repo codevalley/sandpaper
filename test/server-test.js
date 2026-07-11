@@ -5,7 +5,7 @@ import { createServer as createHttpServer, get as httpGet, request as httpReques
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
-import { createSandpaperServer } from '../src/server.js';
+import { createSandpaperServer, startServer } from '../src/server.js';
 import { runClaudeTurn } from '../src/claude.js';
 import { createFakeRunner, makeRepo, openEvents, requestJson } from './helpers/server-fixture.js';
 
@@ -659,6 +659,65 @@ test('default server runner resumes and persists its page-scoped Claude session'
     JSON.parse(readFileSync(sessionFile, 'utf8')).pages['/'].claude.resumeId,
     'new-session',
   );
+});
+
+test('server reuses injected provider services without changing the default runner', async (t) => {
+  const repo = makeRepo();
+  t.after(() => repo.cleanup());
+  const child = fakeChild();
+  const calls = [];
+  const sessions = {
+    get(key) { calls.push(['get', key]); return 'injected-session'; },
+    set(value) { calls.push(['set', value]); },
+  };
+  const preferences = { getDefaultProvider() { throw new Error('must not be read by the server'); } };
+  const registry = { get() { throw new Error('toolbar dispatch is not part of Runtime Task 4'); } };
+  const controller = createSandpaperServer(repo.pageFile, { initialProvider: 'codex' }, {
+    registry, preferences, sessions,
+    claude: { spawn: () => child },
+    tokenFactory: () => 'test-token',
+    watch: () => ({ close() {} }),
+  });
+  t.after(() => controller.close());
+  const url = await controller.listen();
+
+  const accepted = await requestJson(url, '/__sandpaper/turn', {
+    body: { page: '/', prompt: 'continue' },
+  });
+  assert.equal(accepted.status, 202);
+  assert.deepEqual(calls, [['get', { page: '/', provider: 'claude' }]]);
+
+  child.stdout.end(`${JSON.stringify({ type: 'system', subtype: 'init', session_id: 'new-session' })}\n`);
+  child.emit('close', 1);
+  assert.deepEqual(calls[1], ['set', {
+    page: '/', provider: 'claude', resumeId: 'new-session',
+  }]);
+});
+
+test('startServer forwards provider service identities into the server dependency boundary', async () => {
+  const registry = {};
+  const preferences = {};
+  const sessions = {};
+  let received;
+  const result = await startServer('/repo/brain', 7777, {
+    brain: true,
+    initialProvider: 'codex',
+    registry,
+    preferences,
+    sessions,
+  }, {
+    createServer(target, opts, deps) {
+      received = { target, opts, deps };
+      return { listen: async (port) => `listening:${port}` };
+    },
+  });
+
+  assert.equal(result, 'listening:7777');
+  assert.equal(received.target, '/repo/brain');
+  assert.deepEqual(received.opts, { brain: true, initialProvider: 'codex' });
+  assert.strictEqual(received.deps.registry, registry);
+  assert.strictEqual(received.deps.preferences, preferences);
+  assert.strictEqual(received.deps.sessions, sessions);
 });
 
 test('Claude uses the controlled invocation contract and emits one terminal frame', (t) => {

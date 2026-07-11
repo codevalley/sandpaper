@@ -1,3 +1,7 @@
+import { runClaudeTurn } from './claude.js';
+import { runCodexTurn } from './codex.js';
+import { diagnoseClaude, diagnoseCodex } from './diagnostics.js';
+
 const DIAGNOSTIC_FIELDS = [
   'available', 'compatible', 'authMethod', 'version', 'unavailableCode',
 ];
@@ -14,6 +18,18 @@ function safeDiagnostics(value) {
     if (safe) result[key] = field;
   }
   return result;
+}
+
+function diagnoseSafely(entry) {
+  try { return safeDiagnostics(entry.diagnose()); }
+  catch {
+    return {
+      available: false,
+      compatible: false,
+      authMethod: null,
+      unavailableCode: 'diagnostic_failed',
+    };
+  }
 }
 
 export function createProviderRegistry(entries) {
@@ -35,8 +51,25 @@ export function createProviderRegistry(entries) {
       return [...providers.values()].map((entry) => ({
         id: entry.id,
         label: entry.label,
-        ...safeDiagnostics(entry.diagnose()),
+        ...diagnoseSafely(entry),
       }));
     },
   };
+}
+
+export function createFirstPartyRegistry(deps = {}) {
+  return createProviderRegistry([
+    {
+      id: 'claude',
+      label: 'Claude Code',
+      diagnose: deps.diagnoseClaude || diagnoseClaude,
+      runTurn: (input) => runClaudeTurn(input, deps.claude),
+    },
+    {
+      id: 'codex',
+      label: 'Codex',
+      diagnose: deps.diagnoseCodex || diagnoseCodex,
+      runTurn: (input) => runCodexTurn(input, deps.codex),
+    },
+  ]);
 }
