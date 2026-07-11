@@ -86,16 +86,30 @@ authorize a push.
 
 ## 8. Version, verify tag, then push
 
-Only after final confirmation, run:
+Only after final confirmation, create the version commit and tag:
 
 ```sh
 npm version <bump> -m "chore(release): v%s"
-git push --follow-tags
 ```
 
 `npm version` updates `package.json` and `package-lock.json`, creates the version commit, and tags
-`vX.Y.Z`. Confirm that exact tag points at the version commit before pushing. Do not hand-edit the
-version, bypass the clean-tree check, force a tag, force-push, or publish directly.
+`vX.Y.Z`. Before presenting or running any push, verify both the package version and that the exact
+tag resolves to the version commit at `HEAD`:
+
+```sh
+test "$(node -p "require('./package.json').version")" = "X.Y.Z"
+test "$(git rev-parse --verify "vX.Y.Z^{commit}")" = "$(git rev-parse HEAD)"
+```
+
+Stop immediately if either verification command fails; do not run the push. Only after both commands
+succeed, push the verified version commit and tag:
+
+```sh
+git push --follow-tags
+```
+
+Do not hand-edit the version, bypass the clean-tree check, force a tag, force-push, or publish
+directly.
 
 ## 9. CI publish handoff
 

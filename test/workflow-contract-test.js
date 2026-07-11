@@ -127,8 +127,17 @@ test('release workflow preserves the ordered safety and publication handoff cont
     'git status --porcelain',
   ]) assert.match(release, new RegExp(gate.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   assert.match(release, /separate final human confirmation/i);
-  assert.match(release, /Confirm that exact tag points at the version commit before pushing/i);
-  assert.ok(release.indexOf('npm version <bump>') < release.indexOf('git push --follow-tags'));
+  const version = release.indexOf('npm version <bump>');
+  const tagVerification = release.indexOf('test "$(git rev-parse --verify "vX.Y.Z^{commit}")" = "$(git rev-parse HEAD)"');
+  const push = release.indexOf('git push --follow-tags');
+  assert.ok(version >= 0 && version < tagVerification, 'npm version must run before explicit tag verification');
+  assert.ok(tagVerification < push, 'tag verification must succeed before push is presented');
+  assert.match(release, /Stop immediately if either verification command fails; do not run the push/i);
+  assert.match(
+    release,
+    /```sh\nnpm version <bump> -m "chore\(release\): v%s"\n```[\s\S]*```sh\ntest "\$\(node -p "require\('\.\/package\.json'\)\.version"\)" = "X\.Y\.Z"\ntest "\$\(git rev-parse --verify "vX\.Y\.Z\^\{commit\}"\)" = "\$\(git rev-parse HEAD\)"\n```[\s\S]*```sh\ngit push --follow-tags\n```/,
+    'version, verification, and push must be separate runnable blocks',
+  );
   assert.match(release, /\.github\/workflows\/release\.yml/);
   assert.match(release, /Never publish to npm directly/i);
 });
