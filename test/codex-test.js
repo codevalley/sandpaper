@@ -47,10 +47,12 @@ test('Codex args keep global safety flags before exec and explicit resume ID aft
   assert.deepEqual(resumed.slice(-4), ['--json', 'resume', 'thread-1', 'Continue']);
   assert.ok(resumed.includes('web_search="disabled"'));
   assert.ok(resumed.includes('sandbox_workspace_write.network_access=false'));
+  assert.ok(resumed.includes('project_doc_max_bytes=0'));
   assert.deepEqual(resumed.slice(0, resumed.indexOf('exec')), [
     '--ask-for-approval', 'never', '--sandbox', 'workspace-write',
     '--config', 'web_search="disabled"',
     '--config', 'sandbox_workspace_write.network_access=false',
+    '--config', 'project_doc_max_bytes=0',
     '--disable', 'multi_agent', '--disable', 'apps',
   ]);
   assert.equal(resumed.includes('-C'), false);
@@ -110,6 +112,33 @@ test('Codex maps top-level and item errors as warnings but turn failure as termi
   }]);
 });
 
+test('Codex filters malformed file-change members without fabricating path metadata', () => {
+  const event = {
+    type: 'item.completed',
+    item: {
+      type: 'file_change',
+      changes: [
+        null,
+        7,
+        'index.html',
+        [],
+        {},
+        { path: 'missing-kind.html' },
+        { kind: 'update' },
+        { path: 'index.html', kind: 'update' },
+      ],
+    },
+  };
+  assert.doesNotThrow(() => mapCodexEvent(event, 'index.html'));
+  assert.deepEqual(mapCodexEvent(event, 'index.html'), [{
+    type: 'edit', tool: 'Codex', file: 'index.html',
+    paths: [{ path: 'index.html', kind: 'update' }],
+  }]);
+  assert.deepEqual(mapCodexEvent({
+    type: 'item.completed', item: { type: 'file_change', changes: [null, 7, {}] },
+  }, 'index.html'), []);
+});
+
 test('Codex success uses the controlled invocation, saved auth environment, and one terminal', async (t) => {
   const child = fakeChild();
   const frames = [];
@@ -164,6 +193,31 @@ test('Codex ignores malformed JSON noise and emits one failure terminal', () => 
   assert.deepEqual(terminals(frames), [{
     type: 'status', state: 'error', label: 'turn failed', detail: 'request failed',
   }]);
+});
+
+test('Codex survives malformed structured file changes and still emits one terminal', () => {
+  const child = fakeChild();
+  const frames = [];
+  runCodexTurn(input(child, frames), { spawn: () => child });
+  child.stdout.write(`${JSON.stringify({
+    type: 'item.completed',
+    item: {
+      type: 'file_change',
+      changes: [null, 3, { path: 'index.html' }, { path: 'index.html', kind: 'update' }],
+    },
+  })}\n`);
+  child.stdout.write(`${JSON.stringify({
+    type: 'turn.completed',
+    usage: { input_tokens: 10, cached_input_tokens: 2, output_tokens: 5 },
+  })}\n`);
+  child.stdout.end();
+  child.emit('close', 0, null);
+  assert.deepEqual(frames.filter((frame) => frame.type === 'edit'), [{
+    type: 'edit', tool: 'Codex', file: 'index.html',
+    paths: [{ path: 'index.html', kind: 'update' }],
+  }]);
+  assert.equal(terminals(frames).length, 1);
+  assert.equal(terminals(frames)[0].state, 'done');
 });
 
 test('Codex reports synchronous spawn throws and asynchronous spawn errors exactly once', () => {

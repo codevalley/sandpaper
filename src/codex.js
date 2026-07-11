@@ -7,6 +7,7 @@ export function codexArgs({ prompt, resumeId }) {
     '--ask-for-approval', 'never', '--sandbox', 'workspace-write',
     '--config', 'web_search="disabled"',
     '--config', 'sandbox_workspace_write.network_access=false',
+    '--config', 'project_doc_max_bytes=0',
     '--disable', 'multi_agent', '--disable', 'apps',
     'exec', '--ignore-user-config', '--ignore-rules', '--json',
   ];
@@ -84,9 +85,15 @@ export function mapCodexEvent(event, documentName) {
     return [{ type: 'assistant_delta', kind: 'text', text: item.text }];
   }
   if (item.type === 'file_change' && Array.isArray(item.changes)) {
+    const paths = item.changes
+      .filter((change) => change && typeof change === 'object' && !Array.isArray(change)
+        && typeof change.path === 'string' && change.path
+        && typeof change.kind === 'string' && change.kind)
+      .map((change) => ({ path: change.path, kind: change.kind }));
+    if (!paths.length) return [];
     return [{
       type: 'edit', tool: 'Codex', file: documentName,
-      paths: item.changes.map(({ path, kind }) => ({ path, kind })),
+      paths,
     }];
   }
   if (item.type === 'error') {
