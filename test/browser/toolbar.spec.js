@@ -28,12 +28,39 @@ async function waitFor(predicate, message, timeout = 4_000) {
   }
 }
 
-async function submit(page, prompt) {
-  const call = runner.calls.length;
+async function submit(page, prompt, targetRunner = runner) {
+  const call = targetRunner.calls.length;
   await page.locator('#sp-input').fill(prompt);
   await page.locator('#sp-send').click();
-  await waitFor(() => runner.calls.length > call, `runner did not receive ${prompt}`);
+  await waitFor(() => targetRunner.calls.length > call, `runner did not receive ${prompt}`);
   return call;
+}
+
+async function chooseProvider(page, provider) {
+  await page.locator('#sp-provider-button').click();
+  await page.locator(`[data-provider="${provider}"]`).click();
+}
+
+async function transcriptKey(page, provider, pathname = '/hostile.html') {
+  return page.evaluate(({ providerId, pagePath }) => {
+    const script = document.querySelector('script[data-sandpaper-bootstrap]');
+    const bootstrap = JSON.parse(script.getAttribute('data-sandpaper-bootstrap'));
+    return ['sp-thread:v2', bootstrap.projectId, pagePath, providerId].join(':');
+  }, { providerId: provider, pagePath: pathname });
+}
+
+async function createProviderHistories(page) {
+  const claudeCall = await submit(page, 'Claude history');
+  runner.complete(claudeCall);
+  await expect(page.locator('.sp-turnmeta .sp-tag')).toHaveText('Replied');
+  await chooseProvider(page, 'codex');
+  const codexCall = await submit(page, 'Codex history', codexRunner);
+  codexRunner.complete(codexCall);
+  await expect(page.locator('.sp-turnmeta .sp-tag')).toHaveText('Replied');
+  return {
+    claudeKey: await transcriptKey(page, 'claude'),
+    codexKey: await transcriptKey(page, 'codex'),
+  };
 }
 
 async function recoverableSubmit(page, prompt) {
@@ -373,7 +400,7 @@ test('provider accessibility keyboard model supports navigation, activation, dis
   await expect(menu).toBeVisible();
   await expect(button).toHaveAttribute('aria-expanded', 'true');
   await expect(page.locator('[data-provider="claude"]')).toBeFocused();
-  await page.keyboard.press('End');
+  await page.keyboard.press('ArrowDown');
   await expect(page.locator('[data-provider="codex"]')).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(button).toHaveText(/Codex/);
@@ -411,6 +438,7 @@ test('provider accessibility reaches and activates Make default with arrows and 
   const claude = page.locator('[data-provider="claude"]');
   const codex = page.locator('[data-provider="codex"]');
   const makeDefault = page.locator('#sp-provider-default');
+  const newSession = page.locator('#sp-provider-new-session');
 
   await button.click();
   await codex.click();
@@ -421,6 +449,10 @@ test('provider accessibility reaches and activates Make default with arrows and 
   await expect(menu).toBeVisible();
   await page.keyboard.press('Tab');
   await expect(makeDefault).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(newSession).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(makeDefault).toBeFocused();
   await page.keyboard.press('Shift+Tab');
   await expect(codex).toBeFocused();
   await page.keyboard.press('Shift+Tab');
@@ -430,7 +462,8 @@ test('provider accessibility reaches and activates Make default with arrows and 
   await expect(button).toBeFocused();
 
   await button.press('ArrowDown');
-  await page.keyboard.press('End');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowDown');
   await expect(makeDefault).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(makeDefault).toContainText(/default/i);
@@ -511,35 +544,314 @@ test('provider switch clears stale Claude header cost before showing Codex ident
   await expect(page.locator('#sp-cost')).toHaveText('');
 });
 
-test('accepted turn provider marker survives a provider switch and transcript rehydrate', async ({ page }) => {
+test('Claude and Codex histories use exact independent project/page/provider keys through switch and reload', async ({ page }) => {
+  const legacyKey = 'sp-thread:/hostile.html';
+  await page.evaluate((key) => sessionStorage.setItem(key, '<div>legacy shared history</div>'), legacyKey);
+
   const call = await submit(page, 'Remember the accepted provider');
   runner.complete(call);
-  const turn = page.locator('.sp-turn[data-turn]').first();
-  await expect(turn).toHaveAttribute('data-turn-provider', 'claude');
+  await expect(page.locator('.sp-turnmeta .sp-tag')).toHaveText('Replied');
+  const claudeKey = await transcriptKey(page, 'claude');
+  const codexKey = await transcriptKey(page, 'codex');
+  expect(claudeKey).toMatch(/^sp-thread:v2:[a-f0-9]{16}:\/hostile\.html:claude$/);
+  expect(codexKey).toMatch(/^sp-thread:v2:[a-f0-9]{16}:\/hostile\.html:codex$/);
+  expect(await page.evaluate((key) => sessionStorage.getItem(key), claudeKey)).toContain('Remember the accepted provider');
+  expect(await page.evaluate((key) => sessionStorage.getItem(key), codexKey)).toBeNull();
 
-  await page.locator('#sp-provider-button').click();
-  await page.locator('[data-provider="codex"]').click();
+  await chooseProvider(page, 'codex');
+  await expect(page.locator('#sp-thread')).not.toContainText('Remember the accepted provider');
+  const codexCall = await submit(page, 'Keep the Codex transcript separate', codexRunner);
+  codexRunner.complete(codexCall);
+  await expect(page.locator('.sp-turnmeta .sp-tag')).toHaveText('Replied');
+  expect(await page.evaluate((key) => sessionStorage.getItem(key), codexKey)).toContain('Keep the Codex transcript separate');
+
+  await chooseProvider(page, 'claude');
+  await expect(page.locator('#sp-thread')).toContainText('Remember the accepted provider');
+  await expect(page.locator('#sp-thread')).not.toContainText('Keep the Codex transcript separate');
+  await expect(page.locator('.sp-turn[data-turn]').first()).toHaveAttribute('data-turn-provider', 'claude');
+
+  await chooseProvider(page, 'codex');
   await page.reload();
 
   await expect(page.locator('#sp-provider-button')).toHaveText(/Codex/);
-  await expect(page.locator('.sp-turn[data-turn]').first()).toHaveAttribute('data-turn-provider', 'claude');
+  await expect(page.locator('#sp-thread')).toContainText('Keep the Codex transcript separate');
+  await expect(page.locator('#sp-thread')).not.toContainText('Remember the accepted provider');
+  await expect(page.locator('.sp-turn[data-turn]').first()).toHaveAttribute('data-turn-provider', 'codex');
+  expect(await page.evaluate((key) => sessionStorage.getItem(key), legacyKey)).toBe('<div>legacy shared history</div>');
 });
 
-test('rehydrate rejects an unknown persisted turn provider instead of relabeling it', async ({ page }) => {
+test('rehydrate rejects missing, unknown, and mismatched persisted provider markers without relabeling', async ({ page }) => {
   const call = await submit(page, 'Persist a provider marker');
   runner.complete(call);
   await expect(page.locator('.sp-turnmeta .sp-tag')).toHaveText('Replied');
-  await page.evaluate(() => {
-    const key = `sp-thread:${location.pathname}`;
+  const key = await transcriptKey(page, 'claude');
+  await page.evaluate((storageKey) => {
+    const key = storageKey;
     const saved = sessionStorage.getItem(key);
-    sessionStorage.setItem(key, saved.replace('data-turn-provider="claude"', 'data-turn-provider="mystery-provider"'));
-  });
-  await page.locator('#sp-provider-button').click();
-  await page.locator('[data-provider="codex"]').click();
+    sessionStorage.setItem(key, saved
+      + saved.replace('data-turn-provider="claude"', 'data-turn-provider="mystery-provider"')
+      + saved.replace(' data-turn-provider="claude"', '')
+      + saved.replace('data-turn-provider="claude"', 'data-turn-provider="codex"'));
+  }, key);
   await page.reload();
 
+  await expect(page.locator('#sp-provider-button')).toHaveText(/Claude Code/);
+  await expect(page.locator('.sp-turn[data-turn-provider="claude"]')).toHaveCount(1);
+  await expect(page.locator('.sp-turn[data-turn-provider="codex"]')).toHaveCount(0);
+  await expect(page.locator('.sp-turn:not([data-turn-provider])')).toHaveCount(0);
+  await expect(page.locator('.sp-turn[data-turn-provider="mystery-provider"]')).toHaveCount(0);
+});
+
+test('inactive, missing, unknown, and turn-mismatched provider frames cannot mutate or persist the selected transcript', async ({ page }) => {
+  const call = await submit(page, 'Protected Claude history');
+  runner.complete(call);
+  await expect(page.locator('.sp-turnmeta .sp-tag')).toHaveText('Replied');
+  const key = await transcriptKey(page, 'claude');
+  const turnId = await page.locator('.sp-turn[data-turn]').getAttribute('data-turn');
+
+  await page.addInitScript(() => {
+    class FakeEventSource {
+      constructor() { window.__sandpaperFakeEvents = this; }
+      close() {}
+    }
+    window.EventSource = FakeEventSource;
+  });
+  await page.reload();
+  const before = await page.evaluate((storageKey) => ({
+    html: document.querySelector('#sp-thread').innerHTML,
+    stored: sessionStorage.getItem(storageKey),
+    label: document.querySelector('#sp-label').textContent,
+  }), key);
+
+  for (const frame of [
+    { type: 'assistant_delta', turnId, provider: 'codex', page: '/hostile.html', kind: 'text', text: 'Codex contamination' },
+    { type: 'assistant_delta', turnId, page: '/hostile.html', kind: 'text', text: 'Missing-provider contamination' },
+    { type: 'edit', turnId, provider: 'mystery-provider', page: '/hostile.html', file: 'hostile.html', added: 1, removed: 0 },
+    { type: 'status', turnId, provider: 'codex', page: '/hostile.html', state: 'error', label: 'Wrong provider error' },
+    { type: 'assistant_delta', turnId: 'unknown-turn', provider: 'claude', page: '/hostile.html', kind: 'text', text: 'Unknown turn contamination' },
+    { type: 'usage', turnId: 'unknown-turn', provider: 'claude', page: '/hostile.html', totalTokens: 99 },
+  ]) {
+    await page.evaluate((value) => {
+      window.__sandpaperFakeEvents.onmessage({ data: JSON.stringify(value) });
+    }, frame);
+  }
+
+  const after = await page.evaluate((storageKey) => ({
+    html: document.querySelector('#sp-thread').innerHTML,
+    stored: sessionStorage.getItem(storageKey),
+    label: document.querySelector('#sp-label').textContent,
+  }), key);
+  expect(after).toEqual(before);
+});
+
+test('transcript storage write failures stay local and never copy history across provider keys', async ({ page }) => {
+  const legacyKey = 'sp-thread:/hostile.html';
+  await page.evaluate((key) => {
+    sessionStorage.setItem(key, '<div>legacy sentinel</div>');
+    const original = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (storageKey, value) {
+      if (storageKey.startsWith('sp-thread:v2:')) throw new DOMException('Quota exceeded', 'QuotaExceededError');
+      return original.call(this, storageKey, value);
+    };
+  }, legacyKey);
+  const call = await submit(page, 'Visible despite quota failure');
+  runner.complete(call);
+  await expect(page.locator('#sp-thread')).toContainText('Visible despite quota failure');
+  await chooseProvider(page, 'codex');
+  await expect(page.locator('#sp-thread .sp-turn')).toHaveCount(0);
+  expect(await page.evaluate((key) => sessionStorage.getItem(key), legacyKey)).toBe('<div>legacy sentinel</div>');
+});
+
+test('two tabs may select different providers while one lifecycle globally locks turn, switch, and reset controls', async ({ page, context }) => {
+  const peer = await context.newPage();
+  await peer.addInitScript(() => {
+    localStorage.setItem('sp-welcomed:v1', '1');
+    sessionStorage.setItem('sp-welcomed:v1', '1');
+  });
+  await peer.goto(new URL('/other.html', baseUrl).href);
+  await chooseProvider(peer, 'codex');
+  await expect(page.locator('#sp-provider-button')).toHaveText(/Claude Code/);
+  await expect(peer.locator('#sp-provider-button')).toHaveText(/Codex/);
+
+  const call = await submit(page, 'Global lifecycle across providers');
+  for (const tab of [page, peer]) {
+    await expect(tab.locator('#sp-provider-button')).toBeDisabled();
+    await expect(tab.locator('#sp-provider-new-session')).toBeDisabled();
+    await expect(tab.locator('#sp-input')).toBeDisabled();
+  }
+  runner.complete(call);
+  for (const tab of [page, peer]) {
+    await expect(tab.locator('#sp-provider-button')).toBeEnabled();
+    await expect(tab.locator('#sp-provider-new-session')).toBeEnabled();
+  }
+  await expect(page.locator('#sp-provider-button')).toHaveText(/Claude Code/);
+  await expect(peer.locator('#sp-provider-button')).toHaveText(/Codex/);
+  await peer.close();
+});
+
+test('New session clears exactly the selected provider/page transcript after exact server success', async ({ page }) => {
+  const { claudeKey, codexKey } = await createProviderHistories(page);
+  const otherKey = await transcriptKey(page, 'codex', '/other.html');
+  await page.evaluate((key) => sessionStorage.setItem(key, '<div>other page history</div>'), otherKey);
+  await chooseProvider(page, 'claude');
+  await expect(page.locator('#sp-thread')).toContainText('Claude history');
+  await page.evaluate(() => { window.confirm = () => true; });
+  let requestBody;
+  await page.route('**/__sandpaper/session/reset', async (route) => {
+    requestBody = route.request().postDataJSON();
+    await route.fallback();
+  });
+
+  await page.locator('#sp-provider-button').click();
+  const reset = page.locator('#sp-provider-new-session');
+  await expect(reset).toBeEnabled();
+  await expect(reset).toHaveAttribute('aria-label', 'New session for Claude Code');
+  await reset.click();
+
+  await expect(page.locator('#sp-provider-menu')).toBeHidden();
+  await expect(page.locator('#sp-provider-button')).toBeFocused();
+  await expect(page.locator('#sp-thread .sp-turn')).toHaveCount(0);
+  expect(requestBody).toEqual({ page: '/hostile.html', provider: 'claude' });
+  expect(await page.evaluate((key) => sessionStorage.getItem(key), claudeKey)).toBeNull();
+  expect(await page.evaluate((key) => sessionStorage.getItem(key), codexKey)).toContain('Codex history');
+  expect(await page.evaluate((key) => sessionStorage.getItem(key), otherKey)).toBe('<div>other page history</div>');
+
+  await page.locator('#sp-provider-button').press('ArrowDown');
+  await expect(page.locator('[data-provider="claude"]')).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(page.locator('[data-provider="codex"]')).toBeFocused();
+  await page.keyboard.press('Enter');
   await expect(page.locator('#sp-provider-button')).toHaveText(/Codex/);
-  await expect(page.locator('.sp-turn[data-turn]').first()).not.toHaveAttribute('data-turn-provider', /.+/);
+  expect(await page.evaluate((key) => sessionStorage.getItem(key), codexKey)).toContain('Codex history');
+  await expect(page.locator('#sp-thread')).toContainText('Codex history');
+});
+
+test('New session cancellation makes no request or transcript mutation and keeps coherent menu focus', async ({ page }) => {
+  const call = await submit(page, 'History preserved on cancel');
+  runner.complete(call);
+  await expect(page.locator('.sp-turnmeta .sp-tag')).toHaveText('Replied');
+  const key = await transcriptKey(page, 'claude');
+  const before = await page.evaluate((storageKey) => sessionStorage.getItem(storageKey), key);
+  let requests = 0;
+  await page.route('**/__sandpaper/session/reset', (route) => { requests += 1; return route.abort(); });
+  await page.evaluate(() => { window.confirm = () => false; });
+
+  await page.locator('#sp-provider-button').click();
+  await page.locator('#sp-provider-new-session').click();
+  expect(requests).toBe(0);
+  await expect(page.locator('#sp-provider-menu')).toBeVisible();
+  await expect(page.locator('#sp-provider-new-session')).toBeFocused();
+  await expect(page.locator('#sp-thread')).toContainText('History preserved on cancel');
+  expect(await page.evaluate((storageKey) => sessionStorage.getItem(storageKey), key)).toBe(before);
+});
+
+for (const resetFailure of [
+  {
+    name: 'structured failure',
+    fulfill: { status: 409, body: JSON.stringify({ ok: false, error: { code: 'turn_in_progress', message: 'A turn is already in progress' } }) },
+    message: /turn is already in progress/i,
+  },
+  { name: 'network failure', abort: 'connectionrefused', message: /failed|reset|connection|reachable/i },
+  { name: 'empty success', fulfill: { status: 200, body: '{}' }, message: /invalid session reset response/i },
+  { name: 'wrong-provider success', fulfill: { status: 200, body: JSON.stringify({ ok: true, page: '/hostile.html', provider: 'codex' }) }, message: /invalid session reset response/i },
+  { name: 'wrong-page success', fulfill: { status: 200, body: JSON.stringify({ ok: true, page: '/other.html', provider: 'claude' }) }, message: /invalid session reset response/i },
+  { name: 'extra-field success', fulfill: { status: 200, body: JSON.stringify({ ok: true, page: '/hostile.html', provider: 'claude', extra: true }) }, message: /invalid session reset response/i },
+  { name: 'malformed success', fulfill: { status: 200, body: '{' }, message: /invalid response/i },
+]) {
+  test(`New session ${resetFailure.name} preserves history and focus`, async ({ page }) => {
+    const call = await submit(page, `History preserved on ${resetFailure.name}`);
+    runner.complete(call);
+    await expect(page.locator('.sp-turnmeta .sp-tag')).toHaveText('Replied');
+    const key = await transcriptKey(page, 'claude');
+    const before = await page.evaluate((storageKey) => sessionStorage.getItem(storageKey), key);
+    await page.evaluate(() => { window.confirm = () => true; });
+    await page.route('**/__sandpaper/session/reset', (route) => {
+      if (resetFailure.abort) return route.abort(resetFailure.abort);
+      return route.fulfill({ contentType: 'application/json', ...resetFailure.fulfill });
+    });
+
+    await page.locator('#sp-provider-button').click();
+    await page.locator('#sp-provider-new-session').click();
+    await expect(page.locator('#sp-provider-menu')).toBeVisible();
+    await expect(page.locator('#sp-provider-new-session')).toBeFocused();
+    await expect(page.locator('#sp-provider-guidance')).toContainText(resetFailure.message);
+    await expect(page.locator('#sp-thread')).toContainText(`History preserved on ${resetFailure.name}`);
+    expect(await page.evaluate((storageKey) => sessionStorage.getItem(storageKey), key)).toBe(before);
+  });
+}
+
+test('New session preserves history when browser storage removal throws after server success', async ({ page }) => {
+  const call = await submit(page, 'History preserved on storage failure');
+  runner.complete(call);
+  await expect(page.locator('.sp-turnmeta .sp-tag')).toHaveText('Replied');
+  const key = await transcriptKey(page, 'claude');
+  const before = await page.evaluate((storageKey) => sessionStorage.getItem(storageKey), key);
+  await page.evaluate(() => {
+    window.confirm = () => true;
+    const original = Storage.prototype.removeItem;
+    Storage.prototype.removeItem = function (storageKey) {
+      if (storageKey.startsWith('sp-thread:v2:')) throw new DOMException('Storage denied', 'SecurityError');
+      return original.call(this, storageKey);
+    };
+  });
+
+  await page.locator('#sp-provider-button').click();
+  await page.locator('#sp-provider-new-session').click();
+  await expect(page.locator('#sp-provider-menu')).toBeVisible();
+  await expect(page.locator('#sp-provider-new-session')).toBeFocused();
+  await expect(page.locator('#sp-provider-guidance')).toContainText(/browser history|storage|clear/i);
+  await expect(page.locator('#sp-thread')).toContainText('History preserved on storage failure');
+  expect(await page.evaluate((storageKey) => sessionStorage.getItem(storageKey), key)).toBe(before);
+});
+
+test('New session request locks provider switching and turn submission until it settles', async ({ page }) => {
+  const call = await submit(page, 'History during reset transaction');
+  runner.complete(call);
+  await expect(page.locator('.sp-turnmeta .sp-tag')).toHaveText('Replied');
+  await page.evaluate(() => { window.confirm = () => true; });
+  let releaseReset;
+  await page.route('**/__sandpaper/session/reset', async (route) => {
+    await new Promise((resolve) => { releaseReset = resolve; });
+    await route.fallback();
+  });
+
+  await page.locator('#sp-provider-button').click();
+  await page.locator('#sp-provider-new-session').click();
+  await expect.poll(() => typeof releaseReset).toBe('function');
+  await expect(page.locator('#sp-provider-button')).toBeDisabled();
+  await expect(page.locator('#sp-input')).toBeDisabled();
+  await expect(page.locator('#sp-send')).toBeDisabled();
+  await expect(page.locator('#sp-provider-new-session')).toBeDisabled();
+  expect(codexRunner.calls).toHaveLength(0);
+
+  releaseReset();
+  await expect(page.locator('#sp-provider-button')).toBeEnabled();
+  await expect(page.locator('#sp-provider-button')).toHaveText(/Claude Code/);
+  await expect(page.locator('#sp-thread .sp-turn')).toHaveCount(0);
+});
+
+test('New session is keyboard reachable, activates once, and is enabled for a known unavailable provider while idle', async ({ page }) => {
+  await startProviderServer(page, {
+    initialProvider: 'codex',
+    diagnostics: [
+      READY_PROVIDERS[0],
+      { id: 'codex', label: 'Codex', available: false, compatible: true, authMethod: null, unavailableCode: 'unauthenticated' },
+    ],
+  });
+  await page.evaluate(() => { window.confirm = () => true; });
+  let requests = 0;
+  await page.route('**/__sandpaper/session/reset', async (route) => { requests += 1; await route.fallback(); });
+  const button = page.locator('#sp-provider-button');
+  await button.focus();
+  await button.press('ArrowDown');
+  await page.keyboard.press('End');
+  const reset = page.locator('#sp-provider-new-session');
+  await expect(reset).toBeFocused();
+  await expect(reset).toBeEnabled();
+  await page.keyboard.press('Enter');
+  await expect.poll(() => requests).toBe(1);
+  await expect(page.locator('#sp-provider-menu')).toBeHidden();
+  await expect(button).toBeFocused();
 });
 
 test('reply-only completion says Replied and has no AI undo', async ({ page }) => {

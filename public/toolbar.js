@@ -12,7 +12,6 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
     waiting: '#C98A1E', error: '#B23A2E', done: '#4E7C59', idle: '#8A8578',
   };
   var BUSY = ['init', 'thinking', 'editing', 'tool_using', 'waiting'];
-  var SKEY = 'sp-thread:' + location.pathname; // transcript persists per-document
   var bootstrap = document.querySelector('script[type="module"][src="/__sandpaper/toolbar.js"][data-sandpaper-token]');
   var token = bootstrap ? bootstrap.getAttribute('data-sandpaper-token') : '';
   var bootstrapData = {};
@@ -67,7 +66,7 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
           '<div id="sp-provider-options"></div>' +
           '<div id="sp-provider-actions" role="none">' +
             '<button type="button" id="sp-provider-default" role="menuitem"></button>' +
-            '<button type="button" id="sp-provider-new-session" role="menuitem" disabled>New session (coming next)</button>' +
+            '<button type="button" id="sp-provider-new-session" role="menuitem" disabled>New provider session</button>' +
           '</div>' +
           '<div id="sp-provider-guidance" role="status" aria-live="polite" hidden></div>' +
         '</div>' +
@@ -153,7 +152,7 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
   var stickBottom = true;
   var directQueue = Promise.resolve();
   var directPending = 0, turnBusy = false, statusBusy = false, lifecycleBusy = false,
-      lifecycleTurnId = null, modeVersion = 0;
+      lifecycleTurnId = null, resetPending = false, modeVersion = 0;
   var disclosureSeq = 0;
 
   // ---------- small helpers ----------
@@ -178,6 +177,7 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
   function navigableMenuItems() {
     var items = providerItems();
     if (!providerDefault.disabled) items.push(providerDefault);
+    if (!providerNewSession.disabled) items.push(providerNewSession);
     return items;
   }
   function tabbableMenuItems() {
@@ -186,13 +186,14 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
   function syncProviderControls() {
     var selected = selectedProviderState();
     var ready = !!(selected && selected.available === true);
-    providerButton.disabled = turnBusy || (!selected && !providers.length);
+    var controlsLocked = turnBusy || resetPending;
+    providerButton.disabled = controlsLocked || (!selected && !providers.length);
     providerButton.setAttribute('aria-disabled', String(providerButton.disabled));
     providerItems().forEach(function (item) {
       var provider = providersById[item.getAttribute('data-provider')];
       var checked = !!provider && provider.id === selectedProvider;
       item.setAttribute('aria-checked', String(checked));
-      item.setAttribute('aria-disabled', String(!provider || provider.available !== true || turnBusy));
+      item.setAttribute('aria-disabled', String(!provider || provider.available !== true || controlsLocked));
       var state = item.querySelector('.sp-provider-state');
       if (state) state.textContent = provider && provider.id === defaultProvider
         ? 'Default'
@@ -200,16 +201,17 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
     });
     var alreadyDefault = !!selected && selected.id === defaultProvider;
     providerDefault.textContent = alreadyDefault ? selected.label + ' is default' : 'Make ' + (selected ? selected.label : 'provider') + ' default';
-    providerDefault.disabled = turnBusy || !ready || alreadyDefault;
+    providerDefault.disabled = controlsLocked || !ready || alreadyDefault;
     providerDefault.setAttribute('aria-disabled', String(providerDefault.disabled));
     providerDefault.setAttribute('aria-label', alreadyDefault
       ? selected.label + ' is the default provider'
       : 'Make ' + (selected ? selected.label : 'this provider') + ' the default provider');
-    providerNewSession.disabled = true;
-    providerNewSession.setAttribute('aria-disabled', 'true');
-    providerNewSession.setAttribute('aria-label', 'New session for ' + (selected ? selected.label : 'provider') + ' is available in the next toolbar step');
-    input.disabled = turnBusy || !ready;
-    sendBtn.disabled = turnBusy || !ready;
+    providerNewSession.textContent = 'New ' + (selected ? selected.label : 'provider') + ' session';
+    providerNewSession.disabled = controlsLocked || !selected;
+    providerNewSession.setAttribute('aria-disabled', String(providerNewSession.disabled));
+    providerNewSession.setAttribute('aria-label', 'New session for ' + (selected ? selected.label : 'provider'));
+    input.disabled = controlsLocked || !ready;
+    sendBtn.disabled = controlsLocked || !ready;
   }
   function syncProviderPresentation(options) {
     var selected = selectedProviderState();
@@ -262,9 +264,10 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
       showProviderGuidance(providerRepairGuidance(provider));
       return false;
     }
-    if (turnBusy) return false;
+    if (turnBusy || resetPending) return false;
     selectedProvider = id;
     try { sessionStorage.setItem(providerKey, id); } catch (error) {}
+    rehydrateTranscript();
     syncProviderPresentation({ selectionChanged: true });
     return true;
   }
@@ -333,7 +336,7 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
   });
   providerDefault.addEventListener('click', function () {
     var selected = selectedProviderState();
-    if (!selected || selected.available !== true || turnBusy || selected.id === defaultProvider) return;
+    if (!selected || selected.available !== true || turnBusy || resetPending || selected.id === defaultProvider) return;
     var requestedProvider = selected.id;
     providerDefault.disabled = true;
     providerDefault.setAttribute('aria-disabled', 'true');
@@ -351,6 +354,49 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
     }).catch(function (error) {
       syncProviderPresentation({ keepGuidance: true });
       showProviderGuidance(errorMessage(error));
+    });
+  });
+  providerNewSession.addEventListener('click', function () {
+    var selected = selectedProviderState();
+    if (!selected || turnBusy || resetPending) return;
+    var requestedProvider = selected.id;
+    var requestedPage = location.pathname;
+    var key = transcriptKey(requestedProvider);
+    if (!key) return;
+    var confirmed = window.confirm('Start a new ' + selected.label + ' session for this page? This clears only its saved toolbar history.');
+    if (!confirmed) {
+      providerNewSession.focus();
+      return;
+    }
+    resetPending = true;
+    syncProviderControls();
+    client.resetSession({ page: requestedPage, provider: requestedProvider }).then(function (result) {
+      var responseKeys = result && typeof result === 'object' ? Object.keys(result).sort() : [];
+      if (!result || result.ok !== true || result.page !== requestedPage || result.provider !== requestedProvider ||
+          responseKeys.join(',') !== 'ok,page,provider') {
+        var bodyError = result && result.ok === false && result.error;
+        throw new Error(bodyError && typeof bodyError.message === 'string'
+          ? bodyError.message
+          : 'Sandpaper returned an invalid session reset response');
+      }
+      try {
+        sessionStorage.removeItem(key);
+        if (sessionStorage.getItem(key) !== null) throw new Error('browser history remains');
+      } catch (error) {
+        throw new Error('The provider session was reset, but browser history could not be cleared. Try again.');
+      }
+      resetPending = false;
+      clearTranscript();
+      lastChangedCids = [];
+      syncProviderPresentation({ selectionChanged: true });
+      showProviderGuidance(selected.label + ' session reset for this page.');
+      closeProviderMenu(true);
+    }).catch(function (error) {
+      resetPending = false;
+      syncProviderPresentation({ keepGuidance: true });
+      showProviderGuidance(errorMessage(error));
+      if (providerMenu.hidden) providerButton.focus();
+      else providerNewSession.focus();
     });
   });
   function expand() { panel.classList.remove('sp-collapsed'); thread.hidden = false; toggleBtn.textContent = '▾'; toggleBtn.setAttribute('aria-expanded', 'true'); }
@@ -501,17 +547,18 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
   }
 
   function getTurn(turnId, providerId) {
-    if (turnId && turns[turnId]) return turns[turnId];
-    if (pendingTurn && !pendingTurn.id) {
+    if (!providersById[providerId]) return null;
+    if (turnId && turns[turnId]) return turns[turnId].provider === providerId ? turns[turnId] : null;
+    if (pendingTurn && pendingTurn.provider === providerId && (!pendingTurn.id || pendingTurn.id === turnId)) {
       pendingTurn.id = turnId; if (turnId) { turns[turnId] = pendingTurn; pendingTurn.box.setAttribute('data-turn', turnId); }
       var pt = pendingTurn; pendingTurn = null; return pt;
     }
-    var t = createTurn(turnId, null, null, providerId); if (turnId) turns[turnId] = t; return t;
+    return null;
   }
 
-  function knownTerminalTurn(turnId) {
-    if (turnId && turns[turnId]) return turns[turnId];
-    if (pendingTurn && (!pendingTurn.id || pendingTurn.id === turnId)) return getTurn(turnId);
+  function knownTerminalTurn(turnId, providerId) {
+    if (turnId && turns[turnId]) return turns[turnId].provider === providerId ? turns[turnId] : null;
+    if (pendingTurn && pendingTurn.provider === providerId && (!pendingTurn.id || pendingTurn.id === turnId)) return getTurn(turnId, providerId);
     return null;
   }
 
@@ -544,14 +591,14 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
       cost.hidden = false;
     }
     if (f.state === 'error' && f.turnId) {
-      var te = knownTerminalTurn(f.turnId);
+      var te = knownTerminalTurn(f.turnId, f.provider);
       var terminalError = new Error(f.detail || f.label || 'Turn failed');
       if (te) rejectPendingTurn(te, terminalError, te.draft, f);
       else announceRequestError(terminalError);
       return;
     }
     if ((f.done || f.phase === 'done') && f.turnId) {
-      var doneTurn = knownTerminalTurn(f.turnId);
+      var doneTurn = knownTerminalTurn(f.turnId, f.provider);
       if (doneTurn) finalizeTurn(doneTurn, f);
     }
   }
@@ -603,24 +650,44 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
     return el('div', sign === '+' ? 'sp-add' : 'sp-diff-del', sign + ' ' + t);
   }
 
+  function transcriptKey(providerId) {
+    if (!providersById[providerId] || typeof bootstrapData.projectId !== 'string' || !bootstrapData.projectId) return null;
+    return ['sp-thread:v2', bootstrapData.projectId, location.pathname, providerId].join(':');
+  }
+
+  function clearTranscript() {
+    thread.textContent = '';
+    for (var key in turns) delete turns[key];
+    panel.classList.remove('sp-has-thread');
+  }
+
   function rehydrateTranscript() {
+    clearTranscript();
+    var key = transcriptKey(selectedProvider);
+    if (!key) return;
     var saved = null;
-    try { saved = sessionStorage.getItem(SKEY); } catch (e) {}
+    try { saved = sessionStorage.getItem(key); } catch (e) {}
     if (!saved) return;
     thread.innerHTML = saved;
+    var transcriptTurns = Array.prototype.slice.call(thread.children);
+    transcriptTurns.forEach(function (node) {
+      if (!node.classList || !node.classList.contains('sp-turn') ||
+          node.getAttribute('data-turn-provider') !== selectedProvider) node.remove();
+    });
+    if (!thread.querySelector('.sp-turn')) {
+      thread.textContent = '';
+      return;
+    }
     panel.classList.add('sp-has-thread');
-    for (var key in turns) delete turns[key];
     Array.prototype.forEach.call(thread.querySelectorAll('[id^="sp-think-body-"], [id^="sp-card-body-"]'), function (node) {
       var match = node.id.match(/-(\d+)$/);
       if (match) disclosureSeq = Math.max(disclosureSeq, parseInt(match[1], 10));
     });
-    Array.prototype.forEach.call(thread.querySelectorAll('.sp-turn[data-turn]'), function (box) {
+    Array.prototype.slice.call(thread.children).forEach(function (box) {
+      if (!box.classList.contains('sp-turn') || !box.hasAttribute('data-turn')) return;
       var id = box.getAttribute('data-turn');
       var turnProvider = box.getAttribute('data-turn-provider');
-      if (!providersById[turnProvider]) {
-        box.removeAttribute('data-turn-provider');
-        turnProvider = null;
-      }
+      if (turnProvider !== selectedProvider || !providersById[turnProvider]) return;
       var meta = box.querySelector('.sp-turnmeta');
       var card = box.querySelector('.sp-card');
       turns[id] = {
@@ -657,21 +724,33 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
       location.reload();
       return;
     }
+    if (!providersById[f.provider] || f.provider !== selectedProvider) return;
     if (f.type === 'assistant_delta') {
-      var t = getTurn(f.turnId, f.provider); expandIfContent();
+      var t = getTurn(f.turnId, f.provider);
+      if (!t) return;
+      expandIfContent();
       if (f.kind === 'thinking') t.thinkBuf += f.text; else t.textBuf += f.text;
       scheduleFlush(t);
       return;
     }
-    if (f.type === 'edit') { expandIfContent(); addEdit(getTurn(f.turnId, f.provider), f); return; }
-    setChip(f); // default: a status frame
+    if (f.type === 'edit') {
+      var editTurn = getTurn(f.turnId, f.provider);
+      if (!editTurn) return;
+      expandIfContent(); addEdit(editTurn, f); return;
+    }
+    if (f.type === 'usage') {
+      if (!getTurn(f.turnId, f.provider)) return;
+      setChip(f);
+      return;
+    }
+    if (f.type === 'status') setChip(f);
   };
 
   // ---------- submit a turn ----------
   panel.querySelector('#sp-form').addEventListener('submit', function (e) {
     e.preventDefault();
     var provider = selectedProviderState();
-    if (chip.classList.contains('sp-busy') || !provider || provider.available !== true) return; // a turn is already running or provider is unavailable
+    if (chip.classList.contains('sp-busy') || resetPending || !provider || provider.available !== true) return; // a turn/reset is already running or provider is unavailable
     var prompt = input.value.trim(); if (!prompt) return;
     var attach = sel ? ((sel.cid ? '#' + sel.cid : sel.selector) + (sel.snippet ? ' — ' + sel.snippet : '')) : null;
     pendingTurn = createTurn(null, prompt, attach, provider.id);
@@ -1042,7 +1121,11 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
   window.addEventListener('load', maybeWelcome);
 
   // ---------- persistence + rehydrate (survive the live-reload) ----------
-  function persist() { try { sessionStorage.setItem(SKEY, thread.innerHTML); } catch (e) {} }
+  function persist(providerId) {
+    var key = transcriptKey(providerId || selectedProvider);
+    if (!key) return false;
+    try { sessionStorage.setItem(key, thread.innerHTML); return true; } catch (e) { return false; }
+  }
 
   window.addEventListener('load', function () {
     try { var y = sessionStorage.getItem('sp-scroll'); if (y !== null) { window.scrollTo(0, parseInt(y, 10)); sessionStorage.removeItem('sp-scroll'); } } catch (e) {}
