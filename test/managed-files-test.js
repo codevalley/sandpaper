@@ -16,7 +16,7 @@ import {
 } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
-import { join, win32 } from 'node:path';
+import { dirname, join, win32 } from 'node:path';
 
 import { copyTree } from '../src/integrations.js';
 import * as managed from '../src/managed-files.js';
@@ -73,7 +73,7 @@ test('managed blocks append, update, converge, and remove with exact outside byt
   const first = upsertManagedBlock(file, { ...MARKERS, content: 'Read `brain/index.html`.\nUse the shared truth.', trustedRoot: root });
   const appended = readFileSync(file, 'utf8');
   assert.deepEqual(first, { ok: true, changed: true, action: 'added' });
-  assert.equal(appended, `${original}\r\n${MARKERS.begin}\r\nRead \`brain/index.html\`.\r\nUse the shared truth.\r\n${MARKERS.end}`);
+  assert.equal(appended, `${original}${MARKERS.begin}\r\nRead \`brain/index.html\`.\r\nUse the shared truth.\r\n${MARKERS.end}`);
 
   const second = upsertManagedBlock(file, { ...MARKERS, content: 'Read `brain/index.html`.\nUse the shared truth.', trustedRoot: root });
   assert.deepEqual(second, { ok: true, changed: false, action: 'unchanged' });
@@ -81,11 +81,11 @@ test('managed blocks append, update, converge, and remove with exact outside byt
 
   const updated = upsertManagedBlock(file, { ...MARKERS, content: 'Updated contract.', trustedRoot: root });
   assert.deepEqual(updated, { ok: true, changed: true, action: 'updated' });
-  assert.equal(readFileSync(file, 'utf8'), `${original}\r\n${MARKERS.begin}\r\nUpdated contract.\r\n${MARKERS.end}`);
+  assert.equal(readFileSync(file, 'utf8'), `${original}${MARKERS.begin}\r\nUpdated contract.\r\n${MARKERS.end}`);
 
   const removed = removeManagedBlock(file, { ...MARKERS, trustedRoot: root });
   assert.deepEqual(removed, { ok: true, changed: true, action: 'removed' });
-  assert.equal(readFileSync(file, 'utf8'), `${original}\r\n`);
+  assert.equal(readFileSync(file, 'utf8'), original);
 });
 
 test('managed block removal deletes only a wholly Sandpaper-owned file', (t) => {
@@ -500,4 +500,107 @@ test('copyTree rollback never deletes a concurrently swapped destination', (t) =
   assert.equal(readFileSync(join(destination, 'concurrent.md'), 'utf8'), 'concurrent user bytes\n');
   assert.equal(readFileSync(join(displaced, 'new.md'), 'utf8'), 'new bytes\n');
   assert.equal(readFileSync(join(error.recoveryPath, 'previous', 'old.md'), 'utf8'), 'old bytes\n');
+});
+
+test('transaction cleanup retains data swapped at quarantine rename', (t) => {
+  const root = fixture(t, 'sandpaper-cleanup-rename-swap-');
+  const source = join(root, 'source');
+  const destination = join(root, 'destination');
+  mkdirSync(source);
+  mkdirSync(destination);
+  writeFileSync(join(source, 'new.md'), 'new\n');
+  writeFileSync(join(destination, 'old.md'), 'old\n');
+  let savedOriginal;
+  let swappedTransaction;
+
+  const error = thrown(() => copyTree(source, destination, {
+    overwriteNamespaced: true,
+    sourceRoot: root,
+    destinationRoot: root,
+    hooks: {
+      beforeQuarantineRename({ transaction, quarantineRoot }) {
+        swappedTransaction = transaction;
+        savedOriginal = join(quarantineRoot, 'saved-original');
+        renameSync(transaction, savedOriginal);
+        mkdirSync(transaction);
+        writeFileSync(join(transaction, 'user.md'), 'user swap bytes\n');
+      },
+    },
+  }));
+
+  assert.equal(error.code, 'SANDPAPER_RECOVERY_REQUIRED');
+  assert.equal(readFileSync(join(savedOriginal, 'previous', 'old.md'), 'utf8'), 'old\n');
+  assert.equal(readFileSync(join(swappedTransaction, 'user.md'), 'utf8'), 'user swap bytes\n');
+});
+
+test('transaction cleanup retains data swapped immediately before recursive quarantine cleanup', (t) => {
+  const root = fixture(t, 'sandpaper-cleanup-recursive-swap-');
+  const source = join(root, 'source');
+  const destination = join(root, 'destination');
+  mkdirSync(source);
+  mkdirSync(destination);
+  writeFileSync(join(source, 'new.md'), 'new\n');
+  writeFileSync(join(destination, 'old.md'), 'old\n');
+  let savedOriginal;
+  let swappedPath;
+
+  const error = thrown(() => copyTree(source, destination, {
+    overwriteNamespaced: true,
+    sourceRoot: root,
+    destinationRoot: root,
+    hooks: {
+      beforeRecursiveCleanup({ quarantineRoot, quarantinedTransaction }) {
+        savedOriginal = join(quarantineRoot, 'saved-original');
+        swappedPath = quarantinedTransaction;
+        renameSync(quarantinedTransaction, savedOriginal);
+        mkdirSync(quarantinedTransaction);
+        writeFileSync(join(quarantinedTransaction, 'user.md'), 'late user swap\n');
+      },
+    },
+  }));
+
+  assert.equal(error.code, 'SANDPAPER_RECOVERY_REQUIRED');
+  assert.equal(readFileSync(join(savedOriginal, 'previous', 'old.md'), 'utf8'), 'old\n');
+  assert.equal(readFileSync(join(swappedPath, 'user.md'), 'utf8'), 'late user swap\n');
+  assert.equal(error.recoveryPath, dirname(savedOriginal));
+});
+
+test('standalone managed upsert never overwrites a concurrent destination after backup', (t) => {
+  const root = fixture(t, 'sandpaper-managed-upsert-race-');
+  const file = join(root, 'AGENTS.md');
+  writeFileSync(file, 'original user bytes\n');
+
+  const error = thrown(() => upsertManagedBlock(file, {
+    ...MARKERS,
+    content: 'managed',
+    trustedRoot: root,
+  }, {
+    hooks: {
+      beforeInstall() { writeFileSync(file, 'concurrent user bytes\n'); },
+    },
+  }));
+
+  assert.equal(error.code, 'SANDPAPER_RECOVERY_REQUIRED');
+  assert.equal(readFileSync(file, 'utf8'), 'concurrent user bytes\n');
+  assert.equal(readFileSync(join(error.recoveryPath, 'backup'), 'utf8'), 'original user bytes\n');
+});
+
+test('standalone managed removal preserves concurrent replacement and original recovery backup', (t) => {
+  const root = fixture(t, 'sandpaper-managed-remove-race-');
+  const file = join(root, 'CLAUDE.md');
+  upsertManagedBlock(file, { ...MARKERS, content: 'managed', trustedRoot: root });
+  const original = readFileSync(file);
+
+  const error = thrown(() => removeManagedBlock(file, { ...MARKERS, trustedRoot: root }, {
+    hooks: {
+      afterBackup() {
+        writeFileSync(file, 'concurrent replacement\n');
+        throw new Error('injected post-backup failure');
+      },
+    },
+  }));
+
+  assert.equal(error.code, 'SANDPAPER_RECOVERY_REQUIRED');
+  assert.equal(readFileSync(file, 'utf8'), 'concurrent replacement\n');
+  assert.deepEqual(readFileSync(join(error.recoveryPath, 'backup')), original);
 });

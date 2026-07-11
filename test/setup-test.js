@@ -557,6 +557,24 @@ test('integration commit failure leaves fresh and existing manifest selection co
   }
 });
 
+test('identical reinstall repairs manifest mode to 0600 without leaking a transaction', {
+  skip: process.platform === 'win32',
+}, (t) => {
+  const target = mkdtempSync(join(tmpdir(), 'sandpaper-manifest-mode-'));
+  t.after(() => rmSync(target, { recursive: true, force: true }));
+  write(target, 'package.json', JSON.stringify({ name: '@fixture/manifest-mode' }));
+  quietInstall(target, { integrations: ['claude', 'codex'], defaultProvider: 'claude', hooksEnabled: false });
+  const manifest = join(target, '.sandpaper', 'manifest.json');
+  const bytes = readFileSync(manifest);
+  chmodSync(manifest, 0o644);
+
+  quietInstall(target, { integrations: ['claude', 'codex'], defaultProvider: 'claude', hooksEnabled: false });
+
+  assert.deepEqual(readFileSync(manifest), bytes);
+  assert.equal(statSync(manifest).mode & 0o777, 0o600);
+  assert.deepEqual(readdirSync(target).filter((name) => name.startsWith('.sandpaper-integrations-')), []);
+});
+
 function populatedBrain(t) {
   const target = mkdtempSync(join(tmpdir(), 'sandpaper-inspect-'));
   t.after(() => rmSync(target, { recursive: true, force: true }));

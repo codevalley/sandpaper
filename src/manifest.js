@@ -3,6 +3,7 @@ import {
   constants,
   existsSync,
   fchmodSync,
+  fstatSync,
   mkdirSync,
   openSync,
   readFileSync,
@@ -12,6 +13,7 @@ import {
 } from 'node:fs';
 import { randomBytes as secureRandomBytes } from 'node:crypto';
 import { basename, dirname, join } from 'node:path';
+import { inspectTrustedPath } from './managed-files.js';
 
 export const MANIFEST_VERSION = 2;
 export const PROVIDERS = Object.freeze(['claude', 'codex']);
@@ -74,13 +76,25 @@ export function migrateManifest(value) {
   };
 }
 
-export function readManifest(file) {
-  if (!existsSync(file)) return null;
+export function readManifest(file, { trustedRoot = dirname(file) } = {}) {
+  const inspected = inspectTrustedPath(trustedRoot, file, {
+    pathClass: 'manifest path',
+  });
+  if (!inspected.exists) return null;
+  if (!inspected.stats.isFile()) throw new Error('Manifest path is not a regular file');
+  const flags = constants.O_RDONLY
+    | (constants.O_NOFOLLOW || 0)
+    | (constants.O_NONBLOCK || 0);
+  let descriptor;
   let value;
   try {
-    value = JSON.parse(readFileSync(file, 'utf8'));
+    descriptor = openSync(file, flags);
+    if (!fstatSync(descriptor).isFile()) throw new Error('Manifest path is not a regular file');
+    value = JSON.parse(readFileSync(descriptor, 'utf8'));
   } catch {
     throw new Error('Manifest JSON is invalid');
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
   }
   return migrateManifest(value);
 }
@@ -112,7 +126,7 @@ function createTemporaryManifest(file, randomBytes) {
 }
 
 export function writeManifest(file, value, { randomBytes = secureRandomBytes } = {}) {
-  if (existsSync(file)) readManifest(file);
+  if (existsSync(file)) readManifest(file, { trustedRoot: dirname(file) });
   const normalized = migrateManifest(value);
   const directory = dirname(file);
   mkdirSync(directory, { recursive: true });

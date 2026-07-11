@@ -8,6 +8,29 @@ function runtimeFs(overrides) {
   return overrides ? { ...nodeFs, ...overrides } : nodeFs;
 }
 
+export class SandpaperRecoveryError extends Error {
+  constructor(recoveryPath) {
+    super('Sandpaper transaction recovery required');
+    this.name = 'SandpaperRecoveryError';
+    this.code = 'SANDPAPER_RECOVERY_REQUIRED';
+    this.recoveryPath = recoveryPath;
+  }
+}
+
+export function statIdentity(stats) {
+  if (!stats) return null;
+  const type = stats.isDirectory() ? 'directory'
+    : stats.isFile() ? 'file'
+      : stats.isSymbolicLink() ? 'symlink' : 'special';
+  return { dev: stats.dev, ino: stats.ino, type };
+}
+
+export function sameStatIdentity(stats, expected) {
+  if (!stats || !expected) return !stats && !expected;
+  const current = statIdentity(stats);
+  return current.dev === expected.dev && current.ino === expected.ino && current.type === expected.type;
+}
+
 function boundedPathError(pathClass, detail) {
   return new Error(`Sandpaper ${pathClass} ${detail}`);
 }
@@ -102,6 +125,78 @@ export function ensureTrustedParents(root, target, {
   }
 }
 
+function identitySnapshot(root, fs, pathApi) {
+  const entries = new Map();
+  const walk = (directory, prefix = '') => {
+    for (const name of fs.readdirSync(directory).sort()) {
+      const path = pathApi.join(directory, name);
+      const relative = prefix ? pathApi.join(prefix, name) : name;
+      const stats = fs.lstatSync(path);
+      entries.set(relative, statIdentity(stats));
+      if (stats.isDirectory()) walk(path, relative);
+    }
+  };
+  walk(root);
+  return entries;
+}
+
+function sameSnapshot(left, right) {
+  if (left.size !== right.size) return false;
+  for (const [path, expected] of left) {
+    const actual = right.get(path);
+    if (!actual || actual.dev !== expected.dev || actual.ino !== expected.ino || actual.type !== expected.type) return false;
+  }
+  return true;
+}
+
+export function quarantineCleanup(transaction, transactionIdentity, {
+  fs: overrides,
+  pathApi = nodePath,
+  hooks = {},
+} = {}) {
+  const fs = runtimeFs(overrides);
+  const current = lstatIfPresent(transaction, fs);
+  if (!sameStatIdentity(current, transactionIdentity) || !current?.isDirectory()) {
+    throw new SandpaperRecoveryError(transaction);
+  }
+  let expected;
+  try { expected = identitySnapshot(transaction, fs, pathApi); }
+  catch { throw new SandpaperRecoveryError(transaction); }
+
+  const quarantineRoot = fs.mkdtempSync(pathApi.join(pathApi.dirname(transaction), '.sandpaper-quarantine-'));
+  const quarantineIdentity = statIdentity(fs.lstatSync(quarantineRoot));
+  const quarantinedTransaction = pathApi.join(quarantineRoot, 'transaction');
+  try {
+    hooks.beforeQuarantineRename?.({ transaction, quarantineRoot, quarantinedTransaction });
+    const beforeMove = lstatIfPresent(transaction, fs);
+    if (!sameStatIdentity(beforeMove, transactionIdentity)) throw new SandpaperRecoveryError(quarantineRoot);
+    const beforeSnapshot = identitySnapshot(transaction, fs, pathApi);
+    if (!sameSnapshot(beforeSnapshot, expected)) throw new SandpaperRecoveryError(quarantineRoot);
+    fs.renameSync(transaction, quarantinedTransaction);
+    const moved = lstatIfPresent(quarantinedTransaction, fs);
+    if (!sameStatIdentity(moved, transactionIdentity)) throw new SandpaperRecoveryError(quarantineRoot);
+    if (!sameSnapshot(identitySnapshot(quarantinedTransaction, fs, pathApi), expected)) {
+      throw new SandpaperRecoveryError(quarantineRoot);
+    }
+    hooks.beforeRecursiveCleanup?.({ quarantineRoot, quarantinedTransaction });
+    const finalMoved = lstatIfPresent(quarantinedTransaction, fs);
+    if (!sameStatIdentity(finalMoved, transactionIdentity)) throw new SandpaperRecoveryError(quarantineRoot);
+    if (!sameSnapshot(identitySnapshot(quarantinedTransaction, fs, pathApi), expected)) {
+      throw new SandpaperRecoveryError(quarantineRoot);
+    }
+    fs.rmSync(quarantinedTransaction, { recursive: true, force: true });
+    if (lstatIfPresent(quarantinedTransaction, fs)) throw new SandpaperRecoveryError(quarantineRoot);
+    if (!sameStatIdentity(lstatIfPresent(quarantineRoot, fs), quarantineIdentity)) {
+      throw new SandpaperRecoveryError(quarantineRoot);
+    }
+    fs.rmdirSync(quarantineRoot);
+    return true;
+  } catch (error) {
+    if (error instanceof SandpaperRecoveryError) throw error;
+    throw new SandpaperRecoveryError(quarantineRoot);
+  }
+}
+
 function invalidMarkers() {
   return { ok: false, changed: false, error: 'Invalid Sandpaper markers' };
 }
@@ -185,11 +280,12 @@ export function planManagedBlock(file, { begin, end, content, trustedRoot }, {
   const source = exists ? readManagedFile(file, fs) : Buffer.alloc(0);
   const region = markerRegion(source, begin, end);
   const mode = inspected.stats ? inspected.stats.mode & 0o777 : 0o644;
-  if (!region.ok) return { ...region, source, exists, mode };
+  const originalIdentity = statIdentity(inspected.stats);
+  if (!region.ok) return { ...region, source, exists, mode, identity: originalIdentity };
 
   if (remove) {
     if (!region.present) {
-      return { ok: true, changed: false, action: exists ? 'unchanged' : 'absent', source, next: source, exists, mode };
+      return { ok: true, changed: false, action: exists ? 'unchanged' : 'absent', source, next: source, exists, mode, identity: originalIdentity };
     }
     const prefix = source.subarray(0, region.start);
     const suffix = source.subarray(region.finish);
@@ -204,11 +300,12 @@ export function planManagedBlock(file, { begin, end, content, trustedRoot }, {
       next,
       exists,
       mode,
+      identity: originalIdentity,
     };
   }
 
   if (typeof content !== 'string') throw new TypeError('Sandpaper managed content must be text');
-  if (content.includes(begin) || content.includes(end)) return { ...invalidMarkers(), source, exists, mode };
+  if (content.includes(begin) || content.includes(end)) return { ...invalidMarkers(), source, exists, mode, identity: originalIdentity };
   const newline = newlineFor(source);
   const block = Buffer.concat([
     region.beginBytes,
@@ -221,13 +318,12 @@ export function planManagedBlock(file, { begin, end, content, trustedRoot }, {
   if (region.present) {
     next = Buffer.concat([source.subarray(0, region.start), block, source.subarray(region.finish)]);
   } else if (source.length) {
-    const endsWithNewline = source.at(-1) === 0x0a;
-    next = Buffer.concat([source, endsWithNewline ? Buffer.alloc(0) : newline, block]);
+    next = Buffer.concat([source, block]);
   } else {
     next = Buffer.concat([block, newline]);
   }
   if (next.equals(source)) {
-    return { ok: true, changed: false, action: 'unchanged', source, next, exists, mode };
+    return { ok: true, changed: false, action: 'unchanged', source, next, exists, mode, identity: originalIdentity };
   }
   return {
     ok: true,
@@ -237,6 +333,7 @@ export function planManagedBlock(file, { begin, end, content, trustedRoot }, {
     next,
     exists,
     mode,
+    identity: originalIdentity,
   };
 }
 
@@ -265,45 +362,82 @@ function currentMatchesPlan(file, plan, trustedRoot, fs, pathApi) {
   if (inspected.exists !== plan.exists) return false;
   if (!plan.exists) return true;
   if (!inspected.stats.isFile()) return false;
+  if (!sameStatIdentity(inspected.stats, plan.identity)) return false;
   return readManagedFile(file, fs).equals(plan.source);
 }
 
-function applyPlan(file, plan, trustedRoot, { fs: overrides, pathApi = nodePath } = {}) {
+function applyPlan(file, plan, trustedRoot, { fs: overrides, pathApi = nodePath, hooks = {} } = {}) {
   const fs = runtimeFs(overrides);
   if (!plan.ok || !plan.changed) return plan.ok
     ? { ok: true, changed: false, action: plan.action }
     : { ok: false, changed: false, error: plan.error };
-  if (!currentMatchesPlan(file, plan, trustedRoot, fs, pathApi)) {
-    throw new Error('Sandpaper managed file changed during update');
-  }
-  if (plan.next === null) {
-    fs.rmSync(file);
-    return { ok: true, changed: true, action: plan.action };
-  }
-
-  const temporary = createTemporary(file, plan.mode, trustedRoot, fs, pathApi);
-  let descriptor = temporary.descriptor;
-  let path = temporary.temporary;
+  ensureTrustedParents(trustedRoot, file, { fs, pathApi, pathClass: 'managed path' });
+  const transaction = fs.mkdtempSync(pathApi.join(pathApi.dirname(file), `.${pathApi.basename(file)}.sandpaper-managed-`));
+  const transactionIdentity = statIdentity(fs.lstatSync(transaction));
+  const staged = plan.next === null ? null : pathApi.join(transaction, 'next');
+  const backup = pathApi.join(transaction, 'backup');
+  const failed = pathApi.join(transaction, 'failed');
+  let stageIdentity = null;
+  let backupMoved = false;
   try {
-    fs.writeFileSync(descriptor, plan.next);
-    fs.fchmodSync(descriptor, plan.mode);
-    fs.closeSync(descriptor);
-    descriptor = null;
+    if (staged) {
+      const flags = fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY | (fs.constants.O_NOFOLLOW || 0);
+      const descriptor = fs.openSync(staged, flags, plan.mode);
+      try {
+        fs.writeFileSync(descriptor, plan.next);
+        fs.fchmodSync(descriptor, plan.mode);
+      } finally { fs.closeSync(descriptor); }
+      stageIdentity = statIdentity(fs.lstatSync(staged));
+    }
     if (!currentMatchesPlan(file, plan, trustedRoot, fs, pathApi)) {
       throw new Error('Sandpaper managed file changed during update');
     }
-    fs.renameSync(path, file);
-    path = null;
+    if (plan.exists) {
+      hooks.beforeBackup?.({ file, transaction });
+      if (!currentMatchesPlan(file, plan, trustedRoot, fs, pathApi)) {
+        throw new Error('Sandpaper managed file changed during update');
+      }
+      fs.renameSync(file, backup);
+      backupMoved = true;
+      if (!sameStatIdentity(lstatIfPresent(backup, fs), plan.identity)) throw new Error('Sandpaper managed backup identity mismatch');
+      hooks.afterBackup?.({ file, transaction, backup });
+    }
+    if (staged) {
+      hooks.beforeInstall?.({ file, transaction, staged });
+      fs.linkSync(staged, file);
+      if (!sameStatIdentity(lstatIfPresent(file, fs), stageIdentity)) throw new Error('Sandpaper managed install identity mismatch');
+    }
+    const current = lstatIfPresent(file, fs);
+    if (staged ? !sameStatIdentity(current, stageIdentity) : Boolean(current)) {
+      throw new Error('Sandpaper managed destination changed before cleanup');
+    }
   } catch (error) {
-    if (descriptor !== null) {
-      try { fs.closeSync(descriptor); } catch { /* retain bounded error */ }
+    let recoveryRequired = false;
+    const current = lstatIfPresent(file, fs);
+    if (stageIdentity && sameStatIdentity(current, stageIdentity)) {
+      try {
+        fs.renameSync(file, failed);
+        if (!sameStatIdentity(lstatIfPresent(failed, fs), stageIdentity)) recoveryRequired = true;
+      } catch { recoveryRequired = true; }
+    } else if (current && !(plan.exists && sameStatIdentity(current, plan.identity))) {
+      recoveryRequired = true;
     }
-    if (path !== null) {
-      try { fs.rmSync(path, { force: true }); } catch { /* owned temporary */ }
+    if (backupMoved) {
+      if (!lstatIfPresent(file, fs)) {
+        try {
+          fs.renameSync(backup, file);
+          if (!sameStatIdentity(lstatIfPresent(file, fs), plan.identity)) recoveryRequired = true;
+        } catch { recoveryRequired = true; }
+      } else if (!sameStatIdentity(lstatIfPresent(file, fs), plan.identity)) {
+        recoveryRequired = true;
+      }
     }
+    if (recoveryRequired) throw new SandpaperRecoveryError(transaction);
+    quarantineCleanup(transaction, transactionIdentity, { fs, pathApi, hooks });
     if (error?.message === 'Sandpaper managed file changed during update') throw error;
     throw new Error('Could not update Sandpaper managed file');
   }
+  quarantineCleanup(transaction, transactionIdentity, { fs, pathApi, hooks });
   return { ok: true, changed: true, action: plan.action };
 }
 

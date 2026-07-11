@@ -14,6 +14,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { basename, dirname, join } from 'node:path';
 
 import {
@@ -137,6 +138,34 @@ test('reads normalize without rewriting original bytes and reject corrupt bytes 
     assert.throws(() => readManifest(file), /Manifest|manifest|provider|integration|hooks/);
     assert.equal(readFileSync(file, 'utf8'), bytes);
   }
+});
+
+test('manifest reads reject FIFO and symlink inputs without blocking or following', {
+  skip: process.platform === 'win32',
+}, (t) => {
+  const { root, directory } = fixture(t);
+  const outside = join(root, 'outside.json');
+  writeFileSync(outside, '{"version":2}\n');
+  const fifo = join(directory, 'fifo.json');
+  const linked = join(directory, 'linked.json');
+  execFileSync('mkfifo', [fifo]);
+  symlinkSync(outside, linked);
+  const moduleUrl = new URL('../src/manifest.js', import.meta.url).href;
+  const script = `
+    import { readManifest } from ${JSON.stringify(moduleUrl)};
+    try { readManifest(process.argv[1], { trustedRoot: process.argv[2] }); process.exit(2); }
+    catch { process.exit(0); }
+  `;
+
+  for (const file of [fifo, linked]) {
+    const child = spawnSync(process.execPath, ['--input-type=module', '-e', script, file, root], {
+      timeout: 1000,
+      encoding: 'utf8',
+    });
+    assert.equal(child.signal, null, `${file} timed out`);
+    assert.equal(child.status, 0, child.stderr);
+  }
+  assert.equal(readFileSync(outside, 'utf8'), '{"version":2}\n');
 });
 
 test('writes normalize atomically with a newline and restrictive mode', (t) => {

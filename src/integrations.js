@@ -5,6 +5,8 @@ import {
   ensureTrustedParents,
   inspectTrustedPath,
   planManagedBlock,
+  quarantineCleanup,
+  SandpaperRecoveryError,
 } from './managed-files.js';
 
 const PROVIDERS = ['claude', 'codex'];
@@ -188,26 +190,6 @@ function materializeSnapshot(path, snapshot, fs, pathApi) {
   }
 }
 
-export class SandpaperRecoveryError extends Error {
-  constructor(recoveryPath) {
-    super('Sandpaper transaction recovery required');
-    this.name = 'SandpaperRecoveryError';
-    this.code = 'SANDPAPER_RECOVERY_REQUIRED';
-    this.recoveryPath = recoveryPath;
-  }
-}
-
-function safeRemoveTransaction(transaction, transactionIdentity, fs) {
-  const current = lstatIfPresent(transaction, fs);
-  if (!sameIdentity(current, transactionIdentity) || !current?.isDirectory()) return false;
-  try {
-    fs.rmSync(transaction, { recursive: true, force: true });
-    return !lstatIfPresent(transaction, fs);
-  } catch {
-    return false;
-  }
-}
-
 function removeCreatedParents(created, fs) {
   for (const entry of [...created].reverse()) {
     const current = lstatIfPresent(entry.path, fs);
@@ -229,7 +211,7 @@ function validateCurrent(operation, fs) {
 }
 
 function rollbackTransaction(state) {
-  const { fs, pathApi, transaction, transactionIdentity, operations, created } = state;
+  const { fs, pathApi, transaction, transactionIdentity, operations, created, hooks } = state;
   let recoveryRequired = false;
 
   for (const operation of [...operations].reverse()) {
@@ -272,9 +254,13 @@ function rollbackTransaction(state) {
   }
 
   if (recoveryRequired) return false;
-  const cleaned = safeRemoveTransaction(transaction, transactionIdentity, fs);
-  removeCreatedParents(created, fs);
-  return cleaned;
+  try {
+    quarantineCleanup(transaction, transactionIdentity, { fs, pathApi, hooks });
+    removeCreatedParents(created, fs);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function prepareTransaction({
@@ -329,13 +315,16 @@ function prepareTransaction({
       });
     }
   } catch {
-    if (transaction && transactionIdentity) safeRemoveTransaction(transaction, transactionIdentity, fs);
+    if (transaction && transactionIdentity) {
+      try { quarantineCleanup(transaction, transactionIdentity, { fs, pathApi, hooks }); }
+      catch (error) { if (error instanceof SandpaperRecoveryError) throw error; }
+    }
     removeCreatedParents(created, fs);
     throw new Error(`Could not prepare Sandpaper ${errorClass}`);
   }
 
   let settled = false;
-  const state = { fs, pathApi, transaction, transactionIdentity, operations: prepared, created };
+  const state = { fs, pathApi, transaction, transactionIdentity, operations: prepared, created, hooks };
   return {
     recoveryPath: transaction,
     commit() {
@@ -386,17 +375,13 @@ function prepareTransaction({
         throw new Error(`Could not commit Sandpaper ${errorClass}`);
       }
       settled = true;
-      if (!safeRemoveTransaction(transaction, transactionIdentity, fs)) {
-        throw new SandpaperRecoveryError(transaction);
-      }
+      quarantineCleanup(transaction, transactionIdentity, { fs, pathApi, hooks });
       return true;
     },
     abort() {
       if (settled) return;
       settled = true;
-      if (!safeRemoveTransaction(transaction, transactionIdentity, fs)) {
-        throw new SandpaperRecoveryError(transaction);
-      }
+      quarantineCleanup(transaction, transactionIdentity, { fs, pathApi, hooks });
       removeCreatedParents(created, fs);
     },
   };
@@ -555,16 +540,18 @@ export function prepareInstallIntegrations(target, packageRoot, options = {}, {
   if (manifest) {
     const manifestInspection = inspectTrustedPath(target, manifest.file, { fs, pathApi, pathClass: 'manifest path' });
     if (manifestInspection.exists && !manifestInspection.stats.isFile()) unsafe('manifest path', typeOf(manifestInspection.stats));
-    const source = manifestInspection.exists ? readRegularFile(manifest.file, 'manifest file', fs).bytes : Buffer.alloc(0);
+    const manifestSource = manifestInspection.exists ? readRegularFile(manifest.file, 'manifest file', fs) : null;
+    const source = manifestSource ? manifestSource.bytes : Buffer.alloc(0);
     const desired = Buffer.from(manifest.bytes);
+    const desiredMode = manifest.mode ?? 0o600;
     operations.push({
       label: 'manifest',
       destination: manifest.file,
       kind: 'file',
       snapshot: null,
-      file: { bytes: desired, mode: manifest.mode ?? 0o600 },
+      file: { bytes: desired, mode: desiredMode },
       desired,
-      changed: !source.equals(desired),
+      changed: !source.equals(desired) || manifestSource?.mode !== desiredMode,
       expectedIdentity: identity(manifestInspection.stats),
       expectedBytes: source,
     });

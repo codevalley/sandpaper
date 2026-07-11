@@ -197,8 +197,8 @@ function freshManifest(target, pkg, setupOptions) {
 
 function planInstallationManifest(target, pkg, setupOptions) {
   const file = join(target, '.sandpaper', 'manifest.json');
-  const hadMan = existsSync(file);
-  const existing = hadMan ? readManifest(file) : null;
+  const existing = readManifest(file, { trustedRoot: target });
+  const hadMan = existing !== null;
   const value = existing
     ? migrateManifest({ ...existing, ...setupOptions })
     : freshManifest(target, pkg, setupOptions);
