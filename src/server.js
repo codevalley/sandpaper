@@ -9,10 +9,11 @@ import {
 import { join, dirname, basename, extname, sep, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID, randomBytes, createHash, timingSafeEqual } from 'node:crypto';
-import { runClaudeTurn } from './claude.js';
 import { replaceInner, removeElement, moveElement } from './edit.js';
 import { resolveRepositoryPath } from './path-policy.js';
 import { createSessionStore } from './session-store.js';
+import { createFirstPartyRegistry } from './provider-registry.js';
+import { createProviderPreferenceStore } from './provider-preferences.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PUBLIC = join(HERE, '..', 'public');
@@ -29,6 +30,8 @@ const BODY_LIMITS = Object.freeze({
   '/__sandpaper/dom': 100_000,
   '/__sandpaper/undo': 100_000,
   '/__sandpaper/undo-direct': 10_000,
+  '/__sandpaper/provider-default': 10_000,
+  '/__sandpaper/session/reset': 10_000,
 });
 
 const CLIENT_ID = /^[A-Za-z0-9_-]{1,128}$/;
@@ -283,13 +286,16 @@ export function createSandpaperServer(target, opts = {}, deps = {}) {
   const uuid = deps.uuid || randomUUID;
   const now = deps.now || Date.now;
   const snapshotLimit = opts.snapshotLimit || 20;
-  const sessions = deps.sessions || (deps.runner ? null : createSessionStore(root, { legacyPage: '/' }));
-  // Registry/preferences/initialProvider are intentionally carried into this server boundary now;
-  // Toolbar Task 1 will consume them when it owns provider-aware protocol dispatch.
-  const registry = deps.registry || null;
-  const preferences = deps.preferences || null;
-  const initialProvider = opts.initialProvider || 'claude';
   const claudeDeps = deps.claude || {};
+  const sessions = deps.sessions || createSessionStore(root, { legacyPage: '/' });
+  const registry = deps.registry || createFirstPartyRegistry({ claude: claudeDeps });
+  const preferences = deps.preferences || createProviderPreferenceStore(root);
+  const manifestFile = join(root, '.sandpaper', 'manifest.json');
+  const readDefaultProvider = () => (deps.preferences || existsSync(manifestFile))
+    ? preferences.getDefaultProvider()
+    : 'claude';
+  const initialProvider = opts.initialProvider || readDefaultProvider();
+  const projectId = createHash('sha256').update(root).digest('hex').slice(0, 16);
   const watch = deps.watch || watchFiles;
   const writePage = deps.writeFile || writeFileSync;
   const restoreFile = deps.restoreFile || copyFileSync;
@@ -306,6 +312,9 @@ export function createSandpaperServer(target, opts = {}, deps = {}) {
   const directSnapDir = join(root, '.sandpaper', 'snapshots', 'direct');
   let activeTurn = null;
   const currentStatusByPage = new Map();
+  let currentLifecycle = {
+    type: 'lifecycle', busy: false, turnId: null, provider: null, page: null,
+  };
   let watcher = null;
   let closed = false;
 
@@ -320,22 +329,6 @@ export function createSandpaperServer(target, opts = {}, deps = {}) {
     const rel = relative(root, file).split(sep).join('/');
     return rel === defaultDoc ? '/' : `/${rel}`;
   };
-
-  const runner = deps.runner || (({ pageFile, prompt, onFrame }) => {
-    const page = pageForFile(pageFile);
-    const key = { page, provider: 'claude' };
-    const storedResumeId = sessions.get(key);
-    const resumeId = storedResumeId || (typeof sessions.claimLegacy === 'function'
-      ? sessions.claimLegacy({ ...key, pageFile })
-      : null);
-    return runClaudeTurn({
-      pageFile,
-      prompt,
-      resumeId,
-      onSession(resumeId) { sessions.set({ ...key, resumeId }); },
-      onFrame,
-    }, claudeDeps);
-  });
 
   const allResponses = () => {
     const responses = [];
@@ -396,14 +389,9 @@ export function createSandpaperServer(target, opts = {}, deps = {}) {
     if (clientId) broadcastToClient(clientId, frame);
   };
 
-  const releaseReceivingTurn = (record) => {
-    if (activeTurn !== record || record.phase !== 'receiving') return;
-    record.terminal = true;
-    activeTurn = null;
-    publishStatus({ type: 'status', state: 'idle', label: 'idle' }, {
-      page: record.page,
-      clientId: record.clientId,
-    });
+  const publishLifecycle = (frame) => {
+    currentLifecycle = frame;
+    broadcast(frame);
   };
 
   const takeDirectSnap = (pageFile) => {
@@ -459,9 +447,22 @@ export function createSandpaperServer(target, opts = {}, deps = {}) {
   };
 
   const injectToolbar = (html) => {
-    const safeToken = String(token).replaceAll('&', '&amp;').replaceAll('"', '&quot;');
+    const escapeAttribute = (value) => String(value)
+      .replaceAll('&', '&amp;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;');
+    const safeToken = escapeAttribute(token);
+    const bootstrap = {
+      projectId,
+      initialProvider,
+      defaultProvider: readDefaultProvider(),
+      providers: registry.diagnostics(),
+    };
+    const safeBootstrap = escapeAttribute(JSON.stringify(bootstrap));
     const tag = '\n<link rel="stylesheet" href="/__sandpaper/toolbar.css">' +
-      `\n<script type="module" src="/__sandpaper/toolbar.js" data-sandpaper-token="${safeToken}"></script>\n`;
+      `\n<script type="module" src="/__sandpaper/toolbar.js" data-sandpaper-token="${safeToken}" data-sandpaper-bootstrap="${safeBootstrap}"></script>\n`;
     return html.includes('</body>') ? html.replace('</body>', `${tag}</body>`) : html + tag;
   };
 
@@ -482,52 +483,80 @@ export function createSandpaperServer(target, opts = {}, deps = {}) {
     return pageFile;
   };
 
+  const providerState = (id, { requireAvailable = false } = {}) => {
+    const entry = typeof id === 'string' && id ? registry.get(id) : null;
+    if (!entry) {
+      throw new RequestError(400, 'invalid_provider', 'Unknown Sandpaper provider');
+    }
+    const diagnostic = registry.diagnostics().find((entry) => entry.id === id);
+    if (!diagnostic) throw new RequestError(400, 'invalid_provider', 'Unknown Sandpaper provider');
+    if (requireAvailable && diagnostic.available !== true) {
+      throw new RequestError(409, 'provider_unavailable', `${diagnostic.label || id} is unavailable`);
+    }
+    return { entry, diagnostic };
+  };
+
+  const releaseTurn = (record) => {
+    if (record.lifecycleReleased) return;
+    record.lifecycleReleased = true;
+    if (activeTurn === record) activeTurn = null;
+    publishLifecycle({
+      type: 'lifecycle', busy: false, turnId: record.id,
+      provider: record.provider, page: record.page,
+    });
+    if (record.reloadPending) broadcastReload(record.page);
+  };
+
   const handleTurn = async (req, res, clientId) => {
+    const payload = await readJson(req, BODY_LIMITS['/__sandpaper/turn']);
+    const { entry } = providerState(payload.provider, { requireAvailable: true });
+    const pageFile = resolveMutablePage(payload.page);
+    const page = pageForFile(pageFile);
     if (activeTurn && !activeTurn.terminal) {
       throw new RequestError(409, 'turn_in_progress', 'A turn is already in progress');
     }
 
     const record = {
-      id: uuid(), page: isDir ? null : '/', pageFile: null, clientId,
-      phase: 'receiving',
-      status: { type: 'status', state: 'receiving', label: 'receiving…' },
+      id: uuid(), page, pageFile, provider: payload.provider, clientId,
+      phase: 'running',
+      status: { type: 'status', state: 'init', label: 'starting…' },
       beforeHash: null, snapshot: null, reloadPending: false, terminal: false,
-      runnerHandle: null,
+      lifecycleReleased: false, runnerHandle: null,
     };
     activeTurn = record;
-    publishStatus({ ...record.status, turnId: record.id, page: record.page, phase: record.phase }, {
-      page: record.page,
-      clientId: record.clientId,
+    publishLifecycle({
+      type: 'lifecycle', busy: true, turnId: record.id,
+      provider: record.provider, page: record.page,
     });
-
-    let payload;
-    try { payload = await readJson(req, BODY_LIMITS['/__sandpaper/turn']); }
-    catch (error) { releaseReceivingTurn(record); throw error; }
-
-    try {
-      record.pageFile = resolveMutablePage(payload.page);
-      record.page = pageForFile(record.pageFile);
-    } catch (error) {
-      releaseReceivingTurn(record);
-      throw error;
-    }
     record.snapshot = takeSnapshot(record.pageFile, root, record.id);
     if (record.snapshot) turnSnapshots.set(record.id, record);
     record.beforeHash = fileHash(record.pageFile);
-    record.phase = 'running';
-    record.status = { type: 'status', state: 'init', label: 'starting…' };
-    publishStatus({ ...record.status, turnId: record.id, page: record.page, phase: record.phase }, {
+    publishStatus({
+      ...record.status, turnId: record.id, provider: record.provider,
+      page: record.page, phase: record.phase,
+    }, {
       page: record.page,
     });
 
     try {
-      const handle = runner({
+      const key = { page: record.page, provider: record.provider };
+      const storedResumeId = sessions.get(key);
+      const resumeId = storedResumeId || (record.provider === 'claude'
+        && typeof sessions.claimLegacy === 'function'
+        ? sessions.claimLegacy({ ...key, pageFile: record.pageFile })
+        : null);
+      const handle = entry.runTurn({
         pageFile: record.pageFile,
         prompt: buildPrompt(payload, basename(record.pageFile)),
+        resumeId,
+        onSession(resumeId) { sessions.set({ ...key, resumeId }); },
         onFrame(frame) {
           if (record.terminal) return;
           const terminal = frame.type === 'status' && (frame.done || frame.state === 'done' || frame.state === 'error' || frame.state === 'idle');
-          let enriched = { ...frame, turnId: record.id, page: record.page, phase: terminal ? (frame.state === 'error' ? 'error' : 'done') : 'running' };
+          let enriched = {
+            ...frame, turnId: record.id, provider: record.provider, page: record.page,
+            phase: terminal ? (frame.state === 'error' ? 'error' : 'done') : 'running',
+          };
           if (terminal) {
             const changed = record.beforeHash !== fileHash(record.pageFile);
             const undoable = changed && !!record.snapshot && existsSync(record.snapshot);
@@ -554,8 +583,7 @@ export function createSandpaperServer(target, opts = {}, deps = {}) {
           if (!terminal) return;
           record.phase = enriched.phase;
           record.terminal = true;
-          if (activeTurn === record) activeTurn = null;
-          if (record.reloadPending) broadcastReload(record.page);
+          releaseTurn(record);
         },
       });
       record.runnerHandle = handle || null;
@@ -563,24 +591,26 @@ export function createSandpaperServer(target, opts = {}, deps = {}) {
       if (record.runnerHandle && typeof record.runnerHandle.kill === 'function') {
         try { record.runnerHandle.kill(); } catch { /* best-effort startup cleanup */ }
       }
-      removeSnapshot(record.snapshot);
-      turnSnapshots.delete(record.id);
-      record.snapshot = null;
-      record.phase = 'error';
-      record.terminal = true;
-      if (activeTurn === record) activeTurn = null;
-      const terminal = {
-        type: 'status', state: 'error', label: 'runner failed to start',
-        detail: String(error?.message || '').slice(0, 300),
-        turnId: record.id, page: record.page, phase: record.phase,
-        changed: record.beforeHash !== fileHash(record.pageFile), undoable: false,
-      };
-      record.status = terminal;
-      publishStatus(terminal, { page: record.page });
+      if (!record.terminal) {
+        removeSnapshot(record.snapshot);
+        turnSnapshots.delete(record.id);
+        record.snapshot = null;
+        record.phase = 'error';
+        record.terminal = true;
+        const terminal = {
+          type: 'status', state: 'error', label: 'runner failed to start',
+          detail: String(error?.message || '').slice(0, 300),
+          turnId: record.id, provider: record.provider, page: record.page, phase: record.phase,
+          changed: record.beforeHash !== fileHash(record.pageFile), undoable: false,
+        };
+        record.status = terminal;
+        publishStatus(terminal, { page: record.page });
+        releaseTurn(record);
+      }
       throw new RequestError(500, 'runner_start_failed', 'Runner could not be started');
     }
 
-    sendJson(res, 202, { ok: true, turnId: record.id });
+    sendJson(res, 202, { ok: true, turnId: record.id, provider: record.provider });
   };
 
   const handleUndo = (payload) => {
@@ -612,7 +642,26 @@ export function createSandpaperServer(target, opts = {}, deps = {}) {
 
       const payload = await readJson(req, BODY_LIMITS[path]);
       let result;
-      if (path === '/__sandpaper/write') {
+      if (path === '/__sandpaper/provider-default') {
+        if (activeTurn && !activeTurn.terminal) {
+          throw new RequestError(409, 'turn_in_progress', 'A turn is already in progress');
+        }
+        providerState(payload.provider, { requireAvailable: true });
+        preferences.setDefaultProvider(payload.provider);
+        result = { ok: true, defaultProvider: preferences.getDefaultProvider() };
+      } else if (path === '/__sandpaper/session/reset') {
+        providerState(payload.provider);
+        if (typeof payload.page !== 'string') {
+          throw new RequestError(400, 'invalid_page', 'Unknown or immutable page');
+        }
+        const pageFile = resolveMutablePage(payload.page);
+        const page = pageForFile(pageFile);
+        if (activeTurn && !activeTurn.terminal) {
+          throw new RequestError(409, 'turn_in_progress', 'A turn is already in progress');
+        }
+        sessions.clear({ page, provider: payload.provider });
+        result = { ok: true, page, provider: payload.provider };
+      } else if (path === '/__sandpaper/write') {
         const pageFile = resolveMutablePage(payload.page);
         if (typeof payload.cid !== 'string' || !/^[\w:-]{1,64}$/.test(payload.cid) || typeof payload.html !== 'string') {
           throw new RequestError(400, 'invalid_write', 'Write request is invalid');
@@ -721,6 +770,7 @@ export function createSandpaperServer(target, opts = {}, deps = {}) {
         Connection: 'keep-alive',
       });
       writeFrame(res, currentStatusByPage.get(page) || { type: 'status', state: 'idle', label: 'idle' });
+      writeFrame(res, currentLifecycle);
       const set = clients.get(clientId) || new Set();
       set.add(res);
       clients.set(clientId, set);
@@ -880,6 +930,9 @@ export function createSandpaperServer(target, opts = {}, deps = {}) {
     }
     clients.clear();
     currentStatusByPage.clear();
+    currentLifecycle = {
+      type: 'lifecycle', busy: false, turnId: null, provider: null, page: null,
+    };
     if (!server.listening) return Promise.resolve();
     const stopped = new Promise((resolve) => server.close(() => resolve()));
     for (const socket of sockets) socket.destroy();

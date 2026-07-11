@@ -7,7 +7,10 @@ import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
 import { createSandpaperServer, startServer } from '../src/server.js';
 import { runClaudeTurn } from '../src/claude.js';
-import { createFakeRunner, makeRepo, openEvents, requestJson } from './helpers/server-fixture.js';
+import {
+  createFakeProviderServices, createFakeRunner, makeRepo, openEvents,
+  requestJson as rawRequestJson,
+} from './helpers/server-fixture.js';
 
 const IDS = [
   '00000000-0000-4000-8000-000000000001',
@@ -18,14 +21,20 @@ const IDS = [
 
 async function fixture(t, {
   brain = false, watch, now = () => 1_000, runner, writeFile, restoreFile,
+  providerServices, initialProvider,
 } = {}) {
   const repo = makeRepo();
-  const fakeRunner = createFakeRunner();
+  const fakeRunner = runner || createFakeRunner();
   const runnerImpl = runner || fakeRunner;
+  const services = providerServices || createFakeProviderServices({
+    runners: { claude: runnerImpl },
+  });
   let uuidIndex = 0;
   const controller = createSandpaperServer(brain ? repo.root : repo.pageFile,
-    { brain, snapshotLimit: 2 }, {
-      runner: runnerImpl,
+    { brain, snapshotLimit: 2, initialProvider }, {
+      registry: services.registry,
+      preferences: services.preferences,
+      sessions: services.sessions,
       uuid: () => IDS[uuidIndex++],
       tokenFactory: () => 'test-token',
       now,
@@ -38,7 +47,16 @@ async function fixture(t, {
     await controller.close();
     repo.cleanup();
   });
-  return { ...repo, fakeRunner, controller, url };
+  return { ...repo, fakeRunner, providerServices: services, controller, url };
+}
+
+function requestJson(baseUrl, path, options = {}) {
+  const body = options.body;
+  if (path === '/__sandpaper/turn' && body && typeof body === 'object' && !Array.isArray(body)
+      && !Object.hasOwn(body, 'provider')) {
+    return rawRequestJson(baseUrl, path, { ...options, body: { ...body, provider: 'claude' } });
+  }
+  return rawRequestJson(baseUrl, path, options);
 }
 
 function controlledTimers() {
@@ -111,6 +129,14 @@ async function nextFrame(events, predicate, timeout = 1_000) {
   throw new Error('timed out waiting for matching SSE frame');
 }
 
+async function drainInitialReplay(events) {
+  const first = await events.next();
+  const second = await events.next();
+  assert.equal(first.type, 'status');
+  assert.equal(second.type, 'lifecycle');
+  return { status: first, lifecycle: second };
+}
+
 function startReceivingTurn(baseUrl, clientId = 'client-a') {
   const url = new URL('/__sandpaper/turn', baseUrl);
   let responseResolve;
@@ -136,7 +162,7 @@ function startReceivingTurn(baseUrl, clientId = 'client-a') {
     });
   });
   req.on('error', responseReject);
-  req.write('{"page":"/","prompt":"first"');
+  req.write('{"page":"/","provider":"claude","prompt":"first"');
   return { req, response };
 }
 
@@ -183,11 +209,246 @@ function getRawPath(baseUrl, path) {
 
 const mutations = [
   ['/__sandpaper/turn', { page: '/', prompt: 'Change it' }, 1_000_000],
+  ['/__sandpaper/provider-default', { provider: 'claude' }, 10_000],
+  ['/__sandpaper/session/reset', { page: '/', provider: 'claude' }, 10_000],
   ['/__sandpaper/write', { page: '/', cid: 'main', html: 'Changed' }, 2_000_000],
   ['/__sandpaper/dom', { page: '/', cid: 'main', op: 'delete' }, 100_000],
   ['/__sandpaper/undo', { turnId: IDS[0], page: '/' }, 100_000],
   ['/__sandpaper/undo-direct', { page: '/' }, 10_000],
 ];
+
+function decodeBootstrap(html) {
+  const match = html.match(/data-sandpaper-bootstrap="([^"]+)"/);
+  assert.ok(match, 'toolbar script has bootstrap data');
+  const decoded = match[1]
+    .replaceAll('&quot;', '"')
+    .replaceAll('&#39;', "'")
+    .replaceAll('&lt;', '<')
+    .replaceAll('&gt;', '>')
+    .replaceAll('&amp;', '&');
+  return JSON.parse(decoded);
+}
+
+test('served HTML injects escaped stable provider bootstrap with distinct initial and default providers', async (t) => {
+  const diagnostics = [
+    { id: 'claude', label: 'Claude &quot; <script>', available: true, compatible: true, authMethod: 'subscription' },
+    { id: 'codex', label: 'Codex', available: true, compatible: true, authMethod: 'chatgpt' },
+  ];
+  const providerServices = createFakeProviderServices({ defaultProvider: 'claude', diagnostics });
+  const { url, root } = await fixture(t, { initialProvider: 'codex', providerServices });
+  const firstText = (await getText(url)).text;
+  assert.doesNotMatch(firstText, /data-sandpaper-bootstrap="[^"]*<script>/);
+  const first = decodeBootstrap(firstText);
+  assert.match(first.projectId, /^[a-f0-9]{16}$/);
+  assert.equal(first.initialProvider, 'codex');
+  assert.equal(first.defaultProvider, 'claude');
+  assert.deepEqual(first.providers, diagnostics);
+
+  const secondServices = createFakeProviderServices({ defaultProvider: 'claude', diagnostics });
+  const secondController = createSandpaperServer(join(root, 'index.html'), { initialProvider: 'codex' }, {
+    registry: secondServices.registry,
+    preferences: secondServices.preferences,
+    sessions: secondServices.sessions,
+    tokenFactory: () => 'test-token-2',
+    watch: () => ({ close() {} }),
+  });
+  const secondUrl = await secondController.listen();
+  t.after(() => secondController.close());
+  const second = decodeBootstrap((await getText(secondUrl)).text);
+  assert.equal(second.projectId, first.projectId);
+});
+
+test('turn rejects missing, unknown, and unavailable providers before any reservation or side effect', async (t) => {
+  const providerServices = createFakeProviderServices({ diagnostics: [
+    { id: 'claude', label: 'Claude Code', available: true, compatible: true, authMethod: 'subscription' },
+    { id: 'codex', label: 'Codex', available: false, compatible: true, authMethod: null, unavailableCode: 'not_authenticated' },
+  ] });
+  const { url, root } = await fixture(t, { providerServices });
+  const events = await openEvents(url, { clientId: 'validation-observer' });
+  t.after(() => events.close());
+  assert.equal((await events.next()).state, 'idle');
+
+  const missing = await rawRequestJson(url, '/__sandpaper/turn', {
+    body: { page: '/', prompt: 'missing provider' },
+  });
+  const unknown = await rawRequestJson(url, '/__sandpaper/turn', {
+    body: { page: '/', provider: 'unknown', prompt: 'unknown provider' },
+  });
+  const unavailable = await rawRequestJson(url, '/__sandpaper/turn', {
+    body: { page: '/', provider: 'codex', prompt: 'unavailable provider' },
+  });
+  assert.equal(missing.status, 400);
+  assert.equal(missing.json.error.code, 'invalid_provider');
+  assert.equal(unknown.status, 400);
+  assert.equal(unknown.json.error.code, 'invalid_provider');
+  assert.equal(unavailable.status, 409);
+  assert.equal(unavailable.json.error.code, 'provider_unavailable');
+  assert.equal(providerServices.runners.claude.calls.length, 0);
+  assert.equal(providerServices.runners.codex.calls.length, 0);
+  assert.deepEqual(providerServices.sessionCalls, []);
+  assert.equal(existsSync(join(root, '.sandpaper', 'snapshots')), false);
+  await noMatchingFrame(events, (frame) => frame.busy === true || frame.state === 'receiving');
+});
+
+test('turn dispatches the validated provider with provider-scoped resume and labels response and frames', async (t) => {
+  const providerServices = createFakeProviderServices();
+  providerServices.sessionValues.set('/\0claude', 'claude-resume');
+  providerServices.sessionValues.set('/\0codex', 'codex-resume');
+  const { url } = await fixture(t, { providerServices });
+  const events = await openEvents(url, { clientId: 'codex-observer' });
+  t.after(() => events.close());
+  await events.next();
+
+  const accepted = await requestJson(url, '/__sandpaper/turn', {
+    body: { page: '/', provider: 'codex', prompt: 'Codex turn' },
+  });
+  assert.equal(accepted.status, 202);
+  assert.equal(accepted.json.provider, 'codex');
+  assert.equal(providerServices.runners.claude.calls.length, 0);
+  assert.equal(providerServices.runners.codex.calls.length, 1);
+  assert.equal(providerServices.runners.codex.calls[0].resumeId, 'codex-resume');
+  providerServices.runners.codex.session('codex-next');
+  providerServices.runners.codex.emit({ type: 'assistant', text: 'Hello' });
+  providerServices.runners.codex.complete();
+
+  assert.ok(providerServices.sessionCalls.some(([name, value]) => name === 'set'
+    && value.page === '/' && value.provider === 'codex' && value.resumeId === 'codex-next'));
+  const assistant = await nextFrame(events, (frame) => frame.type === 'assistant');
+  assert.equal(assistant.provider, 'codex');
+  const terminal = await nextFrame(events, (frame) => frame.state === 'done');
+  assert.equal(terminal.provider, 'codex');
+
+  const replay = await openEvents(url, { clientId: 'codex-replay' });
+  t.after(() => replay.close());
+  const current = await replay.next();
+  assert.equal(current.provider, 'codex');
+  assert.equal(current.turnId, accepted.json.turnId);
+
+  const claude = await requestJson(url, '/__sandpaper/turn', {
+    body: { page: '/', provider: 'claude', prompt: 'Claude turn' },
+  });
+  assert.equal(claude.status, 202);
+  assert.equal(providerServices.runners.claude.calls[0].resumeId, 'claude-resume');
+  assert.notEqual(providerServices.runners.claude.calls[0].resumeId, 'codex-next');
+  providerServices.runners.claude.complete();
+});
+
+test('global lifecycle is provider-tagged across pages and releases exactly once on terminal success', async (t) => {
+  const providerServices = createFakeProviderServices();
+  const { url } = await fixture(t, { brain: true, providerServices });
+  const rootEvents = await openEvents(url, { clientId: 'root-life', page: '/' });
+  const otherEvents = await openEvents(url, { clientId: 'other-life', page: '/other.html' });
+  t.after(() => { rootEvents.close(); otherEvents.close(); });
+  await Promise.all([rootEvents.next(), otherEvents.next()]);
+
+  const accepted = await requestJson(url, '/__sandpaper/turn', {
+    body: { page: '/', provider: 'codex', prompt: 'busy' },
+  });
+  const busy = await nextFrame(otherEvents, (frame) => frame.type === 'lifecycle' && frame.busy);
+  assert.deepEqual(busy, {
+    type: 'lifecycle', busy: true, turnId: accepted.json.turnId, provider: 'codex', page: '/',
+  });
+  const reconnect = await openEvents(url, { clientId: 'reconnect-life', page: '/other.html' });
+  t.after(() => reconnect.close());
+  assert.equal((await nextFrame(reconnect, (frame) => frame.type === 'lifecycle')).busy, true);
+  const concurrent = await requestJson(url, '/__sandpaper/turn', {
+    body: { page: '/other.html', provider: 'claude', prompt: 'must wait' },
+  });
+  assert.equal(concurrent.status, 409);
+  assert.equal(providerServices.runners.claude.calls.length, 0);
+
+  providerServices.runners.codex.complete();
+  const idle = await nextFrame(otherEvents, (frame) => frame.type === 'lifecycle' && !frame.busy);
+  assert.deepEqual(idle, { ...busy, busy: false });
+  await noMatchingFrame(otherEvents, (frame) => frame.type === 'lifecycle' && !frame.busy, 60);
+
+  const next = await requestJson(url, '/__sandpaper/turn', {
+    body: { page: '/other.html', provider: 'claude', prompt: 'next' },
+  });
+  assert.equal(next.status, 202);
+});
+
+test('provider default persists only a ready provider and leaves launch selection unchanged', async (t) => {
+  const providerServices = createFakeProviderServices();
+  const { url } = await fixture(t, { initialProvider: 'claude', providerServices });
+  const changed = await requestJson(url, '/__sandpaper/provider-default', { body: { provider: 'codex' } });
+  assert.deepEqual(changed.json, { ok: true, defaultProvider: 'codex' });
+  const bootstrap = decodeBootstrap((await getText(url)).text);
+  assert.equal(bootstrap.initialProvider, 'claude');
+  assert.equal(bootstrap.defaultProvider, 'codex');
+
+  const invalid = await requestJson(url, '/__sandpaper/provider-default', { body: { provider: 'unknown' } });
+  assert.equal(invalid.status, 400);
+  assert.equal(invalid.json.error.code, 'invalid_provider');
+  assert.equal(providerServices.defaultProvider, 'codex');
+});
+
+test('provider default rejects while any provider turn is active without persisting', async (t) => {
+  const providerServices = createFakeProviderServices();
+  const { url } = await fixture(t, { providerServices });
+  await requestJson(url, '/__sandpaper/turn', {
+    body: { page: '/', provider: 'claude', prompt: 'active' },
+  });
+  const rejected = await requestJson(url, '/__sandpaper/provider-default', {
+    body: { provider: 'codex' },
+  });
+  assert.equal(rejected.status, 409);
+  assert.equal(rejected.json.error.code, 'turn_in_progress');
+  assert.equal(providerServices.defaultProvider, 'claude');
+  assert.equal(providerServices.preferenceCalls.some(([name]) => name === 'set'), false);
+});
+
+test('provider default persistence failure returns a structured error without changing the preference', async (t) => {
+  const providerServices = createFakeProviderServices();
+  providerServices.preferences.setDefaultProvider = () => { throw new Error('disk failure'); };
+  const { url } = await fixture(t, { providerServices });
+  const failed = await requestJson(url, '/__sandpaper/provider-default', {
+    body: { provider: 'codex' },
+  });
+  assert.equal(failed.status, 500);
+  assert.equal(failed.json.error.code, 'internal_error');
+  assert.equal(providerServices.defaultProvider, 'claude');
+});
+
+test('session reset clears only one mutable page/provider and rejects active turns and store failure', async (t) => {
+  const providerServices = createFakeProviderServices();
+  providerServices.sessionValues.set('/\0claude', 'root-claude');
+  providerServices.sessionValues.set('/\0codex', 'root-codex');
+  providerServices.sessionValues.set('/other.html\0codex', 'other-codex');
+  const { url } = await fixture(t, { brain: true, providerServices });
+
+  const cleared = await requestJson(url, '/__sandpaper/session/reset', {
+    body: { page: '/', provider: 'codex' },
+  });
+  assert.deepEqual(cleared.json, { ok: true, page: '/', provider: 'codex' });
+  assert.equal(providerServices.sessionValues.has('/\0codex'), false);
+  assert.equal(providerServices.sessionValues.get('/\0claude'), 'root-claude');
+  assert.equal(providerServices.sessionValues.get('/other.html\0codex'), 'other-codex');
+
+  const invalidPage = await requestJson(url, '/__sandpaper/session/reset', {
+    body: { page: '/missing.html', provider: 'codex' },
+  });
+  assert.equal(invalidPage.status, 400);
+  assert.equal(invalidPage.json.error.code, 'invalid_page');
+
+  await requestJson(url, '/__sandpaper/turn', {
+    body: { page: '/', provider: 'claude', prompt: 'active' },
+  });
+  const busy = await requestJson(url, '/__sandpaper/session/reset', {
+    body: { page: '/other.html', provider: 'codex' },
+  });
+  assert.equal(busy.status, 409);
+  assert.equal(busy.json.error.code, 'turn_in_progress');
+  providerServices.runners.claude.complete();
+
+  providerServices.sessions.clear = () => { throw new Error('disk failure'); };
+  const failed = await requestJson(url, '/__sandpaper/session/reset', {
+    body: { page: '/other.html', provider: 'codex' },
+  });
+  assert.equal(failed.status, 500);
+  assert.equal(failed.json.error.code, 'internal_error');
+  assert.equal(providerServices.sessionValues.get('/other.html\0codex'), 'other-codex');
+});
 
 test('auth token is injected into served HTML', async (t) => {
   const { url } = await fixture(t);
@@ -267,6 +528,38 @@ for (const [path, body, limit] of mutations) {
     assert.equal(oversized.json.error.code, 'payload_too_large');
   });
 }
+
+for (const path of ['/__sandpaper/provider-default', '/__sandpaper/session/reset']) {
+  test(`provider control rejects non-POST method and missing client ID for ${path}`, async (t) => {
+    const { url } = await fixture(t);
+    const get = await requestJson(url, path, { method: 'GET' });
+    assert.equal(get.status, 405);
+    assert.equal(get.json.error.code, 'method_not_allowed');
+    const missingClient = await requestJson(url, path, { clientId: null });
+    assert.equal(missingClient.status, 403);
+    assert.equal(missingClient.json.error.code, 'invalid_client');
+  });
+}
+
+test('provider controls reject missing fields, unavailable defaults, and unsafe page bodies', async (t) => {
+  const providerServices = createFakeProviderServices({ diagnostics: [
+    { id: 'claude', label: 'Claude Code', available: true, compatible: true, authMethod: 'subscription' },
+    { id: 'codex', label: 'Codex', available: false, compatible: true, authMethod: null, unavailableCode: 'not_authenticated' },
+  ] });
+  const { url } = await fixture(t, { providerServices, brain: true });
+  const missingDefault = await rawRequestJson(url, '/__sandpaper/provider-default', { body: {} });
+  assert.equal(missingDefault.json.error.code, 'invalid_provider');
+  const unavailable = await requestJson(url, '/__sandpaper/provider-default', { body: { provider: 'codex' } });
+  assert.equal(unavailable.json.error.code, 'provider_unavailable');
+  const missingResetProvider = await rawRequestJson(url, '/__sandpaper/session/reset', { body: { page: '/' } });
+  assert.equal(missingResetProvider.json.error.code, 'invalid_provider');
+  const missingPage = await requestJson(url, '/__sandpaper/session/reset', { body: { provider: 'claude' } });
+  assert.equal(missingPage.json.error.code, 'invalid_page');
+  const unsafePage = await requestJson(url, '/__sandpaper/session/reset', {
+    body: { page: '/../outside.html', provider: 'claude' },
+  });
+  assert.equal(unsafePage.json.error.code, 'invalid_page');
+});
 
 test('content accepts application/json charset with matching loopback origin', async (t) => {
   const { url } = await fixture(t);
@@ -356,7 +649,7 @@ test('valid JSON requires an object body for turn and direct mutations', async (
   }
 });
 
-test('turn receiving rejections broadcast retained idle recovery', async (t) => {
+test('turn body and validation rejections create no reservation or lifecycle side effect', async (t) => {
   const cases = [
     ['malformed', { rawBody: '{' }, 400],
     ['oversized', { rawBody: JSON.stringify({ pad: 'x'.repeat(1_000_000) }) }, 413],
@@ -367,14 +660,11 @@ test('turn receiving rejections broadcast retained idle recovery', async (t) => 
       const { url } = await fixture(subtest);
       const events = await openEvents(url, { clientId: `${name.replace(' ', '-')}-observer` });
       subtest.after(() => events.close());
-      await events.next();
+      await drainInitialReplay(events);
 
       const response = await requestJson(url, '/__sandpaper/turn', request);
       assert.equal(response.status, status);
-      await nextFrame(events, (frame) => frame.state === 'receiving');
-      assert.deepEqual(await nextFrame(events, (frame) => frame.state === 'idle'), {
-        type: 'status', state: 'idle', label: 'idle',
-      });
+      await noMatchingFrame(events, (frame) => frame.type === 'lifecycle' || frame.state === 'receiving');
     });
   }
 
@@ -382,14 +672,12 @@ test('turn receiving rejections broadcast retained idle recovery', async (t) => 
     const { url } = await fixture(subtest);
     const events = await openEvents(url, { clientId: 'aborted-observer' });
     subtest.after(() => events.close());
-    await events.next();
+    await drainInitialReplay(events);
     const receiving = startReceivingTurn(url);
     receiving.response.catch(() => {});
-    await nextFrame(events, (frame) => frame.state === 'receiving');
+    await noMatchingFrame(events, (frame) => frame.type === 'lifecycle' || frame.state === 'receiving', 60);
     receiving.req.destroy();
-    assert.deepEqual(await nextFrame(events, (frame) => frame.state === 'idle'), {
-      type: 'status', state: 'idle', label: 'idle',
-    });
+    await noMatchingFrame(events, (frame) => frame.type === 'lifecycle' || frame.state === 'receiving', 60);
   });
 });
 
@@ -411,15 +699,19 @@ test('turn runner startup failure broadcasts one terminal error and ignores its 
   const { url } = await fixture(t, { runner });
   const events = await openEvents(url, { clientId: 'startup-observer' });
   t.after(() => events.close());
-  await events.next();
+  await drainInitialReplay(events);
 
   const failed = await requestJson(url, '/__sandpaper/turn', { body: { page: '/', prompt: 'fail startup' } });
   assert.equal(failed.status, 500);
   assert.equal(failed.json.error.code, 'runner_start_failed');
+  const busy = await nextFrame(events, (frame) => frame.type === 'lifecycle' && frame.busy);
   const terminal = await nextFrame(events, (frame) => frame.state === 'error');
   assert.equal(terminal.phase, 'error');
   assert.equal(terminal.changed, false);
   assert.equal(terminal.undoable, false);
+  const idle = await nextFrame(events, (frame) => frame.type === 'lifecycle' && !frame.busy);
+  assert.deepEqual(idle, { ...busy, busy: false });
+  await noMatchingFrame(events, (frame) => frame.type === 'lifecycle' && !frame.busy, 60);
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(lateCallbackRan, true);
 
@@ -430,7 +722,7 @@ test('turn runner startup failure broadcasts one terminal error and ignores its 
   assert.equal(accepted.status, 202);
 });
 
-test('turn reservation accepts exactly one request while the first body is receiving', async (t) => {
+test('turn reservation begins only after a complete validated body', async (t) => {
   const { url, fakeRunner } = await fixture(t);
   const first = startReceivingTurn(url);
   await new Promise((resolve) => setImmediate(resolve));
@@ -438,12 +730,12 @@ test('turn reservation accepts exactly one request while the first body is recei
   const second = await requestJson(url, '/__sandpaper/turn', {
     body: { page: '/', prompt: 'second' }, clientId: 'client-b',
   });
-  assert.equal(second.status, 409);
-  assert.equal(second.json.error.code, 'turn_in_progress');
+  assert.equal(second.status, 202);
 
   first.req.end('}');
-  const accepted = await first.response;
-  assert.equal(accepted.status, 202);
+  const rejected = await first.response;
+  assert.equal(rejected.status, 409);
+  assert.equal(rejected.json.error.code, 'turn_in_progress');
   assert.equal(fakeRunner.calls.length, 1);
 });
 
@@ -477,24 +769,27 @@ test('SSE rejects nonexistent and non-HTML page IDs instead of falling back to t
   assert.equal(singlePage.json?.error?.code, 'invalid_page');
 });
 
-test('receiving status stays with its client while init reaches only the same page', async (t) => {
+test('validated reservation broadcasts global lifecycle while init remains page-scoped', async (t) => {
   const { url } = await fixture(t, { brain: true });
   const clientA = await openEvents(url, { clientId: 'lifecycle-a', page: '/' });
   const clientB = await openEvents(url, { clientId: 'lifecycle-b', page: '/' });
   const otherPage = await openEvents(url, { clientId: 'lifecycle-c', page: '/other.html' });
   t.after(() => { clientA.close(); clientB.close(); otherPage.close(); });
-  await Promise.all([clientA.next(), clientB.next(), otherPage.next()]);
+  await Promise.all([drainInitialReplay(clientA), drainInitialReplay(clientB), drainInitialReplay(otherPage)]);
 
   const receiving = startReceivingTurn(url, 'lifecycle-a');
   receiving.response.catch(() => {});
-  assert.equal((await clientA.next()).state, 'receiving');
-  await Promise.all([noFrame(clientB, 80), noFrame(otherPage, 80)]);
+  await Promise.all([noFrame(clientA, 60), noFrame(clientB, 60), noFrame(otherPage, 60)]);
 
   receiving.req.end('}');
   const accepted = await receiving.response;
+  for (const events of [clientA, clientB, otherPage]) {
+    const lifecycle = await nextFrame(events, (frame) => frame.type === 'lifecycle' && frame.busy);
+    assert.equal(lifecycle.turnId, accepted.json.turnId);
+  }
   const init = await nextFrame(clientB, (frame) => frame.turnId === accepted.json.turnId && frame.state === 'init');
   assert.equal(init.page, '/');
-  await noMatchingFrame(otherPage, (frame) => frame.turnId === accepted.json.turnId);
+  await noMatchingFrame(otherPage, (frame) => frame.type === 'status' && frame.turnId === accepted.json.turnId);
 });
 
 test('late terminal frames from turn 1 cannot clear or relabel turn 2', async (t) => {
@@ -542,16 +837,22 @@ test('changed state is true without an edit frame and exposes an existing snapsh
 
 test('turn error after a partial write retains truthful changed and undo state', async (t) => {
   const { url, fakeRunner, pageFile } = await fixture(t);
+  const events = await openEvents(url, { clientId: 'terminal-failure' });
+  t.after(() => events.close());
+  await drainInitialReplay(events);
   await requestJson(url, '/__sandpaper/turn', { body: { page: '/', prompt: 'fail after write' } });
   writeFileSync(pageFile, '<!doctype html><html><body>Partial write</body></html>');
   fakeRunner.fail('process failed');
 
-  const events = await openEvents(url, { clientId: 'late-client' });
-  t.after(() => events.close());
-  const terminal = await events.next();
+  const busy = await nextFrame(events, (frame) => frame.type === 'lifecycle' && frame.busy);
+  const terminal = await nextFrame(events, (frame) => frame.state === 'error');
   assert.equal(terminal.state, 'error');
   assert.equal(terminal.changed, true);
   assert.equal(terminal.undoable, true);
+  assert.deepEqual(await nextFrame(events, (frame) => frame.type === 'lifecycle' && !frame.busy), {
+    ...busy, busy: false,
+  });
+  await noMatchingFrame(events, (frame) => frame.type === 'lifecycle' && !frame.busy, 60);
 });
 
 test('turn cleanup kills an active runner handle', async (t) => {
@@ -593,7 +894,8 @@ test('listen close owns pending EADDRINUSE retry and prevents reopen', async (t)
   const watched = controlledWatch();
   const timers = controlledTimers();
   const controller = createSandpaperServer(repo.pageFile, {}, {
-    runner: createFakeRunner(),
+    ...createFakeProviderServices(),
+    initialProvider: 'claude',
     tokenFactory: () => 'test-token',
     watch: watched.watch,
     setTimeout: timers.setTimeout,
@@ -632,13 +934,15 @@ test('default server runner resumes and persists its page-scoped Claude session'
     if (originalPath === undefined) delete process.env.PATH;
     else process.env.PATH = originalPath;
   });
+  const providerServices = createFakeProviderServices({ runners: {
+    claude: (input) => runClaudeTurn(input, {
+      spawn: (...args) => { invocation = args; return child; },
+      onClaudePlan: () => false,
+    }),
+  } });
   const controller = createSandpaperServer(repo.pageFile, {}, {
-    claude: {
-      spawn: (...args) => {
-        invocation = args;
-        return child;
-      },
-    },
+    registry: providerServices.registry,
+    preferences: providerServices.preferences,
     tokenFactory: () => 'test-token',
     watch: () => ({ close() {} }),
   });
@@ -670,8 +974,15 @@ test('repository serve migrates the nested v0.2.1 Claude session to its current 
   writeFileSync(join(brain, '.sandpaper', 'session.json'), '{"sessionId":"nested-session"}\n');
   const child = fakeChild();
   let invocation;
+  const providerServices = createFakeProviderServices({ runners: {
+    claude: (input) => runClaudeTurn(input, {
+      spawn: (...args) => { invocation = args; return child; },
+      onClaudePlan: () => false,
+    }),
+  } });
   const controller = createSandpaperServer(repo.root, { brain: true }, {
-    claude: { spawn: (...args) => { invocation = args; return child; } },
+    registry: providerServices.registry,
+    preferences: providerServices.preferences,
     tokenFactory: () => 'test-token',
     watch: () => ({ close() {} }),
   });
@@ -687,7 +998,7 @@ test('repository serve migrates the nested v0.2.1 Claude session to its current 
   assert.equal(canonical.pages['/brain/index.html'].claude.resumeId, 'nested-session');
 });
 
-test('server reuses injected provider services without changing the default runner', async (t) => {
+test('server dispatches through injected provider services and persists their session', async (t) => {
   const repo = makeRepo();
   t.after(() => repo.cleanup());
   const child = fakeChild();
@@ -696,11 +1007,22 @@ test('server reuses injected provider services without changing the default runn
     get(key) { calls.push(['get', key]); return 'injected-session'; },
     set(value) { calls.push(['set', value]); },
   };
-  const preferences = { getDefaultProvider() { throw new Error('must not be read by the server'); } };
-  const registry = { get() { throw new Error('toolbar dispatch is not part of Runtime Task 4'); } };
+  const preferences = {
+    getDefaultProvider() { return 'claude'; },
+    setDefaultProvider() {},
+  };
+  const registry = {
+    diagnostics() {
+      return [{ id: 'claude', label: 'Claude Code', available: true, compatible: true, authMethod: 'subscription' }];
+    },
+    get(id) {
+      return id === 'claude' ? {
+        runTurn: (input) => runClaudeTurn(input, { spawn: () => child, onClaudePlan: () => false }),
+      } : null;
+    },
+  };
   const controller = createSandpaperServer(repo.pageFile, { initialProvider: 'codex' }, {
     registry, preferences, sessions,
-    claude: { spawn: () => child },
     tokenFactory: () => 'test-token',
     watch: () => ({ close() {} }),
   });
@@ -1010,7 +1332,7 @@ test('direct mutation succeeds without exposing undo when snapshot creation fail
   const repo = makeRepo();
   writeFileSync(join(repo.root, '.sandpaper'), 'blocks the snapshot directory');
   const controller = createSandpaperServer(repo.pageFile, {}, {
-    runner: createFakeRunner(),
+    ...createFakeProviderServices(),
     tokenFactory: () => 'test-token',
   });
   const url = await controller.listen();
@@ -1136,13 +1458,13 @@ test('reload after direct write excludes its client and other pages, then suppre
   const clientB = await openEvents(url, { clientId: 'client-b', page: '/' });
   const otherPage = await openEvents(url, { clientId: 'client-c', page: '/other.html' });
   t.after(() => { clientA.close(); clientB.close(); otherPage.close(); });
-  await Promise.all([clientA.next(), clientB.next(), otherPage.next()]);
+  await Promise.all([drainInitialReplay(clientA), drainInitialReplay(clientB), drainInitialReplay(otherPage)]);
 
   const written = await requestJson(url, '/__sandpaper/write', {
     clientId: 'client-a', body: { page: '/', cid: 'main', html: 'Direct write' },
   });
   assert.equal(written.status, 200);
-  assert.deepEqual(await clientB.next(), { type: 'reload', page: '/' });
+  assert.deepEqual(await nextFrame(clientB, (frame) => frame.type === 'reload'), { type: 'reload', page: '/' });
   await Promise.all([noFrame(clientA, 60), noFrame(otherPage, 60)]);
 
   watched.emit('index.html');
@@ -1150,8 +1472,8 @@ test('reload after direct write excludes its client and other pages, then suppre
 
   writeFileSync(pageFile, '<!doctype html><html><body><main data-cid="main">External write</main></body></html>');
   watched.emit('index.html');
-  assert.deepEqual(await clientA.next(), { type: 'reload', page: '/' });
-  assert.deepEqual(await clientB.next(), { type: 'reload', page: '/' });
+  assert.deepEqual(await nextFrame(clientA, (frame) => frame.type === 'reload'), { type: 'reload', page: '/' });
+  assert.deepEqual(await nextFrame(clientB, (frame) => frame.type === 'reload'), { type: 'reload', page: '/' });
   await noMatchingFrame(otherPage, (frame) => frame.type === 'reload');
 });
 
@@ -1161,15 +1483,15 @@ test('reload debounce is independent for two pages changed in one interval', asy
   const cover = await openEvents(url, { clientId: 'cover-client', page: '/' });
   const other = await openEvents(url, { clientId: 'other-client', page: '/other.html' });
   t.after(() => { cover.close(); other.close(); });
-  await Promise.all([cover.next(), other.next()]);
+  await Promise.all([drainInitialReplay(cover), drainInitialReplay(other)]);
 
   writeFileSync(pageFile, '<!doctype html><html><body>Cover external</body></html>');
   writeFileSync(otherFile, '<!doctype html><html><body>Other external</body></html>');
   watched.emit('index.html');
   watched.emit('other.html');
 
-  assert.deepEqual(await cover.next(), { type: 'reload', page: '/' });
-  assert.deepEqual(await other.next(), { type: 'reload', page: '/other.html' });
+  assert.deepEqual(await nextFrame(cover, (frame) => frame.type === 'reload'), { type: 'reload', page: '/' });
+  assert.deepEqual(await nextFrame(other, (frame) => frame.type === 'reload'), { type: 'reload', page: '/other.html' });
 });
 
 test('reload for an AI change reaches all same-page clients only after the terminal status', async (t) => {
@@ -1179,7 +1501,7 @@ test('reload for an AI change reaches all same-page clients only after the termi
   const clientB = await openEvents(url, { clientId: 'client-b', page: '/' });
   const otherPage = await openEvents(url, { clientId: 'client-c', page: '/other.html' });
   t.after(() => { clientA.close(); clientB.close(); otherPage.close(); });
-  await Promise.all([clientA.next(), clientB.next(), otherPage.next()]);
+  await Promise.all([drainInitialReplay(clientA), drainInitialReplay(clientB), drainInitialReplay(otherPage)]);
 
   const accepted = await requestJson(url, '/__sandpaper/turn', {
     clientId: 'client-a', body: { page: '/', prompt: 'AI write' },
@@ -1192,7 +1514,7 @@ test('reload for an AI change reaches all same-page clients only after the termi
   for (const events of [clientA, clientB]) {
     const terminal = await nextFrame(events, (frame) => frame.turnId === accepted.json.turnId && frame.phase === 'done');
     assert.equal(terminal.changed, true);
-    assert.deepEqual(await events.next(), { type: 'reload', page: '/' });
+    assert.deepEqual(await nextFrame(events, (frame) => frame.type === 'reload'), { type: 'reload', page: '/' });
   }
   await noMatchingFrame(otherPage, (frame) => frame.type === 'reload');
 });
@@ -1220,7 +1542,7 @@ test('directory watching falls back when recursive fs.watch is unavailable and c
   };
 
   const controller = createSandpaperServer(repo.root, { brain: true }, {
-    runner: createFakeRunner(),
+    ...createFakeProviderServices(),
     tokenFactory: () => 'test-token',
     watch,
   });
@@ -1232,7 +1554,7 @@ test('directory watching falls back when recursive fs.watch is unavailable and c
   const url = await controller.listen(0);
   const events = await openEvents(url, { clientId: 'fallback-client', page: '/nested/page.html' });
   t.after(() => events.close());
-  await events.next();
+  await drainInitialReplay(events);
 
   assert.equal(calls[0].options.recursive, true);
   const fallbackRoot = calls[1].directory;
@@ -1241,7 +1563,7 @@ test('directory watching falls back when recursive fs.watch is unavailable and c
   assert.ok(callbacks.has(nestedDirectory));
   writeFileSync(join(nested, 'page.html'), '<!doctype html><html><body>Changed</body></html>');
   callbacks.get(nestedDirectory)('change', 'page.html');
-  assert.deepEqual(await events.next(), { type: 'reload', page: '/nested/page.html' });
+  assert.deepEqual(await nextFrame(events, (frame) => frame.type === 'reload'), { type: 'reload', page: '/nested/page.html' });
 
   await controller.close();
   assert.ok(handles.length >= 2);

@@ -11,7 +11,7 @@ export function createSandpaperClient({ base, token, clientId, fetchImpl }) {
   const apiBase = String(base || '').replace(/\/+$/, '');
   const fetchRequest = fetchImpl || globalThis.fetch;
 
-  return {
+  const client = {
     async post(path, payload) {
       let response;
       try {
@@ -68,4 +68,8 @@ export function createSandpaperClient({ base, token, clientId, fetchImpl }) {
       return `${apiBase}/events?token=${encodeURIComponent(token)}&clientId=${encodeURIComponent(clientId)}`;
     },
   };
+
+  client.setDefaultProvider = (provider) => client.post('/provider-default', { provider });
+  client.resetSession = ({ page, provider }) => client.post('/session/reset', { page, provider });
+  return client;
 }

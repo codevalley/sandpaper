@@ -115,3 +115,36 @@ test('post rejects network failures as network_error', async () => {
       error.message === 'Failed to fetch',
   );
 });
+
+test('provider control helpers post exact route payloads', async () => {
+  const requests = [];
+  const client = createSandpaperClient({
+    base: '/__sandpaper', token: 'token', clientId: 'client',
+    fetchImpl: async (url, init) => {
+      requests.push([url, JSON.parse(init.body)]);
+      return response(200, { ok: true });
+    },
+  });
+
+  await client.setDefaultProvider('codex');
+  await client.resetSession({ page: '/brain/index.html', provider: 'claude' });
+  assert.deepEqual(requests, [
+    ['/__sandpaper/provider-default', { provider: 'codex' }],
+    ['/__sandpaper/session/reset', { page: '/brain/index.html', provider: 'claude' }],
+  ]);
+});
+
+test('provider control helpers preserve structured ApiError behavior', async () => {
+  const client = createSandpaperClient({
+    base: '/__sandpaper', token: 'token', clientId: 'client',
+    fetchImpl: async () => response(409, {
+      ok: false,
+      error: { code: 'provider_unavailable', message: 'Codex is unavailable' },
+    }),
+  });
+  await assert.rejects(
+    client.setDefaultProvider('codex'),
+    (error) => error instanceof ApiError && error.status === 409
+      && error.code === 'provider_unavailable' && error.message === 'Codex is unavailable',
+  );
+});

@@ -134,9 +134,9 @@ export function createFakeRunner() {
     return call;
   };
 
-  const runner = ({ pageFile, prompt, onFrame }) => {
+  const runner = ({ pageFile, prompt, resumeId, onSession, onFrame }) => {
     const handle = { killed: false, kill() { this.killed = true; } };
-    calls.push({ pageFile, prompt, onFrame, handle });
+    calls.push({ pageFile, prompt, resumeId, onSession, onFrame, handle });
     return handle;
   };
   runner.calls = calls;
@@ -152,5 +152,62 @@ export function createFakeRunner() {
   runner.complete = (index) => {
     get(index).onFrame({ type: 'status', state: 'done', label: 'done', done: true });
   };
+  runner.session = (resumeId, index) => get(index).onSession(resumeId);
   return runner;
+}
+
+export function createFakeProviderServices({
+  defaultProvider = 'claude',
+  diagnostics = [
+    { id: 'claude', label: 'Claude Code', available: true, compatible: true, authMethod: 'subscription' },
+    { id: 'codex', label: 'Codex', available: true, compatible: true, authMethod: 'chatgpt' },
+  ],
+  runners = {},
+} = {}) {
+  const providerRunners = {
+    claude: runners.claude || createFakeRunner(),
+    codex: runners.codex || createFakeRunner(),
+  };
+  const diagnosticValues = diagnostics.map((entry) => ({ ...entry }));
+  const entries = new Map(diagnosticValues.map((diagnostic) => [diagnostic.id, {
+    id: diagnostic.id,
+    label: diagnostic.label,
+    runTurn: providerRunners[diagnostic.id],
+  }]));
+  const sessionValues = new Map();
+  const sessionCalls = [];
+  const sessionKey = ({ page, provider }) => `${page}\0${provider}`;
+  let currentDefault = defaultProvider;
+  const preferenceCalls = [];
+
+  return {
+    runners: providerRunners,
+    registry: {
+      get(id) { return entries.get(id) || null; },
+      diagnostics() { return diagnosticValues.map((entry) => ({ ...entry })); },
+    },
+    preferences: {
+      getDefaultProvider() { preferenceCalls.push(['get']); return currentDefault; },
+      setDefaultProvider(provider) {
+        preferenceCalls.push(['set', provider]);
+        currentDefault = provider;
+      },
+    },
+    sessions: {
+      get(key) { sessionCalls.push(['get', { ...key }]); return sessionValues.get(sessionKey(key)) || null; },
+      claimLegacy(key) { sessionCalls.push(['claimLegacy', { ...key }]); return null; },
+      set(value) {
+        sessionCalls.push(['set', { ...value }]);
+        sessionValues.set(sessionKey(value), value.resumeId);
+      },
+      clear(key) {
+        sessionCalls.push(['clear', { ...key }]);
+        sessionValues.delete(sessionKey(key));
+      },
+    },
+    sessionValues,
+    sessionCalls,
+    preferenceCalls,
+    get defaultProvider() { return currentDefault; },
+  };
 }
