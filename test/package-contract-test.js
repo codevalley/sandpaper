@@ -143,6 +143,7 @@ test('relative ESM import discovery covers static, re-export, side-effect, and d
     "import { one } from '../one.js';",
     "export { two } from './two.js';",
     "const lazy = import('./lazy.js');",
+    "const lazyTemplate = import(`./lazy-template.js`);",
     "import/* reviewed */ './commented.js';",
     "export /* reviewed */ { three } from './three.js';",
     "import // side-effect note",
@@ -171,7 +172,7 @@ test('relative ESM import discovery covers static, re-export, side-effect, and d
     "/* export * from './also-not-real.js'; */",
   ].join('\n');
   assert.deepEqual(relativeEsmImports(source), [
-    './side-effect.js', '../one.js', './two.js', './lazy.js', './commented.js', './three.js',
+    './side-effect.js', '../one.js', './two.js', './lazy.js', './lazy-template.js', './commented.js', './three.js',
     './side-line.js', './from-line.js', './from-block.js', './export-block.js', './export-line.js',
     './dynamic-block.js', './dynamic-line.js', './dynamic-options.json', './escaped-hex.js',
     './escaped-unicode.js',
@@ -217,9 +218,52 @@ test('regex literals after control flow and division never become fake imports',
   assert.deepEqual(relativeEsmImports(source), ['./division-real.js', './real-after-regex.js']);
 });
 
+test('module-name reserved words do not hide static relative imports', () => {
+  const source = [
+    "import { export as importedValue } from './import-reserved.js';",
+    "export { import as exportedValue } from './export-reserved.js';",
+  ].join('\n');
+  assert.deepEqual(relativeEsmImports(source), [
+    './import-reserved.js',
+    './export-reserved.js',
+  ]);
+});
+
+test('regex literals after statement boundaries stay ignored', () => {
+  const source = [
+    "/import(\".\\/standalone-fake.js\")/.test(value);",
+    "{} /import(\".\\/block-fake.js\")/.test(value);",
+    "function finished() {} /import(\".\\/function-fake.js\")/.test(value);",
+    "try {} catch {} /import(\".\\/catch-fake.js\")/.test(value);",
+    "import './statement-boundary-real.js';",
+  ].join('\n');
+  assert.deepEqual(relativeEsmImports(source), ['./statement-boundary-real.js']);
+});
+
+test('division after object literals and reserved-word members preserves genuine imports', () => {
+  const source = [
+    "const objectRatio = ({ value: 12 }).value / import('./object-division.js');",
+    "const returnRatio = api.return / import('./member-return.js');",
+    "const deleteRatio = api.delete / import('./member-delete.js');",
+    "const awaitRatio = api.await / import('./member-await.js');",
+    "const doRatio = api.do / import('./member-do.js');",
+    "const elseRatio = api.else / import('./member-else.js');",
+    "const yieldRatio = api.yield / import('./member-yield.js');",
+  ].join('\n');
+  assert.deepEqual(relativeEsmImports(source), [
+    './object-division.js',
+    './member-return.js',
+    './member-delete.js',
+    './member-await.js',
+    './member-do.js',
+    './member-else.js',
+    './member-yield.js',
+  ]);
+});
+
 test('semicolon-free export stress has deterministic linear work', () => {
   for (const count of [4_000, 8_000, 12_000]) {
-    const source = Array.from({ length: count }, (_, index) => `export { value${index} }\n`).join('');
+    const source = Array.from({ length: count }, (_, index) => `export const v${index}=0\n`).join('');
     const metrics = {};
     assert.deepEqual(relativeEsmImports(source, { metrics }), []);
     assert.equal(metrics.characters, source.length);

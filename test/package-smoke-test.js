@@ -15,7 +15,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, dirname, join, relative, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import test from 'node:test';
 
 import {
@@ -126,7 +126,7 @@ function installPackedRepository(repositories, name, tarball, env) {
   mkdirSync(repo);
   writeFileSync(join(repo, 'package.json'), `${JSON.stringify({ name: `sandpaper-${name}`, private: true }, null, 2)}\n`);
   run('git', ['init', '--quiet'], { cwd: repo, env });
-  run('npm', ['install', '--ignore-scripts', '--no-audit', '--no-fund', '--package-lock=false', tarball], {
+  run('npm', ['install', '--ignore-scripts', '--omit=dev', '--no-audit', '--no-fund', '--package-lock=false', tarball], {
     cwd: repo,
     env,
   });
@@ -259,6 +259,7 @@ test('packed artifact exactly matches the contract and survives dual-provider li
   const sourceManifest = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
   assert.deepEqual(sourceManifest.files, APPROVED_FILE_RULES);
   assertNoRuntimeDependencyMetadata(sourceManifest);
+  assert.equal(sourceManifest.devDependencies?.acorn, '8.17.0');
   assert.deepEqual(
     ['prepack', 'prepare', 'postpack', 'prepublishOnly'].filter((name) => Object.hasOwn(sourceManifest.scripts || {}, name)),
     [],
@@ -274,6 +275,7 @@ test('packed artifact exactly matches the contract and survives dual-provider li
   assert.equal(packed.files.length, 58);
   const packedPaths = packed.files.map(({ path }) => normalizePackagePath(path)).sort();
   assert.deepEqual(packedPaths, expectedPackedPaths());
+  assert.equal(packedPaths.some((path) => path === 'package-lock.json' || path.startsWith('node_modules/')), false);
   assert.deepEqual(packedPaths.filter(isForbiddenPackagePath), []);
   assert.deepEqual(packedPaths.filter(isSecretPackagePath), []);
   assert.ok(Math.ceil(packed.size / 1024) <= MAX_PACKED_KB);
@@ -305,6 +307,13 @@ test('packed artifact exactly matches the contract and survives dual-provider li
       `installed bytes: ${path}`,
     );
   }
+  assert.equal(existsSync(join(main.repo, 'node_modules', 'acorn')), false);
+  const installedContractUrl = pathToFileURL(join(main.installedRoot, 'src', 'package-contract.js')).href;
+  assert.equal(run(process.execPath, [
+    '--input-type=module',
+    '--eval',
+    `const contract = await import(${JSON.stringify(installedContractUrl)}); process.stdout.write(String(contract.expectedPackedPaths().length));`,
+  ], { cwd: main.repo, env }), '58');
 
   const help = main.cli(['help']);
   assert.match(help, /--integration claude\|codex/);
