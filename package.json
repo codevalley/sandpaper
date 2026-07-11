@@ -1,6 +1,6 @@
 {
   "name": "@nynb/sandpaper",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "A living project brain + refine-in-place toolbar for Claude Code projects. npx @nynb/sandpaper install-skill / init / doctor / open.",
   "type": "module",
   "bin": {
