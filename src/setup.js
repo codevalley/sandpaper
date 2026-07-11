@@ -5,6 +5,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, copyFi
 import { join, dirname, basename, extname, relative, resolve, sep } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { prepareInstallIntegrations } from './integrations.js';
+import { installationHookPlans, mergeClaudeHooks } from './hooks.js';
 import { PATH_REASONS, resolveRepositoryPath } from './path-policy.js';
 import { migrateManifest, PROVIDERS, readManifest, serializeManifest, writeManifest } from './manifest.js';
 
@@ -244,42 +245,15 @@ function scaffoldBrain(target, pkg, options, {
   }
 }
 
-// ---- install-skill: make /sandpaper:* available + wire the auto-update hooks (use --no-hooks to skip) ----
-const HOOKS = [
-  ['SessionStart', 'node .sandpaper/hooks/brain-inject.js', 10],
-  ['Stop', 'node .sandpaper/hooks/brain-stamp-check.js', 20],
-];
-const hooksSnippet = () => JSON.stringify({ hooks: Object.fromEntries(HOOKS.map(([e, c, t]) =>
-  [e, [{ matcher: '*', hooks: [{ type: 'command', command: c, timeout: t }] }]])) }, null, 2)
-  .split('\n').map((l) => '    ' + l).join('\n');
-
-// merge our hooks into the target's .claude/settings.json — preserve existing settings. Dedupe by the
-// hook SCRIPT's filename, not the exact command: a repo may already run brain-inject.js from another
-// path (e.g. the Sandpaper repo itself runs it from bin/) and a second wiring would fire it twice.
-function wireHooks(target) {
-  const sp = join(target, '.claude', 'settings.json');
-  let s = {};
-  if (existsSync(sp)) { try { s = JSON.parse(readFileSync(sp, 'utf8')); } catch { return { ok: false, reason: '.claude/settings.json exists but is not valid JSON — left it untouched' }; } }
-  s.hooks = s.hooks || {};
-  let added = 0;
-  for (const [evt, cmd, to] of HOOKS) {
-    s.hooks[evt] = s.hooks[evt] || [];
-    const script = cmd.split('/').pop();
-    const present = s.hooks[evt].some((g) => (g.hooks || []).some((h) => (h.command || '').includes(script)));
-    if (!present) { s.hooks[evt].push({ matcher: '*', hooks: [{ type: 'command', command: cmd, timeout: to }] }); added++; }
-  }
-  if (!added) return { ok: true, added }; // nothing to wire — leave the user's file byte-identical
-  try { ensureDir(dirname(sp)); writeFileSync(sp, JSON.stringify(s, null, 2) + '\n'); return { ok: true, added }; }
-  catch (e) { return { ok: false, reason: 'could not write .claude/settings.json (' + e.message + ')' }; }
-}
-
 export function installSkill(target, pkg, opts = {}, dependencies = {}) {
   const options = normalizeSetupOptions(opts);
   const manifestPlan = planInstallationManifest(target, pkg, options);
+  const hookPlans = installationHookPlans(target, pkg, options);
   const installation = prepareInstallIntegrations(target, pkg, options, {
     fs: dependencies.integrationFs,
     hooks: dependencies.integrationHooks,
     manifest: manifestPlan,
+    files: hookPlans,
   });
   try {
     banner();
@@ -289,23 +263,26 @@ export function installSkill(target, pkg, opts = {}, dependencies = {}) {
     else row('Claude integration', '.claude/commands/sandpaper/', 'not selected');
     if (installation.codex) row('Codex skill', '.agents/skills/sandpaper/', '$sandpaper <action>');
     else row('Codex integration', '.agents/skills/sandpaper/', 'not selected');
-    const hookDir = join(target, '.sandpaper', 'hooks');
-    ensureDir(hookDir);
-    for (const h of ['brain-inject.js', 'brain-stamp-check.js']) copyFileSync(join(pkg, 'bin', h), join(hookDir, h));
-    if (!options.hooksEnabled) {
-      row('2 auto-hooks', '.sandpaper/hooks/', 'not wired (--no-hooks)');
-      console.log('\n' + hooksSnippet());
-    } else {
-      const r = wireHooks(target);
-      row('2 auto-hooks', '.sandpaper/hooks/', r.ok ? (r.added ? 'wired · keeps the brain current' : 'already wired') : 'needs wiring by hand');
-      if (!r.ok) { console.log('   ' + dim(r.reason)); console.log('\n' + hooksSnippet()); }
-    }
-    console.log('');
     // Scaffold first; integration surfaces and manifest selection commit together only after this succeeds.
     section('BRAIN');
     scaffoldBrain(target, pkg, options, { manifestPlan, skipManifestWrite: true });
     dependencies.beforeIntegrationCommit?.();
     installation.commit();
+    console.log('');
+    section('HOOKS');
+    row('2 shared scripts', '.sandpaper/hooks/', 'copied · provider neutral');
+    if (!options.hooksEnabled) {
+      row('hook configuration', 'Claude + Codex', 'wiring disabled (--no-hooks)');
+    } else {
+      if (options.integrations.includes('claude')) {
+        row('Claude hook config', '.claude/settings.json', 'written · keeps the brain current');
+      }
+      if (options.integrations.includes('codex')) {
+        row('Codex hook config', '.codex/hooks.json', 'written · trust review required');
+        console.log('   Codex hook configuration was written, but execution begins only after the project is reviewed and trusted');
+        console.log('   and each command hook is separately reviewed and trusted during startup review or through /hooks.');
+      }
+    }
     nextStep(options.integrations);
   } catch (error) {
     try { installation.abort(); }
@@ -628,8 +605,8 @@ export function upgrade(target, pkg) {
   ensureDir(hookDir);
   for (const h of ['brain-inject.js', 'brain-stamp-check.js']) copyFileSync(join(pkg, 'bin', h), join(hookDir, h));
   ok('2 hooks refreshed → .sandpaper/hooks/');
-  const wr = wireHooks(target);
-  if (wr.ok) ok(wr.added ? 'auto-update hooks wired into .claude/settings.json' : 'auto-update hooks already wired');
+  const wr = mergeClaudeHooks(target, { enabled: true });
+  if (wr.ok) ok(wr.changed ? 'auto-update hooks wired into .claude/settings.json' : 'auto-update hooks already wired');
   else warn(wr.reason);
 
   // 2. engine assets → latest brain.css + brain.js (these carry the canvas styles); PRESERVE theme.css

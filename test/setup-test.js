@@ -121,6 +121,118 @@ test('default installation creates exact Claude and Codex integration trees from
   assert.match(codexBlock, /brain\/index\.html/);
   assert.match(codexBlock, /\$sandpaper <action>/);
   assert.doesNotMatch(claudeBlock + codexBlock, /canvas\|decide|release ordering|stamp checklist/i);
+  assert.deepEqual(JSON.parse(readFileSync(join(target, '.claude', 'settings.json'), 'utf8')).hooks.SessionStart, [{
+    matcher: '*',
+    hooks: [{ type: 'command', command: 'node .sandpaper/hooks/brain-inject.js', timeout: 10 }],
+  }]);
+  assert.deepEqual(JSON.parse(readFileSync(join(target, '.codex', 'hooks.json'), 'utf8')).hooks, {
+    SessionStart: [{
+      matcher: 'startup|resume|clear|compact',
+      hooks: [{ type: 'command', command: 'node .sandpaper/hooks/brain-inject.js', timeout: 10 }],
+    }],
+    Stop: [{
+      hooks: [{ type: 'command', command: 'node .sandpaper/hooks/brain-stamp-check.js', timeout: 20 }],
+    }],
+  });
+  for (const script of ['brain-inject.js', 'brain-stamp-check.js']) {
+    assert.deepEqual(
+      readFileSync(join(target, '.sandpaper', 'hooks', script)),
+      readFileSync(join(PACKAGE, 'bin', script)),
+    );
+  }
+});
+
+test('solo and no-hooks installations keep hook wiring truthful while always copying scripts', (t) => {
+  for (const provider of ['claude', 'codex']) {
+    const target = mkdtempSync(join(tmpdir(), `sandpaper-solo-hooks-${provider}-`));
+    t.after(() => rmSync(target, { recursive: true, force: true }));
+    write(target, 'package.json', JSON.stringify({ name: `@fixture/${provider}` }));
+    quietInstall(target, { integrations: [provider], defaultProvider: provider, hooksEnabled: true });
+    assert.equal(existsSync(join(target, provider === 'claude' ? '.claude/settings.json' : '.codex/hooks.json')), true);
+    assert.equal(existsSync(join(target, provider === 'claude' ? '.codex/hooks.json' : '.claude/settings.json')), false);
+    for (const script of ['brain-inject.js', 'brain-stamp-check.js']) {
+      assert.deepEqual(readFileSync(join(target, '.sandpaper/hooks', script)), readFileSync(join(PACKAGE, 'bin', script)));
+    }
+  }
+
+  const disabled = mkdtempSync(join(tmpdir(), 'sandpaper-no-hooks-'));
+  t.after(() => rmSync(disabled, { recursive: true, force: true }));
+  write(disabled, 'package.json', JSON.stringify({ name: '@fixture/no-hooks' }));
+  quietInstall(disabled, { integrations: ['claude', 'codex'], defaultProvider: 'claude', hooksEnabled: false });
+  assert.equal(existsSync(join(disabled, '.claude/settings.json')), false);
+  assert.equal(existsSync(join(disabled, '.codex/hooks.json')), false);
+  for (const script of ['brain-inject.js', 'brain-stamp-check.js']) {
+    assert.deepEqual(readFileSync(join(disabled, '.sandpaper/hooks', script)), readFileSync(join(PACKAGE, 'bin', script)));
+  }
+});
+
+test('install output states the Codex project and per-command trust boundary', (t) => {
+  const target = mkdtempSync(join(tmpdir(), 'sandpaper-hook-trust-'));
+  t.after(() => rmSync(target, { recursive: true, force: true }));
+  write(target, 'package.json', JSON.stringify({ name: '@fixture/trust' }));
+  const lines = [];
+  const log = console.log;
+  console.log = (...args) => lines.push(args.join(' '));
+  try { setup.installSkill(target, PACKAGE); } finally { console.log = log; }
+  const output = lines.join('\n');
+  assert.match(output, /Codex hook configuration.*written/i);
+  assert.match(output, /project.*reviewed.*trusted/i);
+  assert.match(output, /each command hook.*reviewed.*trusted/i);
+  assert.match(output, /startup review|\/hooks/i);
+  assert.doesNotMatch(output, /Codex hooks (?:are )?active/i);
+});
+
+test('invalid second-provider config aborts before either config or Task 3 surfaces change', (t) => {
+  const target = mkdtempSync(join(tmpdir(), 'sandpaper-hook-preflight-'));
+  t.after(() => rmSync(target, { recursive: true, force: true }));
+  write(target, 'package.json', JSON.stringify({ name: '@fixture/hook-preflight' }));
+  write(target, '.codex/hooks.json', '{invalid');
+  const before = taskFourSnapshot(target);
+
+  assert.throws(() => quietInstall(target), /hook|file transaction|integration transaction/i);
+  assert.deepEqual(taskFourSnapshot(target), before);
+});
+
+test('hook script target symlinks and special path components reject without outside writes or blocking', {
+  skip: process.platform === 'win32',
+}, (t) => {
+  const outside = mkdtempSync(join(tmpdir(), 'sandpaper-hook-script-outside-'));
+  t.after(() => rmSync(outside, { recursive: true, force: true }));
+
+  const symlinked = mkdtempSync(join(tmpdir(), 'sandpaper-hook-script-link-'));
+  t.after(() => rmSync(symlinked, { recursive: true, force: true }));
+  write(symlinked, 'package.json', JSON.stringify({ name: '@fixture/hook-link' }));
+  mkdirSync(join(symlinked, '.sandpaper'));
+  symlinkSync(outside, join(symlinked, '.sandpaper/hooks'));
+  assert.throws(() => quietInstall(symlinked), /symlink/i);
+  assert.deepEqual(readdirSync(outside), []);
+
+  const fifo = mkdtempSync(join(tmpdir(), 'sandpaper-hook-script-fifo-'));
+  t.after(() => rmSync(fifo, { recursive: true, force: true }));
+  write(fifo, 'package.json', JSON.stringify({ name: '@fixture/hook-fifo' }));
+  mkdirSync(join(fifo, '.sandpaper'));
+  execFileSync('mkfifo', [join(fifo, '.sandpaper/hooks')]);
+  const started = Date.now();
+  assert.throws(() => quietInstall(fifo), /non-directory|special/i);
+  assert.ok(Date.now() - started < 1000);
+});
+
+test('hook-config commit failure rolls back both configs, scripts, manifest, and Task 3 surfaces', (t) => {
+  const target = mkdtempSync(join(tmpdir(), 'sandpaper-hook-commit-'));
+  t.after(() => rmSync(target, { recursive: true, force: true }));
+  write(target, 'package.json', JSON.stringify({ name: '@fixture/hook-commit' }));
+  write(target, '.claude/settings.json', '{"user":"claude"}\n');
+  write(target, '.codex/hooks.json', '{"user":"codex"}\n');
+  const before = taskFourSnapshot(target);
+
+  assert.throws(() => quietInstall(target, undefined, {
+    integrationHooks: {
+      afterInstall({ label }) {
+        if (label === 'codex-hooks') throw new Error('injected Codex hook commit failure');
+      },
+    },
+  }), /Could not commit Sandpaper integration transaction/);
+  assert.deepEqual(taskFourSnapshot(target), before);
 });
 
 test('fresh solo installations create only the selected namespace and a truthful manifest', (t) => {
@@ -334,6 +446,16 @@ function taskThreeSnapshot(target) {
     || entry.path === 'AGENTS.md'
     || entry.path.startsWith('.claude/commands/sandpaper')
     || entry.path.startsWith('.agents/skills/sandpaper')
+  ));
+}
+
+function taskFourSnapshot(target) {
+  const taskThreePaths = new Set(taskThreeSnapshot(target).map((entry) => entry.path));
+  return repositorySnapshot(target).filter((entry) => (
+    taskThreePaths.has(entry.path)
+    || entry.path === '.claude/settings.json'
+    || entry.path === '.codex/hooks.json'
+    || entry.path.startsWith('.sandpaper/hooks/')
   ));
 }
 

@@ -79,7 +79,9 @@ function readRegularFile(path, pathClass, fs) {
   if (!before) throw new Error(`Sandpaper ${pathClass} is missing`);
   if (before.isSymbolicLink()) unsafe(pathClass, 'symlink');
   if (!before.isFile()) unsafe(pathClass, 'special file');
-  const readFlags = fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0);
+  const readFlags = fs.constants.O_RDONLY
+    | (fs.constants.O_NOFOLLOW || 0)
+    | (fs.constants.O_NONBLOCK || 0);
   let descriptor;
   try {
     descriptor = fs.openSync(path, readFlags);
@@ -649,11 +651,90 @@ function fileOperation({ label, destination, plan, fs }) {
   };
 }
 
+function externalFileOperation(target, descriptor, fs, pathApi) {
+  if (!descriptor || typeof descriptor !== 'object' || !descriptor.label || !descriptor.destination) {
+    throw new Error('Invalid Sandpaper file update');
+  }
+  const inspected = inspectTrustedPath(target, descriptor.destination, {
+    fs,
+    pathApi,
+    pathClass: `${descriptor.label} path`,
+  });
+  if (inspected.exists && !inspected.stats.isFile()) unsafe(`${descriptor.label} path`, typeOf(inspected.stats));
+  const existing = inspected.exists ? readRegularFile(descriptor.destination, descriptor.label, fs) : null;
+  let desired;
+  let desiredMode;
+
+  if (descriptor.source) {
+    inspectTrustedPath(descriptor.sourceRoot, descriptor.source, {
+      fs,
+      pathApi,
+      pathClass: `${descriptor.label} source`,
+      finalType: 'file',
+    });
+    const source = readRegularFile(descriptor.source, `${descriptor.label} source`, fs);
+    desired = Buffer.from(source.bytes);
+    desiredMode = source.mode;
+  } else if (typeof descriptor.update === 'function') {
+    const update = descriptor.update(existing ? Buffer.from(existing.bytes) : null);
+    if (!update?.ok) throw new Error(update?.reason || `Invalid Sandpaper ${descriptor.label}`);
+    desired = update.next === null ? null : Buffer.from(update.next);
+    desiredMode = existing?.mode ?? descriptor.mode ?? 0o644;
+  } else {
+    throw new Error('Invalid Sandpaper file update');
+  }
+
+  const expectedIdentity = identity(inspected.stats);
+  const changed = desired === null
+    ? Boolean(existing)
+    : !existing?.bytes.equals(desired) || existing.mode !== desiredMode;
+  return {
+    label: descriptor.label,
+    destination: descriptor.destination,
+    kind: 'file',
+    snapshot: null,
+    file: desired === null ? null : { bytes: desired, mode: desiredMode },
+    desired,
+    changed,
+    expectedIdentity,
+    expectedContents: fileIdentityTree(expectedIdentity),
+    expectedBytes: existing ? Buffer.from(existing.bytes) : Buffer.alloc(0),
+    expectedMode: existing?.mode ?? null,
+  };
+}
+
+function externalFileOperations(target, descriptors, fs, pathApi) {
+  if (!Array.isArray(descriptors)) throw new Error('Invalid Sandpaper file updates');
+  return descriptors.map((descriptor) => externalFileOperation(target, descriptor, fs, pathApi));
+}
+
+export function prepareFileUpdates(target, descriptors, {
+  fs: overrides,
+  pathApi = nodePath,
+  hooks,
+} = {}) {
+  const fs = runtimeFs(overrides);
+  inspectTrustedPath(target, target, { fs, pathApi, pathClass: 'target root', finalType: 'directory' });
+  const operations = externalFileOperations(target, descriptors, fs, pathApi);
+  const transaction = prepareTransaction({
+    trustedRoot: target,
+    transactionParent: target,
+    prefix: '.sandpaper-files-',
+    operations,
+    fs,
+    pathApi,
+    hooks,
+    errorClass: 'file transaction',
+  });
+  return { ...transaction, changed: operations.some((operation) => operation.changed) };
+}
+
 export function prepareInstallIntegrations(target, packageRoot, options = {}, {
   fs: overrides,
   pathApi = nodePath,
   hooks,
   manifest = null,
+  files = [],
 } = {}) {
   const fs = runtimeFs(overrides);
   const integrations = validateIntegrations(options);
@@ -731,6 +812,8 @@ export function prepareInstallIntegrations(target, packageRoot, options = {}, {
       expectedMode: manifestSource?.mode ?? null,
     });
   }
+
+  operations.push(...externalFileOperations(target, files, fs, pathApi));
 
   const transaction = prepareTransaction({
     trustedRoot: target,
