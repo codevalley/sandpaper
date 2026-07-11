@@ -441,6 +441,41 @@ test('multi-surface stage, backup, and install faults leave every surface unchan
   }, /Could not commit Sandpaper integration transaction/);
 });
 
+test('top-level managed-file backup validation restores rename-wrapper byte and mode edits', {
+  skip: process.platform === 'win32',
+}, (t) => {
+  const target = mkdtempSync(join(tmpdir(), 'sandpaper-managed-backup-race-'));
+  t.after(() => rmSync(target, { recursive: true, force: true }));
+  const instructions = join(target, 'CLAUDE.md');
+  write(target, 'CLAUDE.md', 'original user instructions\n');
+  chmodSync(instructions, 0o640);
+  const originalInode = statSync(instructions).ino;
+
+  const error = thrown(() => installIntegrations(
+    target,
+    PACKAGE,
+    { integrations: ['claude'] },
+    {
+      fs: {
+        renameSync(from, to) {
+          const result = renameSync(from, to);
+          if (from === instructions) {
+            writeFileSync(to, 'concurrent backup instructions\n');
+            chmodSync(to, 0o600);
+          }
+          return result;
+        },
+      },
+    },
+  ));
+
+  assert.match(error.message, /Could not commit Sandpaper integration transaction/);
+  assert.equal(statSync(instructions).ino, originalInode);
+  assert.equal(readFileSync(instructions, 'utf8'), 'concurrent backup instructions\n');
+  assert.equal(statSync(instructions).mode & 0o777, 0o600);
+  assert.equal(existsSync(join(target, '.claude', 'commands', 'sandpaper')), false);
+});
+
 test('multi-surface restore failure retains the only namespace backup for recovery', (t) => {
   const target = mkdtempSync(join(tmpdir(), 'sandpaper-multi-restore-'));
   t.after(() => rmSync(target, { recursive: true, force: true }));

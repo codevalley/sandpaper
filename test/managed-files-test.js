@@ -338,6 +338,53 @@ test('copyTree rejects a destination tree that changes during its scan consisten
   assert.equal(existsSync(join(destination, 'generated.md')), false);
 });
 
+for (const overwriteNamespaced of [false, true]) {
+  test(`copyTree ${overwriteNamespaced ? 'owned' : 'merge'} mode restores exact mutations injected after backup rename`, {
+    skip: process.platform === 'win32',
+  }, (t) => {
+    const root = fixture(t, `sandpaper-copy-backup-race-${overwriteNamespaced ? 'owned' : 'merge'}-`);
+    const source = join(root, 'source');
+    const destination = join(root, 'destination');
+    const nested = join(destination, 'nested');
+    const destinationFile = join(nested, 'user.md');
+    mkdirSync(source);
+    mkdirSync(destination);
+    mkdirSync(nested);
+    writeFileSync(join(source, 'generated.md'), 'generated\n');
+    writeFileSync(destinationFile, 'original user bytes\n');
+    chmodSync(destination, 0o755);
+    chmodSync(nested, 0o750);
+    chmodSync(destinationFile, 0o640);
+    const originalInode = statSync(destinationFile).ino;
+
+    const error = thrown(() => copyTree(source, destination, {
+      overwriteNamespaced,
+      sourceRoot: root,
+      destinationRoot: root,
+      fs: {
+        renameSync(from, to) {
+          const result = renameSync(from, to);
+          if (from === destination) {
+            writeFileSync(join(to, 'nested', 'user.md'), 'concurrent backup bytes\n');
+            chmodSync(to, 0o711);
+            chmodSync(join(to, 'nested'), 0o700);
+            chmodSync(join(to, 'nested', 'user.md'), 0o600);
+          }
+          return result;
+        },
+      },
+    }));
+
+    assert.match(error.message, /Could not commit Sandpaper destination tree/);
+    assert.equal(statSync(destinationFile).ino, originalInode);
+    assert.equal(readFileSync(destinationFile, 'utf8'), 'concurrent backup bytes\n');
+    assert.equal(statSync(destination).mode & 0o777, 0o711);
+    assert.equal(statSync(nested).mode & 0o777, 0o700);
+    assert.equal(statSync(destinationFile).mode & 0o777, 0o600);
+    assert.equal(existsSync(join(destination, 'generated.md')), false);
+  });
+}
+
 test('copyTree rejects source, destination, internal symlinks and special files before mutation', {
   skip: process.platform === 'win32',
 }, (t) => {

@@ -312,12 +312,32 @@ function validateCurrent(operation, fs, pathApi) {
     }
   } else if (current && operation.kind === 'file') {
     if (!current.isFile()) throw new Error('Sandpaper transaction file changed before commit');
-    const bytes = readRegularFile(operation.destination, 'managed file', fs).bytes;
-    if (!bytes.equals(operation.expectedBytes)) throw new Error('Sandpaper transaction file changed before commit');
+    const file = readRegularFile(operation.destination, 'managed file', fs);
+    if (!sameRecordedIdentity(file.identity, operation.expectedIdentity)
+      || !file.bytes.equals(operation.expectedBytes)
+      || file.mode !== operation.expectedMode) {
+      throw new Error('Sandpaper transaction file changed before commit');
+    }
   }
   if (current && operation.kind === 'file'
     && !sameIdentityTree(identityTree(operation.destination, { fs, pathApi }), operation.expectedContents)) {
     throw new Error('Sandpaper transaction contents changed before commit');
+  }
+}
+
+function validateBackup(operation, fs, pathApi) {
+  if (operation.kind === 'directory') {
+    const captured = captureTree(operation.backup, 'transaction backup', fs, pathApi);
+    if (!sameTreeMetadata(captured.metadata, operation.expectedMetadata)) {
+      throw new Error('Sandpaper backup contents mismatch');
+    }
+    return;
+  }
+  const file = readRegularFile(operation.backup, 'transaction backup', fs);
+  if (!sameRecordedIdentity(file.identity, operation.expectedIdentity)
+    || !file.bytes.equals(operation.expectedBytes)
+    || file.mode !== operation.expectedMode) {
+    throw new Error('Sandpaper backup contents mismatch');
   }
 }
 
@@ -478,9 +498,7 @@ function prepareTransaction({
             if (!sameIdentity(lstatIfPresent(operation.backup, fs), operation.expectedIdentity)) {
               throw new Error('Sandpaper backup identity mismatch');
             }
-            if (!sameIdentityTree(identityTree(operation.backup, { fs, pathApi }), operation.expectedContents)) {
-              throw new Error('Sandpaper backup contents mismatch');
-            }
+            validateBackup(operation, fs, pathApi);
           }
           if (operation.staged) {
             fs.renameSync(operation.staged, operation.destination);
@@ -627,6 +645,7 @@ function fileOperation({ label, destination, plan, fs }) {
     expectedIdentity,
     expectedContents: fileIdentityTree(expectedIdentity),
     expectedBytes: Buffer.from(plan.source),
+    expectedMode: plan.mode,
   };
 }
 
@@ -709,6 +728,7 @@ export function prepareInstallIntegrations(target, packageRoot, options = {}, {
       expectedIdentity: identity(manifestInspection.stats),
       expectedContents: fileIdentityTree(identity(manifestInspection.stats)),
       expectedBytes: source,
+      expectedMode: manifestSource?.mode ?? null,
     });
   }
 
