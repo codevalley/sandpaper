@@ -1,160 +1,317 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { diagnoseClaude, diagnoseCodex } from '../src/diagnostics.js';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { execFileSync } from 'node:child_process';
 
-const result = (status, stdout = '', stderr = '') => ({ status, stdout, stderr });
+import {
+  diagnoseClaude,
+  diagnoseCodex,
+  inspectInstallation,
+  probeClaude,
+  probeCodex,
+} from '../src/diagnostics.js';
+import { doctor, installSkill } from '../src/setup.js';
 
-test('Claude diagnosis distinguishes a missing binary from a failed version probe', () => {
-  const missing = diagnoseClaude(() => { const error = new Error('spawn ENOENT'); error.code = 'ENOENT'; throw error; });
+const PACKAGE = new URL('..', import.meta.url).pathname;
+const commandResult = (status, stdout = '', stderr = '') => ({ status, stdout, stderr });
+
+// Preserve the Task 1 runtime-diagnostic contract while Task 5 adds the probe aliases
+// and installation-level inspection below.
+test('runtime Claude diagnosis distinguishes missing and failed version probes', () => {
+  const missing = diagnoseClaude(() => {
+    const error = new Error('spawn ENOENT');
+    error.code = 'ENOENT';
+    throw error;
+  });
   assert.deepEqual(missing, {
-    available: false,
-    compatible: false,
-    authMethod: null,
-    unavailableCode: 'binary_missing',
+    available: false, compatible: false, authMethod: null, unavailableCode: 'binary_missing',
   });
-
-  const incompatible = diagnoseClaude(() => result(2, '', 'bad invocation'));
-  assert.deepEqual(incompatible, {
-    available: false,
-    compatible: false,
-    authMethod: null,
-    unavailableCode: 'incompatible',
+  assert.deepEqual(diagnoseClaude(() => commandResult(2, '', 'secret failure')), {
+    available: false, compatible: false, authMethod: null, unavailableCode: 'incompatible',
   });
+});
 
+test('runtime Codex diagnosis rejects misplaced and failed controlled capabilities', () => {
+  const misplaced = diagnoseCodex((_command, args) => {
+    const key = args.join(' ');
+    if (key === '--version') return commandResult(0, 'codex-cli 1');
+    if (key === '--help') return commandResult(0, '--ask-for-approval --sandbox');
+    if (key === 'exec --help') return commandResult(0, '--config --disable resume --json --ignore-user-config --ignore-rules');
+    if (key === 'exec resume --help') {
+      return commandResult(0, 'Usage: codex exec resume [SESSION_ID] [PROMPT] --config --json --ignore-user-config --ignore-rules');
+    }
+    return commandResult(0, 'Logged in using ChatGPT');
+  });
+  assert.equal(misplaced.compatible, false);
+  assert.equal(misplaced.unavailableCode, 'incompatible');
+
+  const failedHelp = diagnoseCodex((_command, args) => {
+    const key = args.join(' ');
+    if (key === '--version') return commandResult(0, 'codex-cli 1');
+    if (key === 'exec --help') return commandResult(2, 'resume --json --ignore-user-config --ignore-rules');
+    if (key === 'login status') return commandResult(0, 'Logged in using ChatGPT');
+    return commandResult(0, '--ask-for-approval --sandbox --config --disable Usage: codex exec resume --json --ignore-user-config --ignore-rules [SESSION_ID] [PROMPT]');
+  });
+  assert.equal(failedHelp.compatible, false);
+  assert.equal(failedHelp.unavailableCode, 'incompatible');
+});
+
+function claudeRun({ authStatus = 0, auth = { loggedIn: true, authMethod: 'claude.ai' } } = {}) {
   const calls = [];
-  const healthy = diagnoseClaude((command, args) => {
+  const run = (command, args) => {
     calls.push([command, args]);
-    if (args.join(' ') === '--version') return result(0, '2.1.0\n');
-    return result(0, JSON.stringify({
-      loggedIn: true, authMethod: 'claude.ai', subscriptionType: 'max',
-      email: 'secret@example.test', orgId: 'secret-org',
-    }));
-  });
-  assert.deepEqual(calls, [
-    ['claude', ['--version']],
-    ['claude', ['auth', 'status', '--json']],
-  ]);
-  assert.deepEqual(healthy, {
+    if (args.join(' ') === '--version') {
+      return { status: 0, stdout: `claude 3.4.5\nSECRET_SECOND_LINE\u0007\n`, stderr: 'token=stderr-secret' };
+    }
+    return {
+      status: authStatus,
+      stdout: JSON.stringify({
+        ...auth,
+        email: 'private@example.test',
+        organization: 'Secret Org',
+        apiKey: 'sk-secret',
+      }),
+      stderr: 'Bearer stderr-secret',
+    };
+  };
+  return { calls, run };
+}
+
+function codexRun({ loginStatus = 0, login = 'Logged in using ChatGPT' } = {}) {
+  const calls = [];
+  const run = (command, args) => {
+    calls.push([command, args]);
+    const key = args.join(' ');
+    if (key === '--version') return { status: 0, stdout: 'codex-cli 0.143.0\nSECRET\n', stderr: 'token=stderr-secret' };
+    if (key === '--help') return { status: 0, stdout: '--ask-for-approval --sandbox --config --disable' };
+    if (key === 'exec --help') return { status: 0, stdout: 'resume --json --ignore-user-config --ignore-rules' };
+    if (key === 'exec resume --help') {
+      return { status: 0, stdout: 'Usage: codex exec resume --config --json --ignore-user-config --ignore-rules [SESSION_ID] [PROMPT]' };
+    }
+    if (key === 'login status') return { status: loginStatus, stdout: login, stderr: 'sk-stderr-secret' };
+    throw new Error(`unexpected command: ${command} ${key}`);
+  };
+  return { calls, run };
+}
+
+function missingRun(command) {
+  return { status: null, error: Object.assign(new Error(`${command} missing with sk-secret`), { code: 'ENOENT' }) };
+}
+
+test('Claude probe is the runtime diagnosis, sanitizes version, and emits no auth identity', () => {
+  const fixture = claudeRun();
+  const result = probeClaude(fixture.run);
+  assert.deepEqual(result, {
     available: true,
     compatible: true,
     authMethod: 'subscription',
-    version: '2.1.0',
+    version: 'claude 3.4.5',
     unavailableCode: null,
   });
-  assert.doesNotMatch(JSON.stringify(healthy), /secret@example|secret-org|max/);
-
-  const unauthenticated = diagnoseClaude((_command, args) => args[0] === '--version'
-    ? result(0, '2.1.0\n')
-    : result(1, JSON.stringify({ loggedIn: false, email: 'secret@example.test' })));
-  assert.deepEqual(unauthenticated, {
-    available: false,
-    compatible: true,
-    authMethod: null,
-    version: '2.1.0',
-    unavailableCode: 'unauthenticated',
-  });
-  assert.doesNotMatch(JSON.stringify(unauthenticated), /secret@example/);
+  assert.deepEqual(result, diagnoseClaude(fixture.run));
+  assert.deepEqual(fixture.calls.slice(0, 2), [
+    ['claude', ['--version']],
+    ['claude', ['auth', 'status', '--json']],
+  ]);
+  assert.doesNotMatch(JSON.stringify(result), /private|Secret Org|sk-secret|stderr-secret/i);
 });
 
-test('Codex diagnosis checks controlled capabilities and saved login without exposing output', () => {
-  const calls = [];
-  const outputs = new Map([
-    ['--version', result(0, 'codex-cli 0.143.0\n')],
-    ['--help', result(0, '--ask-for-approval --sandbox --config --disable')],
-    ['exec --help', result(0, 'Commands: resume --json --ignore-user-config --ignore-rules')],
-    ['exec resume --help', result(0, 'Usage: codex exec resume --config --json --ignore-user-config --ignore-rules [SESSION_ID] [PROMPT]')],
-    ['login status', result(0, 'Logged in using ChatGPT secret@example.test')],
-  ]);
-  const diagnosis = diagnoseCodex((command, args) => {
-    calls.push([command, args]);
-    return outputs.get(args.join(' '));
+test('Claude probe classifies missing, incompatible, logged out, api-key, and unknown auth', () => {
+  assert.deepEqual(probeClaude(missingRun), {
+    available: false, compatible: false, authMethod: null, unavailableCode: 'binary_missing',
   });
+  const incompatible = claudeRun({ auth: { nope: true } });
+  assert.equal(probeClaude(incompatible.run).unavailableCode, 'incompatible');
+  const loggedOut = claudeRun({ authStatus: 1, auth: { loggedIn: false } });
+  assert.equal(probeClaude(loggedOut.run).unavailableCode, 'unauthenticated');
+  assert.equal(probeClaude(claudeRun({ auth: { loggedIn: true, authMethod: 'api-key' } }).run).authMethod, 'api-key');
+  assert.equal(probeClaude(claudeRun({ auth: { loggedIn: true, authMethod: 'other' } }).run).authMethod, 'unknown');
+  assert.deepEqual(probeClaude(() => ({ status: 2, stdout: '', stderr: 'secret failure' })), {
+    available: false, compatible: false, authMethod: null, unavailableCode: 'incompatible',
+  });
+});
 
-  assert.deepEqual(calls, [
-    ['codex', ['--version']],
-    ['codex', ['--help']],
-    ['codex', ['exec', '--help']],
-    ['codex', ['exec', 'resume', '--help']],
-    ['codex', ['login', 'status']],
-  ]);
-  assert.deepEqual(diagnosis, {
+test('Codex probe checks the controlled grammar in order and reports saved auth only', () => {
+  const fixture = codexRun();
+  const result = probeCodex(fixture.run);
+  assert.deepEqual(result, {
     available: true,
     compatible: true,
     authMethod: 'chatgpt',
     version: 'codex-cli 0.143.0',
     unavailableCode: null,
   });
-  assert.doesNotMatch(JSON.stringify(diagnosis), /secret@example/);
+  assert.deepEqual(result, diagnoseCodex(fixture.run));
+  assert.deepEqual(fixture.calls.slice(0, 5), [
+    ['codex', ['--version']],
+    ['codex', ['--help']],
+    ['codex', ['exec', '--help']],
+    ['codex', ['exec', 'resume', '--help']],
+    ['codex', ['login', 'status']],
+  ]);
+  assert.ok(fixture.calls.every(([command]) => command === 'codex'));
+  assert.doesNotMatch(JSON.stringify(result), /SECRET|stderr-secret/i);
 });
 
-test('Codex diagnosis distinguishes missing, incompatible, and unauthenticated states', () => {
-  const missing = diagnoseCodex(() => ({ error: { code: 'ENOENT' }, status: null, stdout: '', stderr: '' }));
-  assert.equal(missing.available, false);
-  assert.equal(missing.unavailableCode, 'binary_missing');
+test('Codex probe classifies missing, incompatible, logged out, api-key, and unknown auth', () => {
+  assert.equal(probeCodex(missingRun).unavailableCode, 'binary_missing');
+  const incompatible = codexRun();
+  incompatible.run = (command, args) => args.join(' ') === '--version'
+    ? { status: 0, stdout: 'codex 1' }
+    : args.join(' ') === 'login status'
+      ? { status: 0, stdout: 'Logged in using ChatGPT' }
+      : { status: 0, stdout: '' };
+  assert.equal(probeCodex(incompatible.run).unavailableCode, 'incompatible');
+  assert.equal(probeCodex(codexRun({ loginStatus: 1, login: 'Not logged in' }).run).unavailableCode, 'unauthenticated');
+  assert.equal(probeCodex(codexRun({ login: 'Logged in using an API key sk-secret' }).run).authMethod, 'api-key');
+  assert.equal(probeCodex(codexRun({ login: 'Authenticated' }).run).authMethod, 'unknown');
 
-  const incompatible = diagnoseCodex((_command, args) => {
-    if (args[0] === '--version') return result(0, 'codex-cli 1');
-    if (args[0] === 'login') return result(0, 'Logged in using an API key');
-    return result(0, 'incomplete help');
-  });
-  assert.equal(incompatible.available, false);
-  assert.equal(incompatible.compatible, false);
-  assert.equal(incompatible.authMethod, 'api-key');
-  assert.equal(incompatible.unavailableCode, 'incompatible');
-
-  const misplacedCapabilities = diagnoseCodex((_command, args) => {
+  const misplaced = codexRun();
+  assert.equal(probeCodex((command, args) => {
     const key = args.join(' ');
-    if (key === '--version') return result(0, 'codex-cli 1');
-    if (key === '--help') return result(0, '--ask-for-approval --sandbox');
-    if (key === 'exec --help') {
-      return result(0, '--config --disable resume --json --ignore-user-config --ignore-rules');
-    }
-    if (key === 'exec resume --help') {
-      return result(0, 'Usage: codex exec resume [SESSION_ID] [PROMPT] --config --json --ignore-user-config --ignore-rules');
-    }
-    return result(0, 'Logged in using ChatGPT');
-  });
-  assert.equal(misplacedCapabilities.compatible, false);
-  assert.equal(misplacedCapabilities.unavailableCode, 'incompatible');
+    if (key === '--version') return { status: 0, stdout: 'codex 1' };
+    if (key === '--help') return { status: 0, stdout: '--ask-for-approval --sandbox' };
+    if (key === 'exec --help') return { status: 0, stdout: '--config --disable resume --json --ignore-user-config --ignore-rules' };
+    if (key === 'exec resume --help') return misplaced.run(command, args);
+    return { status: 0, stdout: 'Logged in using ChatGPT' };
+  }).unavailableCode, 'incompatible');
+});
 
-  const failedHelp = diagnoseCodex((_command, args) => {
-    const key = args.join(' ');
-    if (key === '--version') return result(0, 'codex-cli 1');
-    if (key === 'exec --help') {
-      return result(2, 'Commands: resume --json --ignore-user-config --ignore-rules');
-    }
-    if (key === 'login status') return result(0, 'Logged in using ChatGPT');
-    return result(0, '--ask-for-approval --sandbox --config --disable Usage: codex exec resume --json --ignore-user-config --ignore-rules [SESSION_ID] [PROMPT]');
-  });
-  assert.equal(failedHelp.compatible, false);
-  assert.equal(failedHelp.unavailableCode, 'incompatible');
+function fixture(t, options = {}) {
+  const target = mkdtempSync(join(tmpdir(), 'sandpaper-diagnostics-'));
+  t.after(() => rmSync(target, { recursive: true, force: true }));
+  writeFileSync(join(target, 'package.json'), '{"name":"fixture"}\n');
+  const log = console.log;
+  console.log = () => {};
+  try { installSkill(target, PACKAGE, options); } finally { console.log = log; }
+  return target;
+}
 
-  const unauthenticated = diagnoseCodex((_command, args) => {
-    const key = args.join(' ');
-    if (key === '--version') return result(0, 'codex-cli 1');
-    if (key === '--help') return result(0, '--ask-for-approval --sandbox --config --disable');
-    if (key === 'exec --help') return result(0, 'resume --json --ignore-user-config --ignore-rules');
-    if (key === 'exec resume --help') return result(0, 'Usage: codex exec resume --config --json --ignore-user-config --ignore-rules [SESSION_ID] [PROMPT]');
-    return result(1, '', 'Not logged in token=do-not-leak');
-  });
-  assert.deepEqual(unauthenticated, {
-    available: false,
-    compatible: true,
-    authMethod: null,
-    version: 'codex-cli 1',
-    unavailableCode: 'unauthenticated',
-  });
-  assert.doesNotMatch(JSON.stringify(unauthenticated), /do-not-leak/);
+function readyRun(command, args) {
+  return command === 'claude'
+    ? claudeRun().run(command, args)
+    : codexRun().run(command, args);
+}
 
-  const unknownAuth = diagnoseCodex((_command, args) => {
-    const key = args.join(' ');
-    if (key === '--version') return result(0, 'codex-cli 1');
-    if (key === '--help') return result(0, '--ask-for-approval --sandbox --config --disable');
-    if (key === 'exec --help') return result(0, 'resume --json --ignore-user-config --ignore-rules');
-    if (key === 'exec resume --help') return result(0, 'Usage: codex exec resume --config --json --ignore-user-config --ignore-rules [SESSION_ID] [PROMPT]');
-    return result(0, 'Logged in');
+test('installation inspection verifies selected bytes and reports Codex trust separately', (t) => {
+  const target = fixture(t);
+  const result = inspectInstallation(target, PACKAGE, { runCommand: readyRun });
+  assert.deepEqual(result.problems, []);
+  assert.equal(result.defaultProvider, 'claude');
+  assert.deepEqual(result.integrations, ['claude', 'codex']);
+  assert.equal(result.hooksEnabled, true);
+  assert.equal(result.providers.claude.authMethod, 'subscription');
+  assert.equal(result.providers.codex.authMethod, 'chatgpt');
+  assert.ok(result.warnings.some(({ code, repair }) => code === 'codex-hook-trust' && /\/hooks/.test(repair)));
+  assert.doesNotMatch(JSON.stringify(result), /private@example|Secret Org|sk-secret|SESSION_SECRET/);
+});
+
+test('inspection makes selected provider drift a problem and unselected readiness a warning', (t) => {
+  const target = fixture(t, { integrations: ['claude'], defaultProvider: 'claude', hooksEnabled: false });
+  rmSync(join(target, '.claude', 'commands', 'sandpaper', 'help.md'));
+  const result = inspectInstallation(target, PACKAGE, {
+    runCommand(command, args) {
+      if (command === 'codex') return missingRun(command, args);
+      return claudeRun().run(command, args);
+    },
   });
-  assert.equal(unknownAuth.available, true);
-  assert.equal(unknownAuth.authMethod, 'unknown');
-  assert.equal(unknownAuth.unavailableCode, null);
+  assert.ok(result.problems.some(({ code, repair }) => code === 'claude-tree-drift'
+    && /install-skill.*--integration claude|upgrade/.test(repair)));
+  assert.ok(result.warnings.some(({ code }) => code === 'codex-binary-missing'));
+  assert.equal(result.problems.some(({ code }) => code.startsWith('codex-')), false);
+});
+
+test('installation inspection makes missing selected readiness a problem without fallback', (t) => {
+  const target = fixture(t, { integrations: ['claude'], defaultProvider: 'claude', hooksEnabled: false });
+  const result = inspectInstallation(target, PACKAGE, { runCommand: missingRun });
+  assert.ok(result.problems.some(({ code, repair }) => code === 'claude-binary-missing' && /Claude Code/.test(repair)));
+  assert.ok(result.warnings.some(({ code }) => code === 'codex-binary-missing'));
+  assert.equal(result.defaultProvider, 'claude');
+});
+
+test('session inspection is read-only, redacted, and rejects symlinks', (t) => {
+  const target = fixture(t, { integrations: ['claude'], defaultProvider: 'claude', hooksEnabled: false });
+  const session = join(target, '.sandpaper', 'session.json');
+  writeFileSync(session, '{"version":2,"pages":{"/":{"claude":{"resumeId":"SESSION_SECRET"}}}}\n');
+  let result = inspectInstallation(target, PACKAGE, { runCommand: readyRun });
+  assert.equal(result.warnings.some(({ code }) => code === 'session-corrupt'), false);
+  assert.doesNotMatch(JSON.stringify(result), /SESSION_SECRET/);
+
+  writeFileSync(session, '{"version":99,"resumeId":"SESSION_SECRET"}\n');
+  result = inspectInstallation(target, PACKAGE, { runCommand: readyRun });
+  assert.ok(result.warnings.some(({ code }) => code === 'session-unsupported'));
+  assert.doesNotMatch(JSON.stringify(result), /SESSION_SECRET/);
+
+  rmSync(session);
+  symlinkSync(join(target, 'private-session.json'), session);
+  writeFileSync(join(target, 'private-session.json'), '{"sessionId":"SESSION_SECRET"}\n');
+  result = inspectInstallation(target, PACKAGE, { runCommand: readyRun });
+  assert.ok(result.problems.some(({ code }) => code === 'session-unsafe'));
+  assert.equal(readFileSync(join(target, 'private-session.json'), 'utf8'), '{"sessionId":"SESSION_SECRET"}\n');
+  assert.doesNotMatch(JSON.stringify(result), /SESSION_SECRET/);
+});
+
+test('installation inspection rejects FIFO state without blocking or changing bytes', {
+  skip: process.platform === 'win32',
+}, (t) => {
+  const target = fixture(t, { integrations: ['claude'], defaultProvider: 'claude', hooksEnabled: false });
+  const session = join(target, '.sandpaper', 'session.json');
+  execFileSync('mkfifo', [session]);
+  const started = Date.now();
+  const result = inspectInstallation(target, PACKAGE, { runCommand: readyRun });
+  assert.ok(result.problems.some(({ code }) => code === 'session-unsafe'));
+  assert.ok(Date.now() - started < 2_000);
+});
+
+test('inspection reports v1 migration residue without rewriting the manifest', (t) => {
+  const target = fixture(t);
+  const manifest = join(target, '.sandpaper', 'manifest.json');
+  const value = JSON.parse(readFileSync(manifest, 'utf8'));
+  const legacy = `${JSON.stringify({ ...value, version: 1, defaultProvider: undefined, integrations: undefined, hooksEnabled: undefined }, null, 2)}\n`;
+  writeFileSync(manifest, legacy);
+  const result = inspectInstallation(target, PACKAGE, { runCommand: readyRun });
+  assert.ok(result.warnings.some(({ code }) => code === 'manifest-v1-residue'));
+  assert.equal(readFileSync(manifest, 'utf8'), legacy);
+});
+
+test('doctor merges brain and installation health, prints bounded selections, and exits only for problems', (t) => {
+  const target = fixture(t, { integrations: ['claude'], defaultProvider: 'claude', hooksEnabled: false });
+  const lines = [];
+  const log = console.log;
+  const previousExitCode = process.exitCode;
+  console.log = (...args) => lines.push(args.join(' '));
+  try {
+    const healthy = doctor(target, PACKAGE, {
+      runCommand(command, args) {
+        if (command === 'codex') return missingRun(command, args);
+        return claudeRun().run(command, args);
+      },
+    });
+    assert.equal(process.exitCode, 0);
+    assert.deepEqual(healthy.installation.integrations, ['claude']);
+    assert.equal(healthy.installation.defaultProvider, 'claude');
+    assert.equal(healthy.installation.providers.claude.authMethod, 'subscription');
+    const output = lines.join('\n');
+    assert.match(output, /integrations.*claude/i);
+    assert.match(output, /default provider.*claude/i);
+    assert.match(output, /Claude Code.*subscription/i);
+    assert.match(output, /warning.*Codex|Codex.*warning/i);
+    assert.doesNotMatch(output, /private@example|Secret Org|sk-secret|stderr-secret/i);
+
+    rmSync(join(target, '.claude', 'commands', 'sandpaper', 'help.md'));
+    doctor(target, PACKAGE, { runCommand: readyRun });
+    assert.equal(process.exitCode, 1);
+  } finally {
+    console.log = log;
+    process.exitCode = previousExitCode;
+  }
 });

@@ -32,6 +32,18 @@ const MANAGED_CONTENT = Object.freeze({
   ].join('\n'),
 });
 
+export function integrationContract(provider) {
+  if (!PROVIDERS.includes(provider)) throw new Error('Unknown Sandpaper integration');
+  return {
+    markers: { ...MARKERS },
+    managedContent: MANAGED_CONTENT[provider],
+    namespace: provider === 'claude'
+      ? nodePath.join('.claude', 'commands', 'sandpaper')
+      : nodePath.join('.agents', 'skills', 'sandpaper'),
+    managedFile: provider === 'claude' ? 'CLAUDE.md' : 'AGENTS.md',
+  };
+}
+
 function runtimeFs(overrides) {
   return overrides ? { ...nodeFs, ...overrides } : nodeFs;
 }

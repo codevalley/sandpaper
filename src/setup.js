@@ -1,13 +1,26 @@
 // setup.js — the `npx sandpaper` packaging commands: install-skill · init (scaffold) · doctor.
 // The plumbing half of Sandpaper (no AI): copy the skill + hooks + design-system templates from
 // THIS package into a target repo, write the manifest, and health-check a setup. Zero deps.
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, copyFileSync, statSync, renameSync } from 'node:fs';
+import {
+  chmodSync,
+  copyFileSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { join, dirname, basename, extname, relative, resolve, sep } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { prepareInstallIntegrations } from './integrations.js';
-import { installationHookPlans, mergeClaudeHooks } from './hooks.js';
+import { installationHookPlans } from './hooks.js';
 import { PATH_REASONS, resolveRepositoryPath } from './path-policy.js';
-import { migrateManifest, PROVIDERS, readManifest, serializeManifest, writeManifest } from './manifest.js';
+import { inspectInstallation } from './diagnostics.js';
+import { inspectManifest, migrateManifest, PROVIDERS, readManifest, serializeManifest, writeManifest } from './manifest.js';
 
 const ok = (m) => console.log('  ✓ ' + m);
 const warn = (m) => console.log('  · ' + m);
@@ -576,10 +589,12 @@ export function inspectBrain(target) {
   }
 
   const manifest = join(target, '.sandpaper', 'manifest.json');
-  if (existsSync(manifest)) {
-    try { JSON.parse(readFileSync(manifest, 'utf8')); }
-    catch { problem('manifest-json', '.sandpaper/manifest.json is invalid JSON'); }
-  } else warning('missing-manifest', 'no .sandpaper/manifest.json — run `npx sandpaper init`');
+  const manifestInspection = inspectManifest(manifest, { trustedRoot: target });
+  if (manifestInspection.status === 'absent') {
+    warning('missing-manifest', 'no .sandpaper/manifest.json — run `npx sandpaper init`');
+  } else if (['corrupt', 'unsupported', 'unsafe'].includes(manifestInspection.status)) {
+    problem('manifest-json', '.sandpaper/manifest.json is invalid or unsafe');
+  }
   if (!existsSync(join(target, '.sandpaper', 'hooks', 'brain-stamp-check.js'))) {
     warning('missing-hooks', 'hooks not installed — run `npx sandpaper install-skill`');
   }
@@ -587,39 +602,154 @@ export function inspectBrain(target) {
 }
 
 // ---- doctor: print the independently inspected health of a Sandpaper setup ----
-export function doctor(target) {
-  console.log(`\n  🪵  Sandpaper doctor — ${target}\n`);
-  const result = inspectBrain(target);
-  if (!result.problems.some((entry) => entry.code === 'missing-brain')) ok('brain/ exists');
-  for (const problem of result.problems) bad(problem.message);
-  for (const entry of result.warnings) warn(entry.message);
-  if (!result.problems.length) {
-    const { tasks, decisions, openQuestions, learnings, components } = result.facts;
+export function doctor(target, packageRoot, { runCommand } = {}) {
+  console.log('\n  🪵  Sandpaper doctor\n');
+  const brain = inspectBrain(target);
+  const installation = packageRoot
+    ? inspectInstallation(target, packageRoot, { ...(runCommand ? { runCommand } : {}) })
+    : null;
+  const mergeByCode = (primary, secondary) => {
+    const seen = new Set(primary.map(({ code }) => code));
+    return [...primary, ...secondary.filter(({ code }) => !seen.has(code))];
+  };
+  const problems = mergeByCode(brain.problems, installation?.problems || []);
+  const warnings = mergeByCode(brain.warnings, installation?.warnings || []);
+  if (!brain.problems.some((entry) => entry.code === 'missing-brain')) ok('brain/ exists');
+  if (installation) {
+    ok(`integrations: ${installation.integrations.length ? installation.integrations.join(' + ') : 'not configured'}`);
+    ok(`default provider: ${installation.defaultProvider || 'not configured'}`);
+    for (const provider of PROVIDERS) {
+      const diagnosis = installation.providers[provider];
+      const label = provider === 'claude' ? 'Claude Code' : 'Codex';
+      const auth = diagnosis.authMethod || diagnosis.unavailableCode || 'unknown';
+      const version = diagnosis.version ? ` · ${diagnosis.version}` : '';
+      if (diagnosis.available) ok(`${label}: ${auth}${version}`);
+      else warn(`warning [${provider}-${diagnosis.unavailableCode || 'unavailable'}]: ${label} is not ready (${auth})${version}`);
+    }
+  }
+  for (const problem of problems) bad(`${problem.message}${problem.repair ? ` Repair: ${problem.repair}` : ''}`);
+  for (const entry of warnings) warn(`warning [${entry.code}]: ${entry.message}${entry.repair ? ` Repair: ${entry.repair}` : ''}`);
+  if (!brain.problems.length) {
+    const { tasks, decisions, openQuestions, learnings, components } = brain.facts;
     ok(`derived truth agrees (${tasks.done}/${tasks.total} tasks · ${openQuestions.length} open · ${decisions} decisions · ${learnings} learnings · ${components.built}/${components.total} built)`);
   }
-  console.log(`\n  ${result.problems.length ? '✗ ' + result.problems.length + ' problem(s).' : '✓ healthy.'}\n`);
-  process.exitCode = result.problems.length ? 1 : 0;
-  return result;
+  console.log(`\n  ${problems.length ? '✗ ' + problems.length + ' problem(s).' : '✓ healthy.'}\n`);
+  process.exitCode = problems.length ? 1 : 0;
+  return { problems, warnings, facts: brain.facts, brain, installation };
 }
 
 // ---- upgrade: bring an EXISTING brain up to the current package (assets · hooks · commands · the canvas) ----
-export function upgrade(target, pkg) {
+export function upgrade(target, pkg, overrides = {}, dependencies = {}) {
+  return upgradeWithOptions(target, pkg, overrides, dependencies);
+}
+
+function lifecycleManifestPlan(target, overrides = {}) {
+  if (!overrides || typeof overrides !== 'object' || Array.isArray(overrides)) {
+    throw new Error('Invalid Sandpaper lifecycle overrides');
+  }
+  const allowed = new Set(['integrations', 'defaultProvider', 'hooksEnabled']);
+  if (Object.keys(overrides).some((key) => !allowed.has(key))) {
+    throw new Error('Invalid Sandpaper lifecycle override');
+  }
+  const file = join(target, '.sandpaper', 'manifest.json');
+  const existing = readManifest(file, { trustedRoot: target });
+  if (!existing) throw new Error('No Sandpaper manifest is installed');
+  const value = migrateManifest({ ...existing, ...overrides });
+  return {
+    file,
+    hadMan: true,
+    existing,
+    value,
+    bytes: Buffer.from(serializeManifest(value)),
+    mode: 0o600,
+  };
+}
+
+function lstatIfPresent(file) {
+  try { return lstatSync(file); }
+  catch (error) {
+    if (error?.code === 'ENOENT') return null;
+    throw new Error('Could not inspect Sandpaper lifecycle path');
+  }
+}
+
+function requireRegularBrain(brain, { allowAbsent = false } = {}) {
+  const stats = lstatIfPresent(brain);
+  if (!stats && allowAbsent) return null;
+  if (!stats) throw new Error('No brain/ here; run `npx @nynb/sandpaper init` first');
+  if (stats.isSymbolicLink()) throw new Error('Sandpaper brain path is an unsafe symlink');
+  if (!stats.isDirectory()) throw new Error('Sandpaper brain path is an unsafe special file');
+  return stats;
+}
+
+function safeThemeSnapshot(brain) {
+  const file = join(brain, 'assets', 'theme.css');
+  const stats = lstatIfPresent(file);
+  if (!stats) return null;
+  if (stats.isSymbolicLink() || !stats.isFile()) throw new Error('Sandpaper theme path is unsafe');
+  return { bytes: readFileSync(file), mode: stats.mode & 0o777 };
+}
+
+function brainTreeSignature(brain) {
+  const entries = [];
+  const walk = (directory, prefix = '') => {
+    let names;
+    try { names = readdirSync(directory).sort(); } catch { return false; }
+    for (const name of names) {
+      const file = join(directory, name);
+      const path = prefix ? `${prefix}/${name}` : name;
+      const stats = lstatIfPresent(file);
+      if (!stats || stats.isSymbolicLink()) return false;
+      if (stats.isDirectory()) {
+        entries.push(['directory', path, stats.mode & 0o777]);
+        if (!walk(file, path)) return false;
+      } else if (stats.isFile()) {
+        let bytes;
+        try { bytes = readFileSync(file).toString('base64'); } catch { return false; }
+        const verified = lstatIfPresent(file);
+        if (!verified || !verified.isFile() || verified.dev !== stats.dev || verified.ino !== stats.ino) return false;
+        entries.push(['file', path, verified.mode & 0o777, bytes]);
+      } else return false;
+    }
+    return true;
+  };
+  return walk(brain) ? JSON.stringify(entries) : null;
+}
+
+function upgradeWithOptions(target, pkg, overrides = {}, dependencies = {}) {
   console.log(`\n  🪵  Upgrading Sandpaper in ${target}\n`);
   const brain = join(target, 'brain');
-  if (!existsSync(brain)) { bad('no brain/ here — this upgrades an existing brain. Run `npx sandpaper init` first.'); process.exitCode = 1; return; }
+  requireRegularBrain(brain);
+  // Preflight the complete provider transaction before any editorial brain write.
+  const manifestPlan = lifecycleManifestPlan(target, overrides);
+  const options = {
+    integrations: manifestPlan.value.integrations,
+    defaultProvider: manifestPlan.value.defaultProvider,
+    hooksEnabled: manifestPlan.value.hooksEnabled,
+  };
+  const installation = prepareInstallIntegrations(target, pkg, options, {
+    fs: dependencies.integrationFs,
+    hooks: dependencies.integrationHooks,
+    manifest: manifestPlan,
+    files: installationHookPlans(target, pkg, options),
+  });
+  let committed = false;
+  try {
+    dependencies.beforeIntegrationCommit?.();
+    installation.commit();
+    committed = true;
+  } catch (error) {
+    if (!committed) {
+      try { installation.abort(); } catch (recoveryError) { throw recoveryError; }
+    }
+    throw error;
+  }
+  ok(`${options.integrations.join(' + ')} integrations refreshed transactionally`);
+  ok(`hook intent preserved (${options.hooksEnabled ? 'enabled' : 'disabled'})`);
+  ok('manifest selections and shared hook scripts preserved');
 
-  // 1. commands + hooks → latest (idempotent; this is how board-first reaches an old install)
-  const nCmds = copyDirFiles(join(pkg, 'skill', 'sandpaper', 'commands'), join(target, '.claude', 'commands', 'sandpaper'));
-  ok(`${nCmds} commands refreshed → .claude/commands/sandpaper/`);
-  const hookDir = join(target, '.sandpaper', 'hooks');
-  ensureDir(hookDir);
-  for (const h of ['brain-inject.js', 'brain-stamp-check.js']) copyFileSync(join(pkg, 'bin', h), join(hookDir, h));
-  ok('2 hooks refreshed → .sandpaper/hooks/');
-  const wr = mergeClaudeHooks(target, { enabled: true });
-  if (wr.ok) ok(wr.changed ? 'auto-update hooks wired into .claude/settings.json' : 'auto-update hooks already wired');
-  else warn(wr.reason);
-
-  // 2. engine assets → latest brain.css + brain.js (these carry the canvas styles); PRESERVE theme.css
+  // Editorial brain refresh is deliberately a separate best-effort phase. Provider
+  // intent has already committed atomically; custom theme bytes are never replaced.
   //    (the skin). Same-path guard: run inside the Sandpaper repo itself, src and dst are ONE file —
   //    copyFileSync would truncate it before reading.
   const aSrc = join(pkg, 'brain', 'assets'), aDst = join(brain, 'assets');
@@ -655,22 +785,102 @@ export function upgrade(target, pkg) {
 }
 
 // ---- rebuild: a full, safe reset — back up the old brain, then reinstall + a fresh skeleton ----
-export function rebuild(target, pkg) {
+export function rebuild(target, pkg, overrides = {}, dependencies = {}) {
   const brain = join(target, 'brain');
-  if (existsSync(brain)) {
-    const bak = backupName(target);
-    try { renameSync(brain, bak); console.log(`\n  ${clay('▸')} backed up your old brain → ${bold(basename(bak) + '/')}   ${dim('(kept, just in case)')}`); }
-    catch (e) { bad(`couldn't move the old brain aside (${e.message}) — aborting`); process.exitCode = 1; return; }
+  const oldBrain = requireRegularBrain(brain, { allowAbsent: true });
+  const manifestPlan = lifecycleManifestPlan(target, overrides);
+  const options = {
+    integrations: manifestPlan.value.integrations,
+    defaultProvider: manifestPlan.value.defaultProvider,
+    hooksEnabled: manifestPlan.value.hooksEnabled,
+  };
+  const theme = oldBrain ? safeThemeSnapshot(brain) : null;
+  const backup = oldBrain ? backupName(target) : null;
+  // Preflight provider sources, managed markers, hook configs, scripts and manifest
+  // before moving user data out of its active location.
+  const installation = prepareInstallIntegrations(target, pkg, options, {
+    fs: dependencies.integrationFs,
+    hooks: dependencies.integrationHooks,
+    manifest: manifestPlan,
+    files: installationHookPlans(target, pkg, options),
+  });
+  let generatedIdentity = null;
+  let generatedSignature = null;
+  let committed = false;
+  try {
+    if (backup) {
+      renameSync(brain, backup);
+      console.log(`\n  ${clay('▸')} backed up your old brain → ${bold(basename(backup) + '/')}   ${dim('(kept, just in case)')}`);
+      dependencies.afterBrainBackup?.({ backup });
+    }
+    mkdirSync(brain, { mode: 0o755 });
+    const created = lstatSync(brain);
+    generatedIdentity = { dev: created.dev, ino: created.ino };
+    banner();
+    console.log(`  ${clay('▸')} rebuilding in  ${bold(projectName(target))}\n`);
+    section('BRAIN');
+    scaffoldBrain(target, pkg, options, {
+      manifestPlan,
+      skipManifestWrite: true,
+      reportManifest: false,
+    });
+    if (theme) {
+      const themeFile = join(brain, 'assets', 'theme.css');
+      writeFileSync(themeFile, theme.bytes);
+      chmodSync(themeFile, theme.mode);
+    }
+    generatedSignature = brainTreeSignature(brain);
+    if (generatedSignature === null) throw new Error('Could not verify the fresh Sandpaper brain');
+    dependencies.afterScaffold?.({ brain, backup });
+    dependencies.beforeIntegrationCommit?.();
+    installation.commit();
+    committed = true;
+    section('SKILL');
+    if (options.integrations.includes('claude')) row('Claude integration', '.claude/commands/sandpaper/', 'preserved');
+    if (options.integrations.includes('codex')) row('Codex integration', '.agents/skills/sandpaper/', 'preserved');
+    row('manifest', '.sandpaper/manifest.json', 'identity · counters · provider intent preserved');
+    nextStep(options.integrations);
+  } catch (error) {
+    if (!committed) {
+      try { installation.abort(); } catch (recoveryError) { throw recoveryError; }
+    }
+    try {
+      const active = lstatIfPresent(brain);
+      if (active) {
+        const owned = generatedIdentity
+          && active.dev === generatedIdentity.dev
+          && active.ino === generatedIdentity.ino
+          && active.isDirectory()
+          && !active.isSymbolicLink();
+        const unchanged = generatedSignature === null || brainTreeSignature(brain) === generatedSignature;
+        if (!owned || !unchanged) {
+          const recovery = new Error('Sandpaper rebuild recovery required; active brain changed concurrently');
+          recovery.code = 'SANDPAPER_RECOVERY_REQUIRED';
+          recovery.recoveryPath = backup;
+          throw recovery;
+        }
+        rmSync(brain, { recursive: true, force: false });
+      }
+      if (backup) renameSync(backup, brain);
+    } catch (recoveryError) {
+      if (recoveryError?.code === 'SANDPAPER_RECOVERY_REQUIRED') throw recoveryError;
+      const recovery = new Error('Sandpaper rebuild recovery required; old brain retained at backup path');
+      recovery.code = 'SANDPAPER_RECOVERY_REQUIRED';
+      recovery.recoveryPath = backup;
+      throw recovery;
+    }
+    throw error;
   }
-  // reinstall (refresh commands + hooks) + a fresh multi-page skeleton — installSkill prints the branded flow
-  installSkill(target, pkg);
 }
 // a non-clobbering backup path: brain.bak-YYYY-MM-DD, then -2, -3, … if that already exists
 function backupName(target) {
   const base = join(target, `brain.bak-${today()}`);
-  if (!existsSync(base)) return base;
-  let i = 2; while (existsSync(`${base}-${i}`)) i++;
-  return `${base}-${i}`;
+  if (!lstatIfPresent(base)) return base;
+  for (let index = 2; index < 10_000; index += 1) {
+    const candidate = `${base}-${index}`;
+    if (!lstatIfPresent(candidate)) return candidate;
+  }
+  throw new Error('Could not choose a bounded Sandpaper brain backup path');
 }
 
 // The canvas section (empty state) — shared by the scaffold's starter cover and `upgrade`.

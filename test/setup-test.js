@@ -867,6 +867,207 @@ test('identical reinstall repairs manifest mode to 0600 without leaking a transa
   assert.deepEqual(readdirSync(target).filter((name) => name.startsWith('.sandpaper-integrations-')), []);
 });
 
+function quietLifecycle(operation, ...args) {
+  const log = console.log;
+  console.log = () => {};
+  try { return operation(...args); } finally { console.log = log; }
+}
+
+function customizeLifecycleState(target, { defaultProvider, integrations, hooksEnabled }) {
+  const manifest = join(target, '.sandpaper', 'manifest.json');
+  const value = JSON.parse(readFileSync(manifest, 'utf8'));
+  const customized = {
+    ...value,
+    defaultProvider,
+    integrations,
+    hooksEnabled,
+    project: 'Preserved Project',
+    created: '2024-02-03',
+    counters: { ...value.counters, w: 91, custom: 7 },
+    identity: { seed: 'brain-identity', nested: { keep: true } },
+    unknownFutureField: { nested: ['preserve', 42] },
+  };
+  writeFileSync(manifest, `${JSON.stringify(customized, null, 2)}\n`);
+  writeFileSync(join(target, 'brain/assets/theme.css'), '/* custom skin */\n:root { --ink: plum; }\n');
+  chmodSync(join(target, 'brain/assets/theme.css'), 0o640);
+  write(target, '.sandpaper/session.json', '{"version":2,"pages":{"/":{"claude":{"resumeId":"opaque-resume"}}}}\n');
+  write(target, '.codex/user-owned.txt', 'keep codex user bytes\n');
+  write(target, '.claude/user-owned.txt', 'keep claude user bytes\n');
+  return customized;
+}
+
+test('upgrade preserves effective solo/default/hook intent and exact user lifecycle state', {
+  skip: process.platform === 'win32',
+}, (t) => {
+  for (const options of [
+    { integrations: ['claude'], defaultProvider: 'claude', hooksEnabled: false },
+    { integrations: ['codex'], defaultProvider: 'codex', hooksEnabled: false },
+    { integrations: ['claude', 'codex'], defaultProvider: 'codex', hooksEnabled: true },
+  ]) {
+    const target = mkdtempSync(join(tmpdir(), `sandpaper-upgrade-preserve-${options.defaultProvider}-`));
+    t.after(() => rmSync(target, { recursive: true, force: true }));
+    write(target, 'package.json', JSON.stringify({ name: '@fixture/upgrade-preserve' }));
+    quietInstall(target, options);
+    const expectedManifest = customizeLifecycleState(target, options);
+    const theme = readFileSync(join(target, 'brain/assets/theme.css'));
+    const session = readFileSync(join(target, '.sandpaper/session.json'));
+
+    quietLifecycle(setup.upgrade, target, PACKAGE);
+
+    assert.deepEqual(JSON.parse(readFileSync(join(target, '.sandpaper/manifest.json'), 'utf8')), expectedManifest);
+    assert.deepEqual(readFileSync(join(target, 'brain/assets/theme.css')), theme);
+    assert.equal(statSync(join(target, 'brain/assets/theme.css')).mode & 0o777, 0o640);
+    assert.deepEqual(readFileSync(join(target, '.sandpaper/session.json')), session);
+    assert.equal(readFileSync(join(target, '.codex/user-owned.txt'), 'utf8'), 'keep codex user bytes\n');
+    assert.equal(readFileSync(join(target, '.claude/user-owned.txt'), 'utf8'), 'keep claude user bytes\n');
+    assert.equal(existsSync(join(target, '.claude/commands/sandpaper')), options.integrations.includes('claude'));
+    assert.equal(existsSync(join(target, '.agents/skills/sandpaper')), options.integrations.includes('codex'));
+    if (!options.hooksEnabled) {
+      const claude = existsSync(join(target, '.claude/settings.json')) ? readFileSync(join(target, '.claude/settings.json'), 'utf8') : '';
+      const codex = existsSync(join(target, '.codex/hooks.json')) ? readFileSync(join(target, '.codex/hooks.json'), 'utf8') : '';
+      assert.doesNotMatch(claude + codex, /brain-(?:inject|stamp-check)\.js/);
+    }
+
+    const converged = repositorySnapshot(target);
+    quietLifecycle(setup.upgrade, target, PACKAGE);
+    assert.deepEqual(repositorySnapshot(target), converged);
+  }
+});
+
+test('rebuild backs up only brain and preserves manifest, session, integrations, and custom theme', {
+  skip: process.platform === 'win32',
+}, (t) => {
+  const target = mkdtempSync(join(tmpdir(), 'sandpaper-rebuild-preserve-'));
+  t.after(() => rmSync(target, { recursive: true, force: true }));
+  write(target, 'package.json', JSON.stringify({ name: '@fixture/rebuild-preserve' }));
+  const options = { integrations: ['codex'], defaultProvider: 'codex', hooksEnabled: false };
+  quietInstall(target, options);
+  const expectedManifest = customizeLifecycleState(target, options);
+  const session = readFileSync(join(target, '.sandpaper/session.json'));
+  write(target, 'brain/operator-note.txt', 'old brain is retained\n');
+  const date = new Date().toISOString().slice(0, 10);
+
+  quietLifecycle(setup.rebuild, target, PACKAGE);
+
+  const backup = join(target, `brain.bak-${date}`);
+  assert.equal(readFileSync(join(backup, 'operator-note.txt'), 'utf8'), 'old brain is retained\n');
+  assert.equal(existsSync(join(target, 'brain/operator-note.txt')), false);
+  assert.equal(readFileSync(join(target, 'brain/assets/theme.css'), 'utf8'), '/* custom skin */\n:root { --ink: plum; }\n');
+  assert.equal(statSync(join(target, 'brain/assets/theme.css')).mode & 0o777, 0o640);
+  assert.deepEqual(JSON.parse(readFileSync(join(target, '.sandpaper/manifest.json'), 'utf8')), expectedManifest);
+  assert.deepEqual(readFileSync(join(target, '.sandpaper/session.json')), session);
+  assert.equal(readFileSync(join(target, '.codex/user-owned.txt'), 'utf8'), 'keep codex user bytes\n');
+  assert.equal(existsSync(join(target, '.claude/commands/sandpaper')), false);
+  assert.equal(existsSync(join(target, '.agents/skills/sandpaper')), true);
+
+  const converged = repositorySnapshot(target);
+  quietLifecycle(setup.upgrade, target, PACKAGE);
+  assert.deepEqual(repositorySnapshot(target), converged);
+});
+
+test('rebuild treats dangling backup symlinks as occupied and leaves them untouched', (t) => {
+  const target = mkdtempSync(join(tmpdir(), 'sandpaper-rebuild-backup-name-'));
+  t.after(() => rmSync(target, { recursive: true, force: true }));
+  write(target, 'package.json', JSON.stringify({ name: '@fixture/rebuild-backup-name' }));
+  quietInstall(target, { integrations: ['claude'], defaultProvider: 'claude', hooksEnabled: false });
+  write(target, 'brain/original.txt', 'old brain\n');
+  const date = new Date().toISOString().slice(0, 10);
+  const dangling = join(target, `brain.bak-${date}`);
+  symlinkSync(join(target, 'missing-backup-target'), dangling);
+
+  quietLifecycle(setup.rebuild, target, PACKAGE);
+
+  assert.equal(lstatSync(dangling).isSymbolicLink(), true);
+  assert.equal(readFileSync(join(target, `brain.bak-${date}-2`, 'original.txt'), 'utf8'), 'old brain\n');
+});
+
+test('rebuild rejects unsafe brain paths before any lifecycle mutation', (t) => {
+  const target = mkdtempSync(join(tmpdir(), 'sandpaper-rebuild-unsafe-brain-'));
+  t.after(() => rmSync(target, { recursive: true, force: true }));
+  write(target, 'package.json', JSON.stringify({ name: '@fixture/rebuild-unsafe-brain' }));
+  quietInstall(target, { integrations: ['claude'], defaultProvider: 'claude', hooksEnabled: false });
+  rmSync(join(target, 'brain'), { recursive: true, force: true });
+  symlinkSync(join(target, 'outside-brain'), join(target, 'brain'));
+  const before = repositorySnapshot(target);
+
+  assert.throws(() => quietLifecycle(setup.rebuild, target, PACKAGE), /brain.*symlink|unsafe/i);
+  assert.deepEqual(repositorySnapshot(target), before);
+});
+
+test('rebuild restores the exact old active brain when work fails after backup', (t) => {
+  const target = mkdtempSync(join(tmpdir(), 'sandpaper-rebuild-rollback-'));
+  t.after(() => rmSync(target, { recursive: true, force: true }));
+  write(target, 'package.json', JSON.stringify({ name: '@fixture/rebuild-rollback' }));
+  quietInstall(target, { integrations: ['codex'], defaultProvider: 'codex', hooksEnabled: false });
+  customizeLifecycleState(target, { integrations: ['codex'], defaultProvider: 'codex', hooksEnabled: false });
+  write(target, 'brain/exact-old.txt', 'restore me exactly\n');
+  const before = repositorySnapshot(target);
+
+  assert.throws(() => quietLifecycle(setup.rebuild, target, PACKAGE, {}, {
+    afterBrainBackup() { throw new Error('injected after brain backup'); },
+  }), /injected after brain backup/);
+
+  assert.deepEqual(repositorySnapshot(target), before);
+});
+
+test('rebuild rolls back the active brain and every provider surface when integration commit fails', (t) => {
+  const target = mkdtempSync(join(tmpdir(), 'sandpaper-rebuild-integration-rollback-'));
+  t.after(() => rmSync(target, { recursive: true, force: true }));
+  write(target, 'package.json', JSON.stringify({ name: '@fixture/rebuild-integration-rollback' }));
+  quietInstall(target, { integrations: ['claude', 'codex'], defaultProvider: 'codex', hooksEnabled: true });
+  customizeLifecycleState(target, { integrations: ['claude', 'codex'], defaultProvider: 'codex', hooksEnabled: true });
+  write(target, 'brain/exact-old.txt', 'restore after transaction failure\n');
+  const before = repositorySnapshot(target);
+
+  assert.throws(() => quietLifecycle(setup.rebuild, target, PACKAGE, {}, {
+    integrationHooks: {
+      afterInstall({ label }) {
+        if (label === 'claude-namespace') throw new Error('injected rebuild integration failure');
+      },
+    },
+  }), /Could not commit Sandpaper integration transaction/);
+
+  assert.deepEqual(repositorySnapshot(target), before);
+});
+
+test('upgrade transaction failure preserves brain and provider state exactly', (t) => {
+  const target = mkdtempSync(join(tmpdir(), 'sandpaper-upgrade-integration-rollback-'));
+  t.after(() => rmSync(target, { recursive: true, force: true }));
+  write(target, 'package.json', JSON.stringify({ name: '@fixture/upgrade-integration-rollback' }));
+  quietInstall(target, { integrations: ['claude', 'codex'], defaultProvider: 'codex', hooksEnabled: true });
+  customizeLifecycleState(target, { integrations: ['claude', 'codex'], defaultProvider: 'codex', hooksEnabled: true });
+  const before = repositorySnapshot(target);
+
+  assert.throws(() => quietLifecycle(setup.upgrade, target, PACKAGE, {}, {
+    integrationHooks: {
+      afterInstall({ label }) {
+        if (label === 'claude-namespace') throw new Error('injected upgrade integration failure');
+      },
+    },
+  }), /Could not commit Sandpaper integration transaction/);
+
+  assert.deepEqual(repositorySnapshot(target), before);
+});
+
+test('rebuild retains a recovery path instead of deleting concurrent content inside the fresh brain', (t) => {
+  const target = mkdtempSync(join(tmpdir(), 'sandpaper-rebuild-concurrent-brain-'));
+  t.after(() => rmSync(target, { recursive: true, force: true }));
+  write(target, 'package.json', JSON.stringify({ name: '@fixture/rebuild-concurrent-brain' }));
+  quietInstall(target, { integrations: ['codex'], defaultProvider: 'codex', hooksEnabled: false });
+  write(target, 'brain/old-only.txt', 'old user brain\n');
+
+  const error = thrown(() => quietLifecycle(setup.rebuild, target, PACKAGE, {}, {
+    afterScaffold({ brain }) {
+      writeFileSync(join(brain, 'concurrent-user.txt'), 'concurrent user bytes\n');
+      throw new Error('injected concurrent fresh-brain content');
+    },
+  }));
+
+  assert.equal(error.code, 'SANDPAPER_RECOVERY_REQUIRED');
+  assert.equal(readFileSync(join(target, 'brain/concurrent-user.txt'), 'utf8'), 'concurrent user bytes\n');
+  assert.equal(readFileSync(join(error.recoveryPath, 'old-only.txt'), 'utf8'), 'old user brain\n');
+});
+
 function populatedBrain(t) {
   const target = mkdtempSync(join(tmpdir(), 'sandpaper-inspect-'));
   t.after(() => rmSync(target, { recursive: true, force: true }));

@@ -128,6 +128,27 @@ function transformConfig(provider, source, enabled) {
   }
 }
 
+export function inspectHookConfigSource(provider, source) {
+  if (!PROVIDERS[provider]) throw new Error('Unknown Sandpaper hook provider');
+  if (source === null) return { status: 'absent', ownedCounts: {} };
+  let config;
+  try { config = JSON.parse(source.toString('utf8')); }
+  catch { return { status: 'invalid', ownedCounts: {} }; }
+  if (!isObject(config) || (Object.hasOwn(config, 'hooks') && !isObject(config.hooks))) {
+    return { status: 'invalid', ownedCounts: {} };
+  }
+  const ownedCounts = {};
+  try {
+    for (const [event, matcher, command, timeout] of PROVIDERS[provider].events) {
+      const groups = validateEvent({ hooks: config.hooks || {} }, event) || [];
+      ownedCounts[event] = groups.filter((group) => exactOwnedGroup(group, matcher, command, timeout)).length;
+    }
+  } catch {
+    return { status: 'invalid', ownedCounts: {} };
+  }
+  return { status: 'valid', ownedCounts };
+}
+
 export function providerHookPlan(target, provider, { enabled }) {
   const definition = PROVIDERS[provider];
   if (!definition || typeof enabled !== 'boolean') throw new Error('Invalid Sandpaper hook options');

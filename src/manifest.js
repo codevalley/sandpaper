@@ -99,6 +99,52 @@ export function readManifest(file, { trustedRoot = dirname(file) } = {}) {
   return migrateManifest(value);
 }
 
+// Read-only schema inspection for doctor. Unlike readManifest(), this retains the
+// on-disk schema version and never normalizes or writes migration residue.
+export function inspectManifest(file, { trustedRoot = dirname(file) } = {}) {
+  let inspected;
+  try {
+    inspected = inspectTrustedPath(trustedRoot, file, { pathClass: 'manifest path' });
+  } catch {
+    return { status: 'unsafe', rawVersion: null, manifest: null };
+  }
+  if (!inspected.exists) return { status: 'absent', rawVersion: null, manifest: null };
+  if (!inspected.stats.isFile()) return { status: 'unsafe', rawVersion: null, manifest: null };
+
+  const flags = constants.O_RDONLY
+    | (constants.O_NOFOLLOW || 0)
+    | (constants.O_NONBLOCK || 0);
+  let descriptor;
+  let value;
+  try {
+    descriptor = openSync(file, flags);
+    if (!fstatSync(descriptor).isFile()) return { status: 'unsafe', rawVersion: null, manifest: null };
+    value = JSON.parse(readFileSync(descriptor, 'utf8'));
+  } catch {
+    return { status: 'corrupt', rawVersion: null, manifest: null };
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+  }
+
+  const rawVersion = isPlainObject(value) && hasOwn(value, 'version') ? value.version : null;
+  if (rawVersion !== 1 && rawVersion !== MANIFEST_VERSION) {
+    return {
+      status: rawVersion === null ? 'corrupt' : 'unsupported',
+      rawVersion: typeof rawVersion === 'number' || typeof rawVersion === 'string' ? boundedVersion(rawVersion) : null,
+      manifest: null,
+    };
+  }
+  try {
+    return {
+      status: rawVersion === 1 ? 'legacy' : 'current',
+      rawVersion,
+      manifest: migrateManifest(value),
+    };
+  } catch {
+    return { status: 'corrupt', rawVersion, manifest: null };
+  }
+}
+
 export function serializeManifest(value) {
   const normalized = migrateManifest(value);
   return `${JSON.stringify(normalized, null, 2)}\n`;

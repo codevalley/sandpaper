@@ -157,7 +157,7 @@ export async function runCli(argv = process.argv.slice(2), injected = {}) {
   if (command === 'rebuild' || command === 'reset') {
     rejectArguments(command); return runtime.rebuild(cwd, PKG);
   }
-  if (command === 'doctor') { rejectArguments(command); return runtime.doctor(cwd); }
+  if (command === 'doctor') { rejectArguments(command); return runtime.doctor(cwd, PKG); }
   if (command === 'open') {
     const parsed = parseServeArguments(rest);
     if (parsed.target !== null) throw new Error('open does not accept a target; it always serves the current repository');

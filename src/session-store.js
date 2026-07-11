@@ -1,5 +1,17 @@
-import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
+import {
+  closeSync,
+  constants,
+  existsSync,
+  fstatSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  realpathSync,
+  renameSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { inspectTrustedPath } from './managed-files.js';
 
 export const SESSION_VERSION = 2;
 const validProvider = (value) => value === 'claude' || value === 'codex';
@@ -29,6 +41,41 @@ const validState = (value) => {
   }
   return true;
 };
+
+// Doctor must not construct createSessionStore(): construction intentionally
+// migrates legacy bytes. This parser is non-following, nonblocking, and returns
+// classification only so resume identifiers can never leak into diagnostics.
+export function inspectSessionState(root) {
+  const file = join(root, '.sandpaper', 'session.json');
+  let inspected;
+  try {
+    inspected = inspectTrustedPath(root, file, { pathClass: 'session path' });
+  } catch {
+    return { status: 'unsafe' };
+  }
+  if (!inspected.exists) return { status: 'absent' };
+  if (!inspected.stats.isFile()) return { status: 'unsafe' };
+  const flags = constants.O_RDONLY
+    | (constants.O_NOFOLLOW || 0)
+    | (constants.O_NONBLOCK || 0);
+  let descriptor;
+  let value;
+  try {
+    descriptor = openSync(file, flags);
+    if (!fstatSync(descriptor).isFile()) return { status: 'unsafe' };
+    value = JSON.parse(readFileSync(descriptor, 'utf8'));
+  } catch {
+    return { status: 'corrupt' };
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+  }
+  if (validObject(value) && value.version === SESSION_VERSION) {
+    return { status: validState(value) ? 'current' : 'corrupt' };
+  }
+  if (validObject(value) && Object.hasOwn(value, 'version')) return { status: 'unsupported' };
+  if (exactLegacy(value)) return { status: 'legacy' };
+  return { status: 'corrupt' };
+}
 
 export function createSessionStore(root, { legacyPage = '/' } = {}) {
   const directory = join(root, '.sandpaper');

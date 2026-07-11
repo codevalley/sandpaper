@@ -191,6 +191,7 @@ test('setup subcommands forward normalized provider options and preserve lifecyc
   await runCli(['init', '--provider', 'codex'], deps);
   await runCli(['update'], deps);
   await runCli(['reset'], deps);
+  await runCli(['doctor'], deps);
   assert.equal(calls[0][0], 'install');
   assert.deepEqual(calls[0][1][2], {
     integrations: ['codex'], defaultProvider: 'codex', hooksEnabled: false,
@@ -199,7 +200,9 @@ test('setup subcommands forward normalized provider options and preserve lifecyc
   assert.deepEqual(calls[1][1][2], {
     integrations: ['claude', 'codex'], defaultProvider: 'codex', hooksEnabled: true,
   });
-  assert.deepEqual(calls.slice(2).map(([name]) => name), ['upgrade', 'rebuild']);
+  assert.deepEqual(calls.slice(2).map(([name]) => name), ['upgrade', 'rebuild', 'doctor']);
+  assert.equal(calls[4][1][0], '/repo');
+  assert.equal(calls[4][1][1], new URL('..', import.meta.url).pathname.replace(/\/$/, ''));
   await assert.rejects(runCli(['doctor', '--provider', 'codex'], deps), /does not accept options/);
   await assert.rejects(runCli(['init', '--integration', 'codex'], deps), /Unknown init option/);
   await assert.rejects(runCli(['init', '--no-hooks'], deps), /Unknown init option/);
