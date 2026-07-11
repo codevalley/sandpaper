@@ -1,0 +1,7 @@
+{"type":"thread.started","thread_id":"019c0011-2222-7333-8444-555566667777"}
+{"type":"turn.started"}
+{"type":"item.started","item":{"id":"item_0","type":"command_execution","command":"sed -n '1,80p' index.html","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_1","type":"reasoning","text":"I’ll make the smallest targeted change."}}
+{"type":"item.completed","item":{"id":"item_2","type":"file_change","changes":[{"path":"index.html","kind":"update"}],"status":"completed"}}
+{"type":"item.completed","item":{"id":"item_3","type":"agent_message","text":"Tightened the title."}}
+{"type":"turn.completed","usage":{"input_tokens":1200,"cached_input_tokens":400,"output_tokens":300}}
