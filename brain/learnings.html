@@ -44,6 +44,11 @@
   </section>
 
   <section class="zone flush col">
+    <aside class="entry entry--learning callout gotcha" data-kind="learning" data-lens="engineering" id="l-gh-release-job" data-cid="l-gh-release-job" data-status="active" data-date="2026-07-11" data-ref="../.github/workflows/release.yml" data-area="ci" data-tags="github actions release job checkout git context npm publish github release isolated runner artifact">
+      <div class="eyebrow">▲ Gotcha · release workflow</div>
+      <p><strong>GitHub Actions jobs do not share checkout state.</strong> A publish job can succeed while a later GitHub Release job has no <code>.git</code> context; each job must check out the repository (and pass artifacts explicitly) before <code>gh release create</code>. <a class="ref" href="../.github/workflows/release.yml">release workflow →</a></p>
+    </aside>
+
     <aside class="entry entry--learning callout gotcha" data-kind="learning" data-lens="engineering" id="l-page-boundary" data-cid="l-page-boundary" data-status="active" data-date="2026-07-10" data-ref="../engg-spec.html#s-protocol" data-area="security" data-tags="page binding undo lifecycle sse traversal encoded paths snapshots">
       <div class="eyebrow">▲ Gotcha · page boundary</div>
       <p><strong>A turn ID is not a page identity, and URL normalization is not a traversal policy.</strong> Bind undo and lifecycle frames to the canonical page before consuming snapshots or broadcasting status; inspect the raw path before URL parsing so encoded <code>/</code> and <code>\\</code> separators cannot hide <code>..</code> segments. <a class="ref" href="../engg-spec.html#s-protocol">protocol →</a></p>

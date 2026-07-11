@@ -322,5 +322,7 @@ test('release workflow validates metadata and requires every gate before publish
   assert.match(githubReleaseJob, /needs: publish/);
   assert.match(githubReleaseJob, /permissions:\n\s+contents: write/);
   assert.doesNotMatch(githubReleaseJob, /id-token: write/);
+  assert.match(githubReleaseJob, /actions\/checkout@/);
   assert.match(githubReleaseJob, /actions\/download-artifact@/);
+  assert.match(githubReleaseJob, /gh release create[\s\S]*--repo "\$GITHUB_REPOSITORY"/);
 });

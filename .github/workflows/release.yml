@@ -149,6 +149,9 @@ jobs:
     permissions:
       contents: write
     steps:
+      # Each job gets a fresh runner. gh release create needs repository context
+      # to resolve the tag/repository before creating the release object.
+      - uses: actions/checkout@v7
       - uses: actions/download-artifact@v4
         with:
           name: release-notes
@@ -156,4 +159,4 @@ jobs:
       - name: create the GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file /tmp/release-artifact/release-notes.md
+        run: gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --notes-file /tmp/release-artifact/release-notes.md

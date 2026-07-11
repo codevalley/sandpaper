@@ -9,6 +9,10 @@ own work — via `/sandpaper:release`, never written from scratch.
 
 ## [Unreleased]
 
+### Fixed
+- The GitHub Release job now checks out repository context before creating the release object,
+  so a successful npm publish is followed by a successful GitHub Release.
+
 ## [0.2.1] — 2026-07-11
 
 ### Added
