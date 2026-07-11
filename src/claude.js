@@ -128,11 +128,11 @@ function onClaudePlan() {
 // The child is a fresh, top-level `claude` run — not nested inside whatever process spawned
 // us. Strip the markers that would make it think it's running inside Claude Code, and on a
 // subscription drop any exported ANTHROPIC_API_KEY so turns bill the plan, not the API.
-function childEnv() {
+function childEnv(isOnClaudePlan = onClaudePlan) {
   const env = { ...process.env };
   delete env.CLAUDECODE;
   delete env.CLAUDE_CODE_ENTRYPOINT;
-  if (onClaudePlan()) delete env.ANTHROPIC_API_KEY;
+  if (isOnClaudePlan()) delete env.ANTHROPIC_API_KEY;
   return env;
 }
 
@@ -159,7 +159,11 @@ export function runClaudeTurn({ pageFile, prompt, resumeId, onSession, onFrame }
     // cwd = the document's folder: this is what makes --resume's directory-scoped
     // session lookup reliable, and keeps Claude's relative paths anchored to the doc.
     // stdin 'ignore' so a non-interactive `-p` run can never block waiting on input.
-    child = spawnProcess('claude', args, { cwd: docDir, env: childEnv(), stdio: ['ignore', 'pipe', 'pipe'] });
+    child = spawnProcess('claude', args, {
+      cwd: docDir,
+      env: childEnv(deps.onClaudePlan),
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
   } catch (err) {
     onFrame({ type: 'status', state: 'error', label: 'Could not start claude', detail: err.message });
     return null;
@@ -217,9 +221,4 @@ export function runClaudeTurn({ pageFile, prompt, resumeId, onSession, onFrame }
   });
 
   return child;
-}
-
-// Compatibility for the Claude-only server path until provider composition is wired.
-export function runTurn(pageFile, prompt, onFrame, deps) {
-  return runClaudeTurn({ pageFile, prompt, resumeId: null, onSession() {}, onFrame }, deps);
 }

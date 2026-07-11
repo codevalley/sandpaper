@@ -9,9 +9,10 @@ import {
 import { join, dirname, basename, extname, sep, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID, randomBytes, createHash, timingSafeEqual } from 'node:crypto';
-import { runTurn } from './claude.js';
+import { runClaudeTurn } from './claude.js';
 import { replaceInner, removeElement, moveElement } from './edit.js';
 import { resolveRepositoryPath } from './path-policy.js';
+import { createSessionStore } from './session-store.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PUBLIC = join(HERE, '..', 'public');
@@ -282,7 +283,8 @@ export function createSandpaperServer(target, opts = {}, deps = {}) {
   const uuid = deps.uuid || randomUUID;
   const now = deps.now || Date.now;
   const snapshotLimit = opts.snapshotLimit || 20;
-  const runner = deps.runner || (({ pageFile, prompt, onFrame }) => runTurn(pageFile, prompt, onFrame));
+  const sessions = deps.sessions || (deps.runner ? null : createSessionStore(root, { legacyPage: '/' }));
+  const claudeDeps = deps.claude || {};
   const watch = deps.watch || watchFiles;
   const writePage = deps.writeFile || writeFileSync;
   const restoreFile = deps.restoreFile || copyFileSync;
@@ -313,6 +315,18 @@ export function createSandpaperServer(target, opts = {}, deps = {}) {
     const rel = relative(root, file).split(sep).join('/');
     return rel === defaultDoc ? '/' : `/${rel}`;
   };
+
+  const runner = deps.runner || (({ pageFile, prompt, onFrame }) => {
+    const page = pageForFile(pageFile);
+    const key = { page, provider: 'claude' };
+    return runClaudeTurn({
+      pageFile,
+      prompt,
+      resumeId: sessions.get(key),
+      onSession(resumeId) { sessions.set({ ...key, resumeId }); },
+      onFrame,
+    }, claudeDeps);
+  });
 
   const allResponses = () => {
     const responses = [];

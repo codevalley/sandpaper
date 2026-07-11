@@ -144,7 +144,8 @@ function fakeChild() {
   const child = new EventEmitter();
   child.stdout = new PassThrough();
   child.stderr = new PassThrough();
-  child.kill = () => {};
+  child.killed = false;
+  child.kill = () => { child.killed = true; };
   return child;
 }
 
@@ -617,13 +618,72 @@ test('listen close owns pending EADDRINUSE retry and prevents reopen', async (t)
   assert.equal(reopened, false);
 });
 
-test('Claude resumes the supplied session, reports init, and emits one terminal frame', () => {
+test('default server runner resumes and persists its page-scoped Claude session', async (t) => {
+  const repo = makeRepo();
+  t.after(() => repo.cleanup());
+  mkdirSync(join(repo.root, '.sandpaper'));
+  const sessionFile = join(repo.root, '.sandpaper', 'session.json');
+  writeFileSync(sessionFile, '{"sessionId":"legacy-session"}\n');
+  const child = fakeChild();
+  let invocation = null;
+  const originalPath = process.env.PATH;
+  process.env.PATH = '';
+  t.after(() => {
+    if (originalPath === undefined) delete process.env.PATH;
+    else process.env.PATH = originalPath;
+  });
+  const controller = createSandpaperServer(repo.pageFile, {}, {
+    claude: {
+      spawn: (...args) => {
+        invocation = args;
+        return child;
+      },
+    },
+    tokenFactory: () => 'test-token',
+    watch: () => ({ close() {} }),
+  });
+  t.after(() => controller.close());
+  const url = await controller.listen();
+
+  const accepted = await requestJson(url, '/__sandpaper/turn', {
+    body: { page: '/', prompt: 'continue' },
+  });
+  assert.equal(accepted.status, 202);
+  assert.ok(invocation, 'default runner uses the injected Claude process');
+  assert.deepEqual(invocation[1].slice(-2), ['--resume', 'legacy-session']);
+
+  child.stdout.write(`${JSON.stringify({ type: 'system', subtype: 'init', session_id: 'new-session' })}\n`);
+  child.stdout.end(`${JSON.stringify({ type: 'result', subtype: 'success', result: 'ok' })}\n`);
+  child.emit('close', 0);
+  assert.equal(
+    JSON.parse(readFileSync(sessionFile, 'utf8')).pages['/'].claude.resumeId,
+    'new-session',
+  );
+});
+
+test('Claude uses the controlled invocation contract and emits one terminal frame', (t) => {
   const withResult = fakeChild();
   let invocation;
   const sessions = [];
   const resultFrames = [];
-  runClaudeTurn({
-    pageFile: '/tmp/page.html',
+  const originalSentinel = process.env.SANDPAPER_ENV_SENTINEL;
+  const originalClaudeCode = process.env.CLAUDECODE;
+  const originalEntrypoint = process.env.CLAUDE_CODE_ENTRYPOINT;
+  process.env.SANDPAPER_ENV_SENTINEL = 'kept';
+  process.env.CLAUDECODE = 'nested';
+  process.env.CLAUDE_CODE_ENTRYPOINT = 'nested-entry';
+  t.after(() => {
+    for (const [key, value] of [
+      ['SANDPAPER_ENV_SENTINEL', originalSentinel],
+      ['CLAUDECODE', originalClaudeCode],
+      ['CLAUDE_CODE_ENTRYPOINT', originalEntrypoint],
+    ]) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+  const handle = runClaudeTurn({
+    pageFile: '/tmp/project/page.html',
     prompt: 'prompt',
     resumeId: 'claude-session',
     onSession: (sessionId) => sessions.push(sessionId),
@@ -634,10 +694,29 @@ test('Claude resumes the supplied session, reports init, and emits one terminal 
       return withResult;
     },
   });
+  assert.equal(handle, withResult);
+  assert.equal(typeof handle.kill, 'function');
+  handle.kill();
+  assert.equal(withResult.killed, true);
+  assert.equal(invocation[0], 'claude');
   assert.deepEqual(
-    invocation[1].slice(-2),
-    ['--resume', 'claude-session'],
+    invocation[1].slice(0, 12),
+    [
+      '-p', 'prompt',
+      '--output-format', 'stream-json',
+      '--verbose', '--include-partial-messages',
+      '--permission-mode', 'acceptEdits',
+      '--allowedTools', 'Read,Edit,Write,MultiEdit',
+      '--append-system-prompt', invocation[1][11],
+    ],
   );
+  assert.match(invocation[1][11], /editing engine behind Sandpaper/);
+  assert.deepEqual(invocation[1].slice(12), ['--resume', 'claude-session']);
+  assert.equal(invocation[2].cwd, '/tmp/project');
+  assert.deepEqual(invocation[2].stdio, ['ignore', 'pipe', 'pipe']);
+  assert.equal(invocation[2].env.SANDPAPER_ENV_SENTINEL, 'kept');
+  assert.equal('CLAUDECODE' in invocation[2].env, false);
+  assert.equal('CLAUDE_CODE_ENTRYPOINT' in invocation[2].env, false);
   withResult.stdout.write(`${JSON.stringify({ type: 'system', subtype: 'init', session_id: 'new-session' })}\n`);
   withResult.stdout.end(`${JSON.stringify({ type: 'result', subtype: 'success', result: 'ok' })}\n`);
   withResult.emit('close', 0);
@@ -647,6 +726,30 @@ test('Claude resumes the supplied session, reports init, and emits one terminal 
     resultFrames.filter((frame) => frame.type === 'status').map((frame) => frame.state),
     ['init', 'init', 'done'],
   );
+});
+
+test('Claude removes the API key only when subscription auth is active', (t) => {
+  const originalApiKey = process.env.ANTHROPIC_API_KEY;
+  process.env.ANTHROPIC_API_KEY = 'api-secret';
+  t.after(() => {
+    if (originalApiKey === undefined) delete process.env.ANTHROPIC_API_KEY;
+    else process.env.ANTHROPIC_API_KEY = originalApiKey;
+  });
+  const environments = [];
+  for (const subscription of [false, true]) {
+    runClaudeTurn({
+      pageFile: '/tmp/page.html', prompt: 'prompt', resumeId: null,
+      onSession() {}, onFrame() {},
+    }, {
+      onClaudePlan: () => subscription,
+      spawn: (_command, _args, options) => {
+        environments.push(options.env);
+        return fakeChild();
+      },
+    });
+  }
+  assert.equal(environments[0].ANTHROPIC_API_KEY, 'api-secret');
+  assert.equal('ANTHROPIC_API_KEY' in environments[1], false);
 });
 
 test('Claude close without result emits one error terminal', () => {
@@ -663,6 +766,64 @@ test('Claude close without result emits one error terminal', () => {
   withoutResult.emit('close', 0);
   assert.deepEqual(missingFrames.filter((frame) => frame.state === 'error').length, 1);
   assert.equal(missingFrames.some((frame) => frame.state === 'idle'), false);
+});
+
+test('Claude flushes a final result line without a trailing newline', async () => {
+  const child = fakeChild();
+  const frames = [];
+  runClaudeTurn({
+    pageFile: '/tmp/page.html', prompt: 'prompt', resumeId: null,
+    onSession() {}, onFrame: (frame) => frames.push(frame),
+  }, { spawn: () => child });
+  const ended = new Promise((resolve) => child.stdout.once('end', resolve));
+  child.stdout.end(JSON.stringify({ type: 'result', subtype: 'success', total_cost_usd: 0.25 }));
+  await ended;
+  child.emit('close', 0);
+  assert.deepEqual(frames.at(-1), {
+    type: 'status', state: 'done', label: 'done', cost: 0.25, done: true,
+  });
+});
+
+test('Claude reports a synchronous spawn throw once and returns null', () => {
+  const frames = [];
+  const handle = runClaudeTurn({
+    pageFile: '/tmp/page.html', prompt: 'prompt', resumeId: null,
+    onSession() {}, onFrame: (frame) => frames.push(frame),
+  }, { spawn: () => { throw new Error('spawn exploded'); } });
+  assert.equal(handle, null);
+  assert.deepEqual(frames, [{
+    type: 'status', state: 'error', label: 'Could not start claude', detail: 'spawn exploded',
+  }]);
+});
+
+test('Claude reports one child process error even if close follows', () => {
+  const child = fakeChild();
+  const frames = [];
+  runClaudeTurn({
+    pageFile: '/tmp/page.html', prompt: 'prompt', resumeId: null,
+    onSession() {}, onFrame: (frame) => frames.push(frame),
+  }, { spawn: () => child });
+  child.emit('error', new Error('binary disappeared'));
+  child.emit('close', 1);
+  assert.deepEqual(frames.filter((frame) => frame.state === 'error'), [{
+    type: 'status', state: 'error',
+    label: 'claude not found — is it installed?', detail: 'binary disappeared',
+  }]);
+});
+
+test('Claude includes stderr in a nonzero close terminal', () => {
+  const child = fakeChild();
+  const frames = [];
+  runClaudeTurn({
+    pageFile: '/tmp/page.html', prompt: 'prompt', resumeId: null,
+    onSession() {}, onFrame: (frame) => frames.push(frame),
+  }, { spawn: () => child });
+  child.stderr.write('permission denied');
+  child.stdout.end();
+  child.emit('close', 7);
+  assert.deepEqual(frames.filter((frame) => frame.state === 'error'), [{
+    type: 'status', state: 'error', label: 'claude exited (7)', detail: 'permission denied',
+  }]);
 });
 
 test('same-page AI and direct undo return 409 during a turn', async (t) => {
