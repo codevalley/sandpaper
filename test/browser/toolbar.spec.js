@@ -1824,6 +1824,89 @@ test('rehydrated disclosure IDs stay unique when a new turn adds controls', asyn
   expect(state.targetCounts.every((count) => count === 1)).toBe(true);
 });
 
+test('huge persisted disclosure suffixes cannot poison later thinking and card IDs', async ({ page }) => {
+  const seed = await submit(page, 'Seed huge disclosure suffix');
+  runner.emit({
+    type: 'edit', tool: 'Edit', file: 'hostile.html', added: 1, removed: 0,
+    hunks: [{ oldText: '', newText: 'seed' }],
+  }, seed);
+  runner.complete(seed);
+  await expect(page.locator('.sp-turnmeta .sp-tag')).toHaveText('Replied');
+  const key = await transcriptKey(page, 'claude');
+  const hugeId = `sp-think-body-${'9'.repeat(100)}`;
+  await page.evaluate(({ storageKey, targetId }) => {
+    const holder = document.createElement('div');
+    holder.innerHTML = sessionStorage.getItem(storageKey);
+    holder.querySelector('.sp-think-body').id = targetId;
+    holder.querySelector('.sp-think-toggle').setAttribute('aria-controls', targetId);
+    sessionStorage.setItem(storageKey, holder.innerHTML);
+  }, { storageKey: key, targetId: hugeId });
+  await page.reload();
+
+  for (const prompt of ['First turn after huge suffix', 'Second turn after huge suffix']) {
+    const call = await submit(page, prompt);
+    runner.emit({
+      type: 'edit', tool: 'Edit', file: 'hostile.html', added: 1, removed: 0,
+      hunks: [{ oldText: '', newText: prompt }],
+    }, call);
+    runner.complete(call);
+    await expect(page.locator('.sp-turn').last().locator('.sp-turnmeta .sp-tag')).toHaveText('Replied');
+  }
+
+  const state = await page.evaluate(() => {
+    const targets = Array.from(document.querySelectorAll('#sp-thread .sp-think-body, #sp-thread .sp-card-body'));
+    const controls = Array.from(document.querySelectorAll('#sp-thread .sp-think-toggle, #sp-thread .sp-card-head'));
+    return {
+      ids: targets.map((target) => target.id),
+      relationships: controls.map((control) => {
+        const id = control.getAttribute('aria-controls');
+        const matches = Array.from(document.querySelectorAll(`[id="${CSS.escape(id)}"]`));
+        return { id, count: matches.length, contained: matches.length === 1 && control.parentElement.contains(matches[0]) };
+      }),
+    };
+  });
+  expect(state.ids).toContain(hugeId);
+  expect(new Set(state.ids).size).toBe(state.ids.length);
+  expect(state.relationships.every((entry) => entry.count === 1 && entry.contained)).toBe(true);
+});
+
+test('disclosure allocator skips document collisions and uses a unique client fallback', async ({ page }) => {
+  await page.evaluate(() => {
+    const fragment = document.createDocumentFragment();
+    for (let index = 1; index <= 600; index += 1) {
+      for (const prefix of ['sp-think-body-', 'sp-card-body-']) {
+        const blocker = document.createElement('span');
+        blocker.id = `${prefix}${index}`;
+        fragment.appendChild(blocker);
+      }
+    }
+    const host = document.createElement('div');
+    host.id = 'allocator-collision-fixture';
+    host.hidden = true;
+    host.appendChild(fragment);
+    document.body.appendChild(host);
+  });
+
+  for (const prompt of ['Collision-skipping turn one', 'Collision-skipping turn two']) {
+    const call = await submit(page, prompt);
+    runner.emit({
+      type: 'edit', tool: 'Edit', file: 'hostile.html', added: 1, removed: 0,
+      hunks: [{ oldText: '', newText: prompt }],
+    }, call);
+    runner.complete(call);
+    await expect(page.locator('.sp-turn').last().locator('.sp-turnmeta .sp-tag')).toHaveText('Replied');
+  }
+
+  const ids = await page.evaluate(() => Array.from(
+    document.querySelectorAll('#sp-thread .sp-think-body, #sp-thread .sp-card-body'),
+    (target) => ({ id: target.id, matches: document.querySelectorAll(`[id="${CSS.escape(target.id)}"]`).length }),
+  ));
+  expect(ids).toHaveLength(4);
+  expect(new Set(ids.map((entry) => entry.id)).size).toBe(ids.length);
+  expect(ids.every((entry) => entry.matches === 1)).toBe(true);
+  expect(ids.some((entry) => entry.id.includes('-client-'))).toBe(true);
+});
+
 test('welcome traps focus, closes on Escape, and restores prior focus', async ({ context }) => {
   const tour = await context.newPage();
   await tour.goto(new URL('/hostile.html', baseUrl).href);

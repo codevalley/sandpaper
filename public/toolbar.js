@@ -153,7 +153,9 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
   var directQueue = Promise.resolve();
   var directPending = 0, turnBusy = false, statusBusy = false, lifecycleBusy = false,
       lifecycleTurnId = null, resetPending = false, modeVersion = 0;
-  var disclosureSeq = 0;
+  var disclosureSeq = 0, disclosureFallbackSeq = 0;
+  var disclosureClientScope = String(clientId).replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 64) || 'page';
+  var MAX_DISCLOSURE_PROBES = 256;
   var earlyFramesByTurn = Object.create(null), earlyFrameTurnOrder = [], earlyFrameIdentityEvicted = false;
   var MAX_EARLY_FRAME_TURNS = 8, MAX_EARLY_FRAMES_PER_TURN = 64, MAX_EARLY_FRAME_BYTES_PER_TURN = 256 * 1024;
 
@@ -161,6 +163,24 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
   function safeTurnId(value) { return typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(value); }
   function safeDisclosureId(value) { return typeof value === 'string' && /^[A-Za-z][A-Za-z0-9._:-]{0,127}$/.test(value); }
+  function nextDisclosureNumber(fallback) {
+    var value = fallback ? disclosureFallbackSeq : disclosureSeq;
+    value = Number.isSafeInteger(value) && value >= 0 && value < Number.MAX_SAFE_INTEGER ? value + 1 : 1;
+    if (fallback) disclosureFallbackSeq = value; else disclosureSeq = value;
+    return value;
+  }
+  function allocateDisclosureId(prefix) {
+    var candidate, i;
+    for (i = 0; i < MAX_DISCLOSURE_PROBES; i += 1) {
+      candidate = prefix + nextDisclosureNumber(false);
+      if (!document.getElementById(candidate)) return candidate;
+    }
+    for (i = 0; i < MAX_DISCLOSURE_PROBES; i += 1) {
+      candidate = prefix + 'client-' + disclosureClientScope + '-' + nextDisclosureNumber(true);
+      if (!document.getElementById(candidate)) return candidate;
+    }
+    throw new Error('Unable to allocate disclosure ID');
+  }
   function selectedProviderState() { return selectedProvider ? providersById[selectedProvider] || null : null; }
   function providerRepairGuidance(provider) {
     if (!provider) return 'Choose an available provider to start.';
@@ -534,7 +554,7 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
     var think = el('div', 'sp-think'); think.hidden = true;
     var thinkToggle = el('button', 'sp-think-toggle', '▸ thinking'); thinkToggle.type = 'button'; thinkToggle.setAttribute('data-act', 'think');
     var thinkBody = el('div', 'sp-think-body');
-    var thinkId = 'sp-think-body-' + (++disclosureSeq);
+    var thinkId = allocateDisclosureId('sp-think-body-');
     thinkBody.id = thinkId; thinkBody.hidden = true;
     thinkToggle.setAttribute('aria-controls', thinkId); thinkToggle.setAttribute('aria-expanded', 'false');
     think.appendChild(thinkToggle); think.appendChild(thinkBody);
@@ -630,7 +650,7 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
       rec.cardTitle = el('span', 'sp-card-title', '');
       head.appendChild(rec.cardTitle); head.appendChild(el('span', 'sp-card-chev', '▸'));
       rec.cardBody = el('div', 'sp-card-body'); rec.cardBody.hidden = true;
-      var cardId = 'sp-card-body-' + (++disclosureSeq);
+      var cardId = allocateDisclosureId('sp-card-body-');
       rec.cardBody.id = cardId; head.setAttribute('aria-controls', cardId); head.setAttribute('aria-expanded', 'false');
       rec.cardEl.appendChild(head); rec.cardEl.appendChild(rec.cardBody);
       rec.box.querySelector('.sp-asst').appendChild(rec.cardEl);
@@ -739,10 +759,6 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
       return;
     }
     panel.classList.add('sp-has-thread');
-    Array.prototype.forEach.call(thread.querySelectorAll('[id^="sp-think-body-"], [id^="sp-card-body-"]'), function (node) {
-      var match = node.id.match(/-(\d+)$/);
-      if (match) disclosureSeq = Math.max(disclosureSeq, parseInt(match[1], 10));
-    });
     acceptedTurns.forEach(function (accepted) {
       var box = accepted.box, parts = accepted.parts;
       turns[parts.id] = {
