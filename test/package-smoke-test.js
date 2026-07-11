@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
 import { once } from 'node:events';
 import {
+  chmodSync,
   existsSync,
   lstatSync,
   mkdirSync,
@@ -9,95 +10,177 @@ import {
   readFileSync,
   readdirSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { delimiter, dirname, join, relative } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { delimiter, dirname, join, relative, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
+import {
+  APPROVED_FILE_RULES,
+  MAX_PACKED_KB,
+  MAX_UNPACKED_KB,
+  containsSecretPattern,
+  expectedPackedPaths,
+  isForbiddenPackagePath,
+  isSecretPackagePath,
+  normalizePackagePath,
+} from '../src/package-contract.js';
+
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
-const APPROVED_FILE_RULES = [
-  'bin/brain-inject.js',
-  'bin/brain-stamp-check.js',
-  'bin/cli.js',
-  'bin/syntax-check.js',
-  'bin/verify-publish.js',
-  'src/claude.js',
-  'src/edit.js',
-  'src/path-policy.js',
-  'src/server.js',
-  'src/setup.js',
-  'public/sp-client.js',
-  'public/sp-markdown.js',
-  'public/toolbar.css',
-  'public/toolbar.js',
-  'skill/sandpaper/SKILL.md',
-  'skill/sandpaper/commands/canvas.md',
-  'skill/sandpaper/commands/decide.md',
-  'skill/sandpaper/commands/help.md',
-  'skill/sandpaper/commands/init.md',
-  'skill/sandpaper/commands/learn.md',
-  'skill/sandpaper/commands/log.md',
-  'skill/sandpaper/commands/open.md',
-  'skill/sandpaper/commands/plan.md',
-  'skill/sandpaper/commands/release.md',
-  'skill/sandpaper/commands/serve.md',
-  'skill/sandpaper/commands/stamp.md',
-  'skill/sandpaper/commands/sync.md',
-  'skill/sandpaper/commands/theme.md',
-  'brain/assets/brain.css',
-  'brain/assets/brain.js',
-  'brain/assets/theme.css',
-  '!brain/README.md',
-  'README.md',
-  'CHANGELOG.md',
-];
-const FORBIDDEN_PATH = /^(?:\.agents|\.claude|\.codex|\.github|\.playwright-mcp|\.sandpaper|\.superpowers|\.vercel|docs|node_modules|playwright-report|site|test|test-results)(?:\/|$)|^(?:AGENTS\.md|CLAUDE\.md|engg-spec\.html|playwright\.config\.js|sandpaper\.html)$/;
-const SECRET_PATH = /(?:^|\/)(?:\.env(?:\.|$)|\.git-credentials$|\.netrc$|\.npmrc$|\.pypirc$|credentials\.json$|id_(?:dsa|ecdsa|ed25519|rsa)$|service-account\.json$)|\.(?:cer|crt|key|p12|pem|pfx)$/i;
-const SECRET_PATTERNS = [
-  /sk-[A-Za-z0-9]{20,}/,
-  /ghp_[A-Za-z0-9]{20,}/,
-  /AKIA[0-9A-Z]{16}/,
-  /-----BEGIN (?:RSA|OPENSSH|EC) PRIVATE KEY-----/,
-  /api[_-]?key\s*[:=]\s*['"][A-Za-z0-9]{10,}['"]/i,
-  /password\s*[:=]\s*['"][^'"]{4,}['"]/i,
-];
+const ACTIONS = ['canvas', 'decide', 'help', 'init', 'learn', 'log', 'open', 'plan', 'release', 'serve', 'stamp', 'sync', 'theme'];
 
 function run(command, args, options = {}) {
   return execFileSync(command, args, {
     encoding: 'utf8',
     maxBuffer: 20 * 1024 * 1024,
     stdio: ['ignore', 'pipe', 'pipe'],
-    timeout: 60_000,
+    timeout: 120_000,
     ...options,
   });
 }
 
-function filesUnder(root) {
+function strictFilesUnder(root) {
   const files = [];
   const visit = (directory) => {
-    for (const name of readdirSync(directory)) {
+    for (const name of readdirSync(directory).sort()) {
       const file = join(directory, name);
       const stat = lstatSync(file);
-      if (stat.isSymbolicLink()) continue;
+      const path = relative(root, file).split(sep).join('/');
+      assert.equal(stat.isSymbolicLink(), false, `unexpected symlink in package tree: ${path}`);
       if (stat.isDirectory()) visit(file);
-      else if (stat.isFile()) files.push(file);
+      else {
+        assert.equal(stat.isFile(), true, `unexpected special file in package tree: ${path}`);
+        files.push(file);
+      }
     }
   };
   visit(root);
   return files;
 }
 
-function expectedPackedPaths(manifest) {
-  assert.deepEqual(manifest.files, APPROVED_FILE_RULES, 'package files rules must stay on the reviewed allowlist');
-  const positiveRules = manifest.files.filter((rule) => !rule.startsWith('!'));
-  const expected = new Set(['LICENSE', 'package.json']);
-  const tracked = run('git', ['ls-files', '--', ...positiveRules], { cwd: ROOT })
-    .split('\n').filter(Boolean);
-  for (const path of tracked) expected.add(path);
-  for (const rule of manifest.files.filter((entry) => entry.startsWith('!'))) expected.delete(rule.slice(1));
-  return [...expected].sort();
+function scratchInventory(root) {
+  const entries = [];
+  const visit = (directory) => {
+    for (const name of readdirSync(directory).sort()) {
+      const file = join(directory, name);
+      const stat = lstatSync(file);
+      const path = relative(root, file).split(sep).join('/');
+      const type = stat.isSymbolicLink() ? 'symlink' : stat.isDirectory() ? 'directory' : stat.isFile() ? 'file' : 'special';
+      entries.push({ path, type });
+      if (stat.isDirectory()) visit(file);
+    }
+  };
+  visit(root);
+  return entries;
+}
+
+function createMinimalEnvironment(scratch, sandboxHome, npmCache, temporary) {
+  const userConfig = join(scratch, 'empty-user-npmrc');
+  const globalConfig = join(scratch, 'empty-global-npmrc');
+  writeFileSync(userConfig, '');
+  writeFileSync(globalConfig, '');
+  const env = {
+    HOME: sandboxHome,
+    USERPROFILE: sandboxHome,
+    PATH: process.env.PATH || '',
+    TMPDIR: temporary,
+    TMP: temporary,
+    TEMP: temporary,
+    NO_COLOR: '1',
+    NPM_CONFIG_AUDIT: 'false',
+    NPM_CONFIG_CACHE: npmCache,
+    NPM_CONFIG_FUND: 'false',
+    NPM_CONFIG_OFFLINE: 'true',
+    NPM_CONFIG_PREFER_OFFLINE: 'true',
+    NPM_CONFIG_REGISTRY: 'http://127.0.0.1:9/',
+    NPM_CONFIG_UPDATE_NOTIFIER: 'false',
+    NPM_CONFIG_USERCONFIG: userConfig,
+    NPM_CONFIG_GLOBALCONFIG: globalConfig,
+  };
+  for (const name of ['SystemRoot', 'ComSpec', 'PATHEXT', 'WINDIR']) {
+    if (process.env[name]) env[name] = process.env[name];
+  }
+  const credentialNames = Object.keys(process.env).filter((name) => (
+    /^(?:AWS|AZURE|CLAUDE|CODEX|GITHUB|GH_|GOOGLE|OPENAI|ANTHROPIC|STRIPE|VERCEL)/i.test(name)
+    || /^(?:NODE_AUTH_TOKEN|NPM_TOKEN)$/i.test(name)
+    || /(?:TOKEN|SECRET|PASSWORD|CREDENTIAL|API_KEY|AUTH)/i.test(name)
+  ));
+  assert.deepEqual(credentialNames.filter((name) => Object.hasOwn(env, name)), []);
+  return env;
+}
+
+function installPackedRepository(repositories, name, tarball, env) {
+  const repo = join(repositories, name);
+  mkdirSync(repo);
+  writeFileSync(join(repo, 'package.json'), `${JSON.stringify({ name: `sandpaper-${name}`, private: true }, null, 2)}\n`);
+  run('git', ['init', '--quiet'], { cwd: repo, env });
+  run('npm', ['install', '--ignore-scripts', '--no-audit', '--no-fund', '--package-lock=false', tarball], {
+    cwd: repo,
+    env,
+  });
+  const installedRoot = join(repo, 'node_modules', '@nynb', 'sandpaper');
+  return {
+    repo,
+    installedRoot,
+    cli(args, extra = {}) {
+      return run(process.execPath, [join(installedRoot, 'bin', 'cli.js'), ...args], {
+        cwd: repo,
+        env: { ...env, ...(extra.env || {}) },
+        ...extra,
+      });
+    },
+  };
+}
+
+function writeExecutable(file, lines) {
+  writeFileSync(file, [`#!${process.execPath}`, ...lines, ''].join('\n'));
+  chmodSync(file, 0o755);
+}
+
+function createFakeProviderBinaries(fakeBin) {
+  mkdirSync(fakeBin);
+  writeExecutable(join(fakeBin, 'claude'), [
+    "const args = process.argv.slice(2).join(' ');",
+    "if (args === '--version') process.stdout.write('claude 3.4.5\\nFAKE_CLAUDE_PRIVATE_LINE\\n');",
+    "else if (args === 'auth status --json') process.stdout.write(JSON.stringify({loggedIn:true,authMethod:'claude.ai',email:'private@example.test',apiKey:'FAKE_CLAUDE_SECRET'}));",
+    "else process.exitCode = 2;",
+  ]);
+  writeExecutable(join(fakeBin, 'codex'), [
+    "const args = process.argv.slice(2).join(' ');",
+    "if (args === '--version') process.stdout.write('codex-cli 0.143.0\\nFAKE_CODEX_PRIVATE_LINE\\n');",
+    "else if (args === '--help') process.stdout.write('Options:\\n  --ask-for-approval <POLICY>\\n  --sandbox <MODE>\\n  --config <key=value>\\n  --disable <FEATURE>\\n');",
+    "else if (args === 'exec --help') process.stdout.write('Commands:\\n  resume  Resume a session\\nOptions:\\n  --json\\n  --ignore-user-config\\n  --ignore-rules\\n');",
+    "else if (args === 'exec resume --help') process.stdout.write('Usage: codex exec resume [OPTIONS] [SESSION_ID] [PROMPT]\\nOptions:\\n  --config <key=value>\\n  --json\\n  --ignore-user-config\\n  --ignore-rules\\n');",
+    "else if (args === 'login status') process.stdout.write('Logged in using ChatGPT as private@example.test\\n');",
+    "else process.exitCode = 2;",
+  ]);
+}
+
+function assertIntegrationTrees(repo, installedRoot) {
+  for (const action of ACTIONS) {
+    assert.deepEqual(
+      readFileSync(join(repo, '.claude', 'commands', 'sandpaper', `${action}.md`)),
+      readFileSync(join(installedRoot, 'skill', 'sandpaper', 'commands', `${action}.md`)),
+    );
+    const canonical = readFileSync(join(installedRoot, 'skill', 'sandpaper', 'references', 'workflows', `${action}.md`));
+    assert.deepEqual(readFileSync(join(repo, '.claude', 'commands', 'sandpaper', 'references', 'workflows', `${action}.md`)), canonical);
+    assert.deepEqual(readFileSync(join(repo, '.agents', 'skills', 'sandpaper', 'references', 'workflows', `${action}.md`)), canonical);
+  }
+  assert.deepEqual(
+    readFileSync(join(repo, '.agents', 'skills', 'sandpaper', 'SKILL.md')),
+    readFileSync(join(installedRoot, 'skill', 'sandpaper', 'SKILL.md')),
+  );
+  for (const script of ['brain-inject.js', 'brain-stamp-check.js']) {
+    assert.deepEqual(
+      readFileSync(join(repo, '.sandpaper', 'hooks', script)),
+      readFileSync(join(installedRoot, 'bin', script)),
+    );
+  }
+  assert.match(readFileSync(join(repo, 'CLAUDE.md'), 'utf8'), /sandpaper:begin/);
+  assert.match(readFileSync(join(repo, 'AGENTS.md'), 'utf8'), /sandpaper:begin/);
 }
 
 function waitForOutput(child, pattern, timeout = 10_000) {
@@ -132,119 +215,167 @@ async function waitForFile(file, timeout = 10_000) {
   }
 }
 
-test('packed package installs cleanly and exercises the production CLI and server', async (t) => {
+async function terminate(child) {
+  if (child.exitCode !== null || child.signalCode !== null) return;
+  child.kill('SIGTERM');
+  const exited = once(child, 'exit');
+  const timeout = new Promise((resolve) => setTimeout(resolve, 3_000, 'timeout'));
+  if (await Promise.race([exited, timeout]) === 'timeout' && child.exitCode === null && child.signalCode === null) {
+    child.kill('SIGKILL');
+    await once(child, 'exit');
+  }
+}
+
+test('packed artifact exactly matches the contract and survives dual-provider lifecycle flows', async (t) => {
   const scratch = mkdtempSync(join(tmpdir(), 'sandpaper-package-smoke-'));
   t.after(() => rmSync(scratch, { recursive: true, force: true }));
 
   const packDirectory = join(scratch, 'pack');
-  const fixture = join(scratch, 'fresh-repository');
+  const extractDirectory = join(scratch, 'extract');
+  const repositories = join(scratch, 'repos');
   const sandboxHome = join(scratch, 'home');
   const npmCache = join(scratch, 'npm-cache');
-  mkdirSync(packDirectory, { recursive: true });
-  mkdirSync(fixture, { recursive: true });
-  mkdirSync(sandboxHome, { recursive: true });
+  const temporary = join(scratch, 'tmp');
+  const fakeBin = join(scratch, 'fake-bin');
+  for (const directory of [packDirectory, extractDirectory, repositories, sandboxHome, npmCache, temporary]) mkdirSync(directory);
 
-  const userSecret = `sandpaper-package-smoke-secret-${process.pid}-${Date.now()}`;
-  writeFileSync(join(sandboxHome, 'user-secret.txt'), userSecret);
-  const env = {
-    ...process.env,
-    HOME: sandboxHome,
-    USERPROFILE: sandboxHome,
-    NPM_CONFIG_AUDIT: 'false',
-    NPM_CONFIG_CACHE: npmCache,
-    NPM_CONFIG_FUND: 'false',
-    NPM_CONFIG_OFFLINE: 'true',
-    NPM_CONFIG_PREFER_OFFLINE: 'true',
-    NPM_CONFIG_REGISTRY: 'http://127.0.0.1:9/',
-    NPM_CONFIG_UPDATE_NOTIFIER: 'false',
-    NO_COLOR: '1',
-  };
+  const sentinel = join(sandboxHome, 'sentinel');
+  const sentinelBytes = Buffer.from(`sandbox-home-sentinel-${process.pid}`);
+  writeFileSync(sentinel, sentinelBytes, { mode: 0o640 });
+  const sentinelMode = statSync(sentinel).mode & 0o777;
+  const env = createMinimalEnvironment(scratch, sandboxHome, npmCache, temporary);
+  createFakeProviderBinaries(fakeBin);
+  const providerEnv = { ...env, PATH: `${fakeBin}${delimiter}${env.PATH}` };
 
-  const packed = JSON.parse(run('npm', ['pack', '--json', '--pack-destination', packDirectory], {
+  const sourceManifest = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
+  assert.deepEqual(sourceManifest.files, APPROVED_FILE_RULES);
+  assert.deepEqual(sourceManifest.dependencies || {}, {});
+  assert.deepEqual(
+    ['prepack', 'prepare', 'postpack', 'prepublishOnly'].filter((name) => Object.hasOwn(sourceManifest.scripts || {}, name)),
+    [],
+  );
+
+  const packed = JSON.parse(run('npm', ['pack', '--json', '--ignore-scripts', '--pack-destination', packDirectory], {
     cwd: ROOT,
     env,
   }))[0];
-  assert.ok(packed?.filename, 'npm pack must return a tarball filename');
-  assert.equal(packed.entryCount, packed.files.length, 'npm pack entry count must match its file list');
-  assert.deepEqual(packed.bundled, [], 'the package must not bundle runtime dependencies');
-
-  const sourceManifest = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
-  const packedPaths = packed.files.map(({ path }) => path).sort();
-  assert.deepEqual(
-    packedPaths,
-    expectedPackedPaths(sourceManifest),
-    'tarball must exactly match tracked files selected by the reviewed package manifest',
-  );
-  assert.deepEqual(
-    packedPaths.filter((path) => FORBIDDEN_PATH.test(path) || SECRET_PATH.test(path)),
-    [],
-    'tarball must not contain tests, plans/specs, runtime state, user config, artifacts, or secret files',
-  );
-
-  assert.deepEqual(sourceManifest.dependencies || {}, {}, 'the published package must have zero runtime dependencies');
-
-  writeFileSync(join(fixture, 'package.json'), JSON.stringify({ name: 'sandpaper-package-smoke', private: true }, null, 2) + '\n');
-  run('git', ['init', '--quiet'], { cwd: fixture, env });
+  assert.ok(packed?.filename);
+  assert.equal(packed.entryCount, packed.files.length);
+  assert.deepEqual(packed.bundled, []);
+  assert.equal(packed.files.length, 58);
+  const packedPaths = packed.files.map(({ path }) => normalizePackagePath(path)).sort();
+  assert.deepEqual(packedPaths, expectedPackedPaths());
+  assert.deepEqual(packedPaths.filter(isForbiddenPackagePath), []);
+  assert.deepEqual(packedPaths.filter(isSecretPackagePath), []);
+  assert.ok(Math.ceil(packed.size / 1024) <= MAX_PACKED_KB);
+  assert.ok(Math.ceil(packed.unpackedSize / 1024) <= MAX_UNPACKED_KB);
 
   const tarball = join(packDirectory, packed.filename);
-  run('npm', [
-    'install', '--ignore-scripts', '--no-audit', '--no-fund', '--package-lock=false', tarball,
-  ], { cwd: fixture, env, timeout: 120_000 });
-
-  const cli = (args) => run('npx', ['--no-install', 'sandpaper', ...args], { cwd: fixture, env });
-  assert.match(cli(['help']), /sandpaper install-skill/);
-  assert.match(cli(['install-skill', '--no-hooks']), /not wired \(--no-hooks\)/);
-  assert.match(cli(['init']), /scaffolding the brain/);
-  assert.match(cli(['doctor']), /✓ healthy\./);
-
-  const installedRoot = join(fixture, 'node_modules', '@nynb', 'sandpaper');
-  const installedManifest = JSON.parse(readFileSync(join(installedRoot, 'package.json'), 'utf8'));
-  assert.deepEqual(installedManifest.dependencies || {}, {}, 'installed package must have zero runtime dependencies');
-
-  const installedFiles = filesUnder(installedRoot);
-  const installedRelative = installedFiles.map((file) => relative(installedRoot, file).split('\\').join('/')).sort();
-  assert.deepEqual(installedRelative, packedPaths, 'installed package bytes must match the reviewed tarball file list');
-  assert.deepEqual(
-    installedRelative.filter((path) => FORBIDDEN_PATH.test(path) || SECRET_PATH.test(path)),
-    [],
-    'installed package must not contain forbidden or secret-shaped files',
-  );
-  for (const file of installedFiles) {
-    const text = readFileSync(file, 'utf8');
-    assert.equal(text.includes(userSecret), false, `sandbox user secret escaped into ${relative(installedRoot, file)}`);
-    for (const pattern of SECRET_PATTERNS) {
-      assert.equal(pattern.test(text), false, `possible secret in ${relative(installedRoot, file)} (${pattern})`);
-    }
+  run('tar', ['-xzf', tarball, '-C', extractDirectory], { env, timeout: 30_000 });
+  const extractedRoot = join(extractDirectory, 'package');
+  const extractedFiles = strictFilesUnder(extractedRoot);
+  const extractedRelative = extractedFiles.map((file) => normalizePackagePath(relative(extractedRoot, file).split(sep).join('/'))).sort();
+  assert.deepEqual(extractedRelative, packedPaths);
+  assert.notEqual(statSync(join(extractedRoot, 'bin', 'cli.js')).mode & 0o111, 0, 'packed CLI must be executable');
+  for (const path of extractedRelative) {
+    const bytes = readFileSync(join(extractedRoot, ...path.split('/')));
+    assert.deepEqual(bytes, readFileSync(join(ROOT, ...path.split('/'))), `packed bytes: ${path}`);
+    assert.equal(containsSecretPattern(bytes), false, `secret scan: ${path}`);
   }
 
-  const moduleUrl = pathToFileURL(join(installedRoot, 'src', 'server.js'));
-  const { createSandpaperServer } = await import(`${moduleUrl.href}?package-smoke=${Date.now()}`);
-  const controller = createSandpaperServer(fixture, { brain: true });
-  try {
-    const url = await controller.listen(0);
-    const response = await fetch(new URL('brain/index.html', url));
-    assert.equal(response.status, 200);
-    assert.match(await response.text(), /data-sandpaper-token=/);
-  } finally {
-    await controller.close();
+  const main = installPackedRepository(repositories, 'main', tarball, env);
+  const installedFiles = strictFilesUnder(main.installedRoot);
+  const installedRelative = installedFiles.map((file) => normalizePackagePath(relative(main.installedRoot, file).split(sep).join('/'))).sort();
+  assert.deepEqual(installedRelative, packedPaths);
+  assert.notEqual(statSync(join(main.installedRoot, 'bin', 'cli.js')).mode & 0o111, 0, 'installed CLI must be executable');
+  for (const path of installedRelative) {
+    assert.deepEqual(
+      readFileSync(join(main.installedRoot, ...path.split('/'))),
+      readFileSync(join(extractedRoot, ...path.split('/'))),
+      `installed bytes: ${path}`,
+    );
   }
+
+  const help = main.cli(['help']);
+  assert.match(help, /--integration claude\|codex/);
+  assert.match(help, /--provider claude\|codex/);
+  assert.match(help, /--no-hooks/);
+  assert.match(help, /\/sandpaper:<action>/);
+  assert.match(help, /\$sandpaper <action>/);
+
+  const installOutput = main.cli(['install-skill', '--no-hooks']);
+  assert.match(installOutput, /\/sandpaper:<name>/);
+  assert.match(installOutput, /\$sandpaper <action>/);
+  assert.match(installOutput, /wiring disabled \(--no-hooks\)/);
+  assertIntegrationTrees(main.repo, main.installedRoot);
+  assert.equal(existsSync(join(main.repo, '.claude', 'settings.json')), false);
+  assert.equal(existsSync(join(main.repo, '.codex', 'hooks.json')), false);
+  let manifest = JSON.parse(readFileSync(join(main.repo, '.sandpaper', 'manifest.json'), 'utf8'));
+  assert.deepEqual(manifest.integrations, ['claude', 'codex']);
+  assert.equal(manifest.defaultProvider, 'claude');
+  assert.equal(manifest.hooksEnabled, false);
+
+  main.cli(['init', '--provider', 'codex']);
+  manifest = JSON.parse(readFileSync(join(main.repo, '.sandpaper', 'manifest.json'), 'utf8'));
+  assert.deepEqual(manifest.integrations, ['claude', 'codex']);
+  assert.equal(manifest.defaultProvider, 'codex');
+  assert.equal(manifest.hooksEnabled, false);
+
+  manifest.project = 'Packed Fixture Identity';
+  manifest.counters = { ...manifest.counters, w: 42, d: 7 };
+  writeFileSync(join(main.repo, '.sandpaper', 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+  const sessionFile = join(main.repo, '.sandpaper', 'session.json');
+  const sessionBytes = Buffer.from('{"version":2,"pages":{"brain/index.html":{"codex":{"resumeId":"opaque-packed-id","updatedAt":"2026-07-11T00:00:00.000Z"}}}}\n');
+  writeFileSync(sessionFile, sessionBytes, { mode: 0o600 });
+  const themeFile = join(main.repo, 'brain', 'assets', 'theme.css');
+  const themeBytes = Buffer.from(':root { --accent: #123456; }\n');
+  writeFileSync(themeFile, themeBytes, { mode: 0o640 });
+  const themeMode = statSync(themeFile).mode & 0o777;
+
+  for (const command of ['upgrade', 'rebuild']) {
+    main.cli([command]);
+    const after = JSON.parse(readFileSync(join(main.repo, '.sandpaper', 'manifest.json'), 'utf8'));
+    assert.equal(after.project, manifest.project, `${command}: identity`);
+    assert.deepEqual(after.counters, manifest.counters, `${command}: counters`);
+    assert.equal(after.defaultProvider, 'codex', `${command}: default`);
+    assert.deepEqual(after.integrations, ['claude', 'codex'], `${command}: integrations`);
+    assert.equal(after.hooksEnabled, false, `${command}: hooks`);
+    assert.deepEqual(readFileSync(sessionFile), sessionBytes, `${command}: session`);
+    assert.deepEqual(readFileSync(themeFile), themeBytes, `${command}: theme`);
+    assert.equal(statSync(themeFile).mode & 0o777, themeMode, `${command}: theme mode`);
+  }
+
+  const solo = installPackedRepository(repositories, 'solo-codex', tarball, env);
+  solo.cli(['install-skill', '--integration', 'codex', '--provider', 'codex', '--no-hooks']);
+  assert.equal(existsSync(join(solo.repo, '.agents', 'skills', 'sandpaper', 'SKILL.md')), true);
+  assert.equal(existsSync(join(solo.repo, '.claude', 'commands', 'sandpaper')), false);
+  assert.equal(existsSync(join(solo.repo, 'AGENTS.md')), true);
+  assert.equal(existsSync(join(solo.repo, 'CLAUDE.md')), false);
+  const soloManifest = JSON.parse(readFileSync(join(solo.repo, '.sandpaper', 'manifest.json'), 'utf8'));
+  assert.deepEqual(soloManifest.integrations, ['codex']);
+  assert.equal(soloManifest.defaultProvider, 'codex');
+  assert.equal(soloManifest.hooksEnabled, false);
+
+  const doctor = installPackedRepository(repositories, 'doctor', tarball, env);
+  doctor.cli(['install-skill'], { env: providerEnv });
+  const doctorOutput = doctor.cli(['doctor'], { env: providerEnv });
+  assert.match(doctorOutput, /✓ healthy\./);
+  assert.match(doctorOutput, /warning \[codex-hook-trust\]/);
+  assert.match(doctorOutput, /Claude Code: subscription/);
+  assert.match(doctorOutput, /Codex: chatgpt/);
+  assert.doesNotMatch(doctorOutput, /private@example|FAKE_(?:CLAUDE|CODEX)_PRIVATE|FAKE_CLAUDE_SECRET/i);
 
   if (process.platform !== 'win32') {
-    const fakeBin = join(scratch, 'fake-bin');
-    const openerSentinel = join(scratch, 'opener-called.txt');
+    const openerSentinel = join(main.repo, '.sandpaper-opened-url');
     const opener = process.platform === 'darwin' ? 'open' : 'xdg-open';
-    mkdirSync(fakeBin);
-    writeFileSync(join(fakeBin, opener), [
-      '#!/usr/bin/env node',
-      "require('node:fs').writeFileSync(process.env.SANDPAPER_OPENER_SENTINEL, process.argv[2] || '');",
-      '',
-    ].join('\n'), { mode: 0o755 });
-
-    const child = spawn(process.execPath, [join(installedRoot, 'bin', 'cli.js'), 'open'], {
-      cwd: fixture,
+    writeExecutable(join(fakeBin, opener), [
+      "const { writeFileSync } = require('node:fs');",
+      "writeFileSync(process.env.SANDPAPER_OPENER_SENTINEL, process.argv[2] || '');",
+    ]);
+    const child = spawn(process.execPath, [join(main.installedRoot, 'bin', 'cli.js'), 'open', '--provider', 'codex'], {
+      cwd: main.repo,
       env: {
-        ...env,
-        PATH: `${fakeBin}${delimiter}${process.env.PATH || ''}`,
+        ...providerEnv,
         SANDPAPER_OPENER_SENTINEL: openerSentinel,
         SANDPAPER_PORT: '0',
       },
@@ -252,31 +383,37 @@ test('packed package installs cleanly and exercises the production CLI and serve
     });
     try {
       const { match } = await waitForOutput(child, /↳ open\s+(http:\/\/127\.0\.0\.1:\d+\/)/);
-      const openUrl = match[1];
-      const response = await fetch(new URL('brain/index.html', openUrl));
+      const rootUrl = match[1];
+      const response = await fetch(new URL('brain/index.html', rootUrl), { signal: AbortSignal.timeout(10_000) });
       assert.equal(response.status, 200);
       await waitForFile(openerSentinel);
-      assert.equal(readFileSync(openerSentinel, 'utf8'), new URL('brain/index.html', openUrl).href);
+      assert.equal(readFileSync(openerSentinel, 'utf8'), new URL('brain/index.html', rootUrl).href);
     } finally {
-      if (child.exitCode == null && child.signalCode == null) child.kill('SIGTERM');
-      if (child.exitCode == null && child.signalCode == null) {
-        await Promise.race([
-          once(child, 'exit'),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('installed open CLI did not stop')), 5_000)),
-        ]);
-      }
+      await terminate(child);
     }
   }
 
-  assert.deepEqual(readdirSync(sandboxHome).sort(), ['user-secret.txt'], 'CLI must not write into the sandbox user home');
-  console.log(`package smoke: ${packed.filename} · ${packed.entryCount} files · ${packed.size} bytes packed · ${packed.unpackedSize} bytes unpacked`);
+  assert.deepEqual(readdirSync(sandboxHome), ['sentinel']);
+  assert.deepEqual(readFileSync(sentinel), sentinelBytes);
+  assert.equal(statSync(sentinel).mode & 0o777, sentinelMode);
+  const inventory = scratchInventory(scratch);
+  assert.equal(inventory.some(({ type }) => type === 'special'), false);
+  const topLevel = [...new Set(inventory.map(({ path }) => path.split('/')[0]))].sort();
+  assert.deepEqual(topLevel, [
+    'empty-global-npmrc', 'empty-user-npmrc', 'extract', 'fake-bin', 'home',
+    'npm-cache', 'pack', 'repos', 'tmp',
+  ]);
+  for (const entry of inventory.filter(({ type }) => type === 'symlink')) {
+    assert.match(entry.path, /^repos\/[^/]+\/node_modules\/\.bin\/sandpaper$/);
+  }
+  console.log(`package smoke: ${packed.filename} · ${packed.entryCount} files · ${packed.size} packed bytes · ${packed.unpackedSize} unpacked bytes · ${inventory.length} scratch entries`);
 });
 
-test('release command stages stamped notes before gates, version, tag, and push', () => {
-  const release = readFileSync(join(ROOT, 'skill', 'sandpaper', 'commands', 'release.md'), 'utf8');
+test('canonical release workflow stages stamped notes before gates, version, tag, and push', () => {
+  const release = readFileSync(join(ROOT, 'skill', 'sandpaper', 'references', 'workflows', 'release.md'), 'utf8');
   const ordered = [
     'git status --porcelain',
-    '/sandpaper:stamp',
+    'canonical `stamp` workflow',
     'git add --',
     'git commit',
     'npm run check:syntax',
@@ -300,7 +437,6 @@ test('release workflow validates metadata and requires every gate before publish
   const notes = workflow.indexOf('extract strict release notes');
   const publish = workflow.indexOf('publish to npm (with provenance)');
   const release = workflow.indexOf('create the GitHub Release');
-
   assert.ok(metadata >= 0 && metadata < publish);
   assert.ok(notes >= 0 && notes < publish);
   assert.ok(publish < release);

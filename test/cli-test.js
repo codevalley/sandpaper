@@ -197,9 +197,7 @@ test('setup subcommands forward normalized provider options and preserve lifecyc
     integrations: ['codex'], defaultProvider: 'codex', hooksEnabled: false,
   });
   assert.equal(calls[1][0], 'scaffold');
-  assert.deepEqual(calls[1][1][2], {
-    integrations: ['claude', 'codex'], defaultProvider: 'codex', hooksEnabled: true,
-  });
+  assert.deepEqual(calls[1][1][2], { defaultProvider: 'codex' });
   assert.deepEqual(calls.slice(2).map(([name]) => name), ['upgrade', 'rebuild', 'doctor']);
   assert.equal(calls[4][1][0], '/repo');
   assert.equal(calls[4][1][1], new URL('..', import.meta.url).pathname.replace(/\/$/, ''));

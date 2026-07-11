@@ -45,22 +45,27 @@ export function parseServeArguments(argv) {
 }
 
 const usageText = `
-  🪵  sandpaper — a living project brain
+  🪵  sandpaper — one living project brain for Claude Code and Codex
 
   sandpaper install-skill [--integration claude|codex] [--provider claude|codex] [--no-hooks]
-                              install the Sandpaper integration + hooks into this repo
+                              install both integrations by default; optionally select one
   sandpaper init [--provider claude|codex]
-                              scaffold brain/ with an optional initial provider
-  sandpaper upgrade            bring an existing brain up to date (assets · hooks · commands · canvas)
-  sandpaper rebuild            full reset — back up the old brain + lay down a fresh skeleton
-  sandpaper doctor             health-check a Sandpaper setup
+                              scaffold brain/ or change only the local provider default
+  sandpaper upgrade            refresh installed integrations while preserving local intent
+  sandpaper rebuild            rebuild brain/ while preserving provider, hooks, theme, and identity
+  sandpaper doctor             check brain, integrations, provider readiness, auth method, and hooks
   sandpaper open [--provider claude|codex]
-                              serve this repo's brain + open it in a browser
+                              open this brain; --provider overrides only this launch
   sandpaper [--provider claude|codex] <doc.html | dir>
-                              serve with the on-page refine toolbar
+                              serve a document; --provider overrides only this launch
   sandpaper help               this
 
-  Fresh repo? → sandpaper install-skill, then /sandpaper:init in Claude Code.
+  Agent workflows:  /sandpaper:<action> in Claude Code   |   $sandpaper <action> in Codex
+  Solo install:     --integration claude --provider claude
+                    --integration codex --provider codex
+
+  Hooks require project trust and per-command review at startup or through /hooks.
+  The current toolbar still dispatches Claude turns; Codex toolbar routing is the remaining v0.3.0 wave.
 `;
 
 function defaultDependencies() {
@@ -149,7 +154,7 @@ export async function runCli(argv = process.argv.slice(2), injected = {}) {
       if (rest[index] !== '--provider') throw new Error(`Unknown init option: ${rest[index]}`);
     }
     const options = parseSetupOptions(rest);
-    return runtime.scaffold(cwd, PKG, rest.length ? options : undefined);
+    return runtime.scaffold(cwd, PKG, rest.length ? { defaultProvider: options.defaultProvider } : undefined);
   }
   if (command === 'upgrade' || command === 'update') {
     rejectArguments(command); return runtime.upgrade(cwd, PKG);
