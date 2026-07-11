@@ -154,9 +154,12 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
   var directPending = 0, turnBusy = false, statusBusy = false, lifecycleBusy = false,
       lifecycleTurnId = null, resetPending = false, modeVersion = 0;
   var disclosureSeq = 0;
+  var earlyFramesByTurn = Object.create(null), earlyFrameTurnOrder = [], earlyFrameIdentityEvicted = false;
+  var MAX_EARLY_FRAME_TURNS = 8, MAX_EARLY_FRAMES_PER_TURN = 64, MAX_EARLY_FRAME_BYTES_PER_TURN = 256 * 1024;
 
   // ---------- small helpers ----------
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  function safeTurnId(value) { return typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(value); }
   function selectedProviderState() { return selectedProvider ? providersById[selectedProvider] || null : null; }
   function providerRepairGuidance(provider) {
     if (!provider) return 'Choose an available provider to start.';
@@ -547,19 +550,13 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
   }
 
   function getTurn(turnId, providerId) {
-    if (!providersById[providerId]) return null;
+    if (!providersById[providerId] || !safeTurnId(turnId)) return null;
     if (turnId && turns[turnId]) return turns[turnId].provider === providerId ? turns[turnId] : null;
-    if (pendingTurn && pendingTurn.provider === providerId && (!pendingTurn.id || pendingTurn.id === turnId)) {
-      pendingTurn.id = turnId; if (turnId) { turns[turnId] = pendingTurn; pendingTurn.box.setAttribute('data-turn', turnId); }
-      var pt = pendingTurn; pendingTurn = null; return pt;
-    }
     return null;
   }
 
   function knownTerminalTurn(turnId, providerId) {
-    if (turnId && turns[turnId]) return turns[turnId].provider === providerId ? turns[turnId] : null;
-    if (pendingTurn && pendingTurn.provider === providerId && (!pendingTurn.id || pendingTurn.id === turnId)) return getTurn(turnId, providerId);
-    return null;
+    return getTurn(turnId, providerId);
   }
 
   function scheduleFlush(rec) {
@@ -661,6 +658,40 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
     panel.classList.remove('sp-has-thread');
   }
 
+  function oneDirectChild(parent, className) {
+    var matches = Array.prototype.slice.call(parent.children).filter(function (node) {
+      return node.classList && node.classList.contains(className);
+    });
+    return matches.length === 1 ? matches[0] : null;
+  }
+
+  function validPersistedTurn(box, idCounts) {
+    if (!box.classList || !box.classList.contains('sp-turn') || box.querySelector('.sp-turn')) return null;
+    var id = box.getAttribute('data-turn');
+    var provider = box.getAttribute('data-turn-provider');
+    if (!safeTurnId(id) || idCounts[id] !== 1 || provider !== selectedProvider || !providersById[provider]) return null;
+    var group = oneDirectChild(box, 'sp-asst');
+    if (!group) return null;
+    var prose = oneDirectChild(group, 'sp-prose');
+    var think = oneDirectChild(group, 'sp-think');
+    var meta = oneDirectChild(group, 'sp-turnmeta');
+    var thinkBody = think && oneDirectChild(think, 'sp-think-body');
+    if (!prose || !think || !thinkBody || !meta) return null;
+    var cards = Array.prototype.slice.call(box.querySelectorAll('.sp-card'));
+    var card = null, cardBody = null, cardTitle = null;
+    if (cards.length) {
+      if (cards.length !== 1 || cards[0].parentNode !== group) return null;
+      card = cards[0];
+      var titles = card.querySelectorAll('.sp-card-title');
+      var bodies = card.querySelectorAll('.sp-card-body');
+      if (titles.length !== 1 || bodies.length !== 1) return null;
+      cardTitle = titles[0];
+      cardBody = bodies[0];
+    }
+    return { id: id, provider: provider, group: group, prose: prose, think: think, thinkBody: thinkBody,
+      meta: meta, card: card, cardBody: cardBody, cardTitle: cardTitle };
+  }
+
   function rehydrateTranscript() {
     clearTranscript();
     var key = transcriptKey(selectedProvider);
@@ -670,11 +701,19 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
     if (!saved) return;
     thread.innerHTML = saved;
     var transcriptTurns = Array.prototype.slice.call(thread.children);
+    var idCounts = Object.create(null);
     transcriptTurns.forEach(function (node) {
-      if (!node.classList || !node.classList.contains('sp-turn') ||
-          node.getAttribute('data-turn-provider') !== selectedProvider) node.remove();
+      if (!node.classList || !node.classList.contains('sp-turn')) return;
+      var id = node.getAttribute('data-turn');
+      if (safeTurnId(id)) idCounts[id] = (idCounts[id] || 0) + 1;
     });
-    if (!thread.querySelector('.sp-turn')) {
+    var acceptedTurns = [];
+    transcriptTurns.forEach(function (node) {
+      var accepted = validPersistedTurn(node, idCounts);
+      if (!accepted) node.remove();
+      else acceptedTurns.push({ box: node, parts: accepted });
+    });
+    if (!acceptedTurns.length) {
       thread.textContent = '';
       return;
     }
@@ -683,26 +722,21 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
       var match = node.id.match(/-(\d+)$/);
       if (match) disclosureSeq = Math.max(disclosureSeq, parseInt(match[1], 10));
     });
-    Array.prototype.slice.call(thread.children).forEach(function (box) {
-      if (!box.classList.contains('sp-turn') || !box.hasAttribute('data-turn')) return;
-      var id = box.getAttribute('data-turn');
-      var turnProvider = box.getAttribute('data-turn-provider');
-      if (turnProvider !== selectedProvider || !providersById[turnProvider]) return;
-      var meta = box.querySelector('.sp-turnmeta');
-      var card = box.querySelector('.sp-card');
-      turns[id] = {
-        id: id, box: box,
-        proseEl: box.querySelector('.sp-prose'),
-        thinkEl: box.querySelector('.sp-think-body'),
-        thinkWrap: box.querySelector('.sp-think'),
-        metaEl: meta,
+    acceptedTurns.forEach(function (accepted) {
+      var box = accepted.box, parts = accepted.parts;
+      turns[parts.id] = {
+        id: parts.id, box: box,
+        proseEl: parts.prose,
+        thinkEl: parts.thinkBody,
+        thinkWrap: parts.think,
+        metaEl: parts.meta,
         editCount: box.querySelectorAll('.sp-hunkfile').length,
-        cardEl: card,
-        cardBody: card ? card.querySelector('.sp-card-body') : null,
-        cardTitle: card ? card.querySelector('.sp-card-title') : null,
+        cardEl: parts.card,
+        cardBody: parts.cardBody,
+        cardTitle: parts.cardTitle,
         textBuf: '', thinkBuf: '', raf: 0, changedCids: [], draft: null, scope: null,
-        provider: turnProvider,
-        finalized: !!(meta && !meta.hidden && meta.querySelector('.sp-tag')),
+        provider: parts.provider,
+        finalized: !!(!parts.meta.hidden && parts.meta.querySelector('.sp-tag')),
         errorShown: !!box.querySelector('.sp-err'),
       };
     });
@@ -711,20 +745,35 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
 
   rehydrateTranscript();
 
-  // ---------- SSE: the live conversation ----------
-  var es = new EventSource(client.eventUrl() + '&page=' + encodeURIComponent(location.pathname));
-  es.onmessage = function (m) {
-    var f; try { f = JSON.parse(m.data); } catch (e) { return; }
-    if (f.type === 'lifecycle') { setLifecycleBusy(f); return; }
-    if (f.page && f.page !== location.pathname) return; // frames are page-scoped; ignore other pages' turns
-    if (f.type === 'reload') {
-      try { sessionStorage.setItem('sp-scroll', String(window.scrollY)); } catch (e) {}
-      try { sessionStorage.setItem('sp-flash', JSON.stringify(lastChangedCids)); } catch (e) {}
-      persist();
-      location.reload();
+  function clearEarlyFrames() {
+    earlyFramesByTurn = Object.create(null);
+    earlyFrameTurnOrder = [];
+    earlyFrameIdentityEvicted = false;
+  }
+
+  function bufferEarlyFrame(frame) {
+    if (!safeTurnId(frame.turnId)) return;
+    var bucket = earlyFramesByTurn[frame.turnId];
+    if (!bucket) {
+      if (earlyFrameTurnOrder.length >= MAX_EARLY_FRAME_TURNS) {
+        delete earlyFramesByTurn[earlyFrameTurnOrder.shift()];
+        earlyFrameIdentityEvicted = true;
+      }
+      bucket = { frames: [], bytes: 0, overflow: false };
+      earlyFramesByTurn[frame.turnId] = bucket;
+      earlyFrameTurnOrder.push(frame.turnId);
+    }
+    var frameBytes;
+    try { frameBytes = JSON.stringify(frame).length; } catch (error) { frameBytes = MAX_EARLY_FRAME_BYTES_PER_TURN + 1; }
+    if (bucket.frames.length >= MAX_EARLY_FRAMES_PER_TURN || frameBytes > MAX_EARLY_FRAME_BYTES_PER_TURN - bucket.bytes) {
+      bucket.overflow = true;
       return;
     }
-    if (!providersById[f.provider] || f.provider !== selectedProvider) return;
+    bucket.bytes += frameBytes;
+    bucket.frames.push(frame);
+  }
+
+  function dispatchProviderFrame(f) {
     if (f.type === 'assistant_delta') {
       var t = getTurn(f.turnId, f.provider);
       if (!t) return;
@@ -744,7 +793,54 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
       return;
     }
     if (f.type === 'status') setChip(f);
+  }
+
+  function handleProviderFrame(f) {
+    if (['assistant_delta', 'edit', 'usage', 'status'].indexOf(f.type) < 0) return;
+    if (pendingTurn && pendingTurn.awaitingAcceptance && pendingTurn.provider === f.provider) {
+      bufferEarlyFrame(f);
+      return;
+    }
+    dispatchProviderFrame(f);
+  }
+
+  // ---------- SSE: the live conversation ----------
+  var es = new EventSource(client.eventUrl() + '&page=' + encodeURIComponent(location.pathname));
+  es.onmessage = function (m) {
+    var f; try { f = JSON.parse(m.data); } catch (e) { return; }
+    if (f.type === 'lifecycle') { setLifecycleBusy(f); return; }
+    if (f.page && f.page !== location.pathname) return; // frames are page-scoped; ignore other pages' turns
+    if (f.type === 'reload') {
+      try { sessionStorage.setItem('sp-scroll', String(window.scrollY)); } catch (e) {}
+      try { sessionStorage.setItem('sp-flash', JSON.stringify(lastChangedCids)); } catch (e) {}
+      persist();
+      location.reload();
+      return;
+    }
+    if (!providersById[f.provider] || f.provider !== selectedProvider) return;
+    handleProviderFrame(f);
   };
+
+  function acceptTurnResponse(result, submitted) {
+    var keys = result && typeof result === 'object' ? Object.keys(result).sort() : [];
+    if (!result || pendingTurn !== submitted || submitted.awaitingAcceptance !== true || result.ok !== true ||
+        result.provider !== submitted.provider || !safeTurnId(result.turnId) ||
+        keys.join(',') !== 'ok,provider,turnId') {
+      throw new Error('Sandpaper returned an invalid accepted turn response');
+    }
+    var bucket = earlyFramesByTurn[result.turnId];
+    if (earlyFrameIdentityEvicted || (bucket && bucket.overflow)) {
+      throw new Error('Sandpaper received too many frames before accepting the turn');
+    }
+    submitted.awaitingAcceptance = false;
+    submitted.id = result.turnId;
+    turns[result.turnId] = submitted;
+    submitted.box.setAttribute('data-turn', result.turnId);
+    if (pendingTurn === submitted) pendingTurn = null;
+    var frames = bucket ? bucket.frames.slice() : [];
+    clearEarlyFrames();
+    frames.forEach(dispatchProviderFrame);
+  }
 
   // ---------- submit a turn ----------
   panel.querySelector('#sp-form').addEventListener('submit', function (e) {
@@ -753,21 +849,22 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
     if (chip.classList.contains('sp-busy') || resetPending || !provider || provider.available !== true) return; // a turn/reset is already running or provider is unavailable
     var prompt = input.value.trim(); if (!prompt) return;
     var attach = sel ? ((sel.cid ? '#' + sel.cid : sel.selector) + (sel.snippet ? ' — ' + sel.snippet : '')) : null;
+    clearEarlyFrames();
     pendingTurn = createTurn(null, prompt, attach, provider.id);
+    pendingTurn.awaitingAcceptance = true;
     pendingTurn.scope = sel ? { cid: sel.cid, selector: sel.selector, snippet: sel.snippet } : null;
     var submitted = pendingTurn;
     expand();
     var payload = { prompt: prompt, page: location.pathname, provider: provider.id };
     if (sel) { payload.cid = sel.cid; payload.selector = sel.selector; payload.snippet = sel.snippet; }
     setChip({ state: 'thinking', label: 'Sending…' });
-    client.post('/turn', payload)
-      .then(function (j) {
-        if (j && j.turnId && submitted && !submitted.id) {
-          submitted.id = j.turnId; turns[j.turnId] = submitted; submitted.box.setAttribute('data-turn', j.turnId);
-          if (pendingTurn === submitted) pendingTurn = null;
-        }
-      })
-      .catch(function (error) { rejectPendingTurn(submitted, error, prompt); });
+    client.post('/turn', payload, { expectedStatus: 202 })
+      .then(function (result) { acceptTurnResponse(result, submitted); })
+      .catch(function (error) {
+        submitted.awaitingAcceptance = false;
+        clearEarlyFrames();
+        rejectPendingTurn(submitted, error, prompt);
+      });
     input.value = ''; clearScope();
   });
 

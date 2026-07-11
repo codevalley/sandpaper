@@ -588,10 +588,11 @@ test('rehydrate rejects missing, unknown, and mismatched persisted provider mark
   await page.evaluate((storageKey) => {
     const key = storageKey;
     const saved = sessionStorage.getItem(key);
+    const withId = (html, id) => html.replace(/data-turn="[^"]+"/, `data-turn="${id}"`);
     sessionStorage.setItem(key, saved
-      + saved.replace('data-turn-provider="claude"', 'data-turn-provider="mystery-provider"')
-      + saved.replace(' data-turn-provider="claude"', '')
-      + saved.replace('data-turn-provider="claude"', 'data-turn-provider="codex"'));
+      + withId(saved.replace('data-turn-provider="claude"', 'data-turn-provider="mystery-provider"'), 'mystery-turn')
+      + withId(saved.replace(' data-turn-provider="claude"', ''), 'missing-provider-turn')
+      + withId(saved.replace('data-turn-provider="claude"', 'data-turn-provider="codex"'), 'codex-turn'));
   }, key);
   await page.reload();
 
@@ -600,6 +601,69 @@ test('rehydrate rejects missing, unknown, and mismatched persisted provider mark
   await expect(page.locator('.sp-turn[data-turn-provider="codex"]')).toHaveCount(0);
   await expect(page.locator('.sp-turn:not([data-turn-provider])')).toHaveCount(0);
   await expect(page.locator('.sp-turn[data-turn-provider="mystery-provider"]')).toHaveCount(0);
+});
+
+test('rehydrate admits only structurally complete turns with safe unique identities', async ({ page }) => {
+  const call = await submit(page, 'Seed structurally valid history');
+  runner.complete(call);
+  await expect(page.locator('.sp-turnmeta .sp-tag')).toHaveText('Replied');
+  const key = await transcriptKey(page, 'claude');
+  await page.evaluate((storageKey) => {
+    const holder = document.createElement('div');
+    holder.innerHTML = sessionStorage.getItem(storageKey);
+    const source = holder.querySelector('.sp-turn');
+    const copy = (id) => {
+      const clone = source.cloneNode(true);
+      clone.setAttribute('data-turn', id);
+      return clone;
+    };
+    const survivor = copy('safe-survivor');
+    const duplicateA = copy('duplicate-id');
+    const duplicateB = copy('duplicate-id');
+    const empty = copy('');
+    const missingProse = copy('missing-prose');
+    missingProse.querySelector('.sp-prose').remove();
+    const malformedCard = copy('malformed-card');
+    const card = document.createElement('div');
+    card.className = 'sp-card';
+    card.innerHTML = '<span class="sp-card-title">incomplete</span>';
+    malformedCard.querySelector('.sp-asst').appendChild(card);
+    holder.replaceChildren(
+      survivor,
+      duplicateA,
+      duplicateB,
+      empty,
+      missingProse,
+      malformedCard,
+      Object.assign(document.createElement('div'), { textContent: 'not a turn' }),
+    );
+    sessionStorage.setItem(storageKey, holder.innerHTML);
+  }, key);
+  await page.addInitScript(() => {
+    class FakeEventSource {
+      constructor() { window.__sandpaperFakeEvents = this; }
+      close() {}
+    }
+    window.EventSource = FakeEventSource;
+  });
+  const pageErrors = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+  await page.reload();
+
+  await expect(page.locator('.sp-turn')).toHaveCount(1);
+  await expect(page.locator('.sp-turn')).toHaveAttribute('data-turn', 'safe-survivor');
+  for (const turnId of ['duplicate-id', '', 'missing-prose', 'malformed-card']) {
+    await page.evaluate((id) => {
+      window.__sandpaperFakeEvents.onmessage({
+        data: JSON.stringify({
+          type: 'assistant_delta', turnId: id, provider: 'claude', page: '/hostile.html',
+          kind: 'text', text: 'discarded structural frame',
+        }),
+      });
+    }, turnId);
+  }
+  await expect(page.locator('#sp-thread')).not.toContainText('discarded structural frame');
+  expect(pageErrors).toEqual([]);
 });
 
 test('inactive, missing, unknown, and turn-mismatched provider frames cannot mutate or persist the selected transcript', async ({ page }) => {
@@ -642,6 +706,106 @@ test('inactive, missing, unknown, and turn-mismatched provider frames cannot mut
     label: document.querySelector('#sp-label').textContent,
   }), key);
   expect(after).toEqual(before);
+});
+
+test('same-provider peer frames cannot claim a local optimistic turn before its rejected response', async ({ page, context }) => {
+  const peer = await context.newPage();
+  await peer.addInitScript(() => {
+    localStorage.setItem('sp-welcomed:v1', '1');
+    sessionStorage.setItem('sp-welcomed:v1', '1');
+    class FakeEventSource {
+      constructor() { window.__sandpaperFakeEvents = this; }
+      close() {}
+    }
+    window.EventSource = FakeEventSource;
+  });
+  await peer.goto(new URL('/hostile.html', baseUrl).href);
+
+  const ownerCall = await submit(page, 'Owner tab turn');
+  await expect(page.locator('.sp-turn[data-turn]')).toHaveCount(1);
+  const ownerTurnId = await page.locator('.sp-turn[data-turn]').getAttribute('data-turn');
+  let releaseRejection;
+  await peer.route('**/__sandpaper/turn', async (route) => {
+    const response = await route.fetch();
+    const body = await response.text();
+    await new Promise((resolve) => { releaseRejection = resolve; });
+    await route.fulfill({ status: response.status(), headers: response.headers(), body });
+  });
+  await peer.locator('#sp-input').fill('Peer tab rejected turn');
+  await peer.locator('#sp-send').click();
+  await expect.poll(() => typeof releaseRejection).toBe('function');
+
+  for (const text of ['owner early frame', 'owner second frame']) {
+    await peer.evaluate(({ turnId, frameText }) => {
+      window.__sandpaperFakeEvents.onmessage({
+        data: JSON.stringify({
+          type: 'assistant_delta', turnId, provider: 'claude', page: '/hostile.html',
+          kind: 'text', text: frameText,
+        }),
+      });
+    }, { turnId: ownerTurnId, frameText: text });
+  }
+  await expect(peer.locator('.sp-bubble')).toHaveText('Peer tab rejected turn');
+  await expect(peer.locator('#sp-thread')).not.toContainText('owner early frame');
+  await expect(peer.locator('.sp-turn')).not.toHaveAttribute('data-turn', ownerTurnId);
+
+  releaseRejection();
+  await expect(peer.locator('#sp-input')).toHaveValue('Peer tab rejected turn');
+  await expect(peer.locator('#sp-label')).toContainText(/turn is already in progress/i);
+  await peer.evaluate((turnId) => {
+    window.__sandpaperFakeEvents.onmessage({
+      data: JSON.stringify({
+        type: 'assistant_delta', turnId, provider: 'claude', page: '/hostile.html',
+        kind: 'text', text: 'owner late frame',
+      }),
+    });
+  }, ownerTurnId);
+  await expect(peer.locator('#sp-thread')).not.toContainText(/owner (early|second|late) frame/);
+  await expect(peer.locator('.sp-turn')).not.toHaveAttribute('data-turn', ownerTurnId);
+
+  runner.complete(ownerCall);
+  await peer.close();
+});
+
+test('the initiating tab replays only its ordered frames after an exact accepted 202 binds the turn', async ({ page }) => {
+  await page.addInitScript(() => {
+    class FakeEventSource {
+      constructor() { window.__sandpaperFakeEvents = this; }
+      close() {}
+    }
+    window.EventSource = FakeEventSource;
+  });
+  await page.reload();
+  let accepted;
+  let releaseAccepted;
+  await page.route('**/__sandpaper/turn', async (route) => {
+    const response = await route.fetch();
+    const body = await response.text();
+    accepted = { status: response.status(), headers: response.headers(), body, json: JSON.parse(body) };
+    await new Promise((resolve) => { releaseAccepted = resolve; });
+    await route.fulfill({ status: accepted.status, headers: accepted.headers, body: accepted.body });
+  });
+
+  const call = await submit(page, 'Frames before acceptance');
+  await expect.poll(() => accepted && accepted.json.turnId).toBeTruthy();
+  const turnId = accepted.json.turnId;
+  runner.complete(call);
+  for (const frame of [
+    { type: 'assistant_delta', turnId: 'foreign-turn', provider: 'claude', page: '/hostile.html', kind: 'text', text: 'foreign buffered text' },
+    { type: 'assistant_delta', turnId, provider: 'claude', page: '/hostile.html', kind: 'text', text: 'first then ' },
+    { type: 'assistant_delta', turnId, provider: 'claude', page: '/hostile.html', kind: 'text', text: 'second' },
+    { type: 'status', turnId, provider: 'claude', page: '/hostile.html', state: 'done', label: 'done', done: true, changed: false, undoable: false },
+  ]) {
+    await page.evaluate((value) => window.__sandpaperFakeEvents.onmessage({ data: JSON.stringify(value) }), frame);
+  }
+  await expect(page.locator('.sp-prose')).toHaveText('');
+  await expect(page.locator('.sp-turnmeta')).toBeHidden();
+
+  releaseAccepted();
+  await expect(page.locator('.sp-turn')).toHaveAttribute('data-turn', turnId);
+  await expect(page.locator('.sp-prose')).toHaveText('first then second');
+  await expect(page.locator('.sp-turnmeta .sp-tag')).toHaveText('Replied');
+  await expect(page.locator('#sp-thread')).not.toContainText('foreign buffered text');
 });
 
 test('transcript storage write failures stay local and never copy history across provider keys', async ({ page }) => {
@@ -918,6 +1082,24 @@ for (const failure of [
     await recoverableSubmit(page, `${failure.name} draft`);
     await expect(page.locator('#sp-label')).toHaveText(failure.message);
     await expect(page.locator('.sp-bubble')).toHaveText(`${failure.name} draft`);
+  });
+}
+
+for (const invalidAcceptance of [
+  { name: 'wrong successful status', status: 200, body: { ok: true, turnId: 'turn-1', provider: 'claude' } },
+  { name: 'wrong accepted provider', status: 202, body: { ok: true, turnId: 'turn-1', provider: 'codex' } },
+  { name: 'unsafe accepted turn id', status: 202, body: { ok: true, turnId: '', provider: 'claude' } },
+  { name: 'extra accepted field', status: 202, body: { ok: true, turnId: 'turn-1', provider: 'claude', extra: true } },
+]) {
+  test(`${invalidAcceptance.name} cannot bind the optimistic turn`, async ({ page }) => {
+    await page.route('**/__sandpaper/turn', (route) => route.fulfill({
+      status: invalidAcceptance.status,
+      contentType: 'application/json',
+      body: JSON.stringify(invalidAcceptance.body),
+    }));
+    await recoverableSubmit(page, `${invalidAcceptance.name} draft`);
+    await expect(page.locator('#sp-label')).toContainText(/unexpected response status|invalid accepted turn response/i);
+    await expect(page.locator('.sp-turn')).not.toHaveAttribute('data-turn', /.+/);
   });
 }
 

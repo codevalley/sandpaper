@@ -101,6 +101,21 @@ test('post rejects malformed JSON responses as invalid_response', async () => {
   );
 });
 
+test('post optionally requires the exact successful HTTP status', async () => {
+  const client = createSandpaperClient({
+    base: '/__sandpaper', token: 'token', clientId: 'client',
+    fetchImpl: async () => response(200, { ok: true, turnId: 'turn-1', provider: 'claude' }),
+  });
+
+  await assert.rejects(
+    client.post('/turn', {}, { expectedStatus: 202 }),
+    (error) => error instanceof ApiError &&
+      error.status === 200 &&
+      error.code === 'invalid_response' &&
+      error.message === 'Sandpaper returned an unexpected response status',
+  );
+});
+
 test('post rejects network failures as network_error', async () => {
   const client = createSandpaperClient({
     base: '/__sandpaper', token: 'token', clientId: 'client',

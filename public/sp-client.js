@@ -12,7 +12,7 @@ export function createSandpaperClient({ base, token, clientId, fetchImpl }) {
   const fetchRequest = fetchImpl || globalThis.fetch;
 
   const client = {
-    async post(path, payload) {
+    async post(path, payload, options = {}) {
       let response;
       try {
         response = await fetchRequest(`${apiBase}/${String(path).replace(/^\/+/, '')}`, {
@@ -58,6 +58,13 @@ export function createSandpaperClient({ base, token, clientId, fetchImpl }) {
         throw new ApiError(`Sandpaper request failed (${response.status})`, {
           status: response.status,
           code: 'http_error',
+        });
+      }
+
+      if (Number.isInteger(options.expectedStatus) && response.status !== options.expectedStatus) {
+        throw new ApiError('Sandpaper returned an unexpected response status', {
+          status: response.status,
+          code: 'invalid_response',
         });
       }
 
