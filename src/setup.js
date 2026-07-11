@@ -4,6 +4,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, copyFileSync, statSync, renameSync } from 'node:fs';
 import { join, dirname, basename, extname, relative, resolve, sep } from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { installIntegrations } from './integrations.js';
 import { PATH_REASONS, resolveRepositoryPath } from './path-policy.js';
 import { migrateManifest, PROVIDERS, readManifest, writeManifest } from './manifest.js';
 
@@ -103,8 +104,13 @@ function banner() {
 }
 const section = (name) => console.log(`  ${bold(name)}`);
 const row = (label, target, note) => console.log(`   ${green('✓')}  ${label.padEnd(18)}${(target + '  ').padEnd(32)}${note ? dim(note) : ''}`); // the two spaces guarantee a gap when target overruns the column
-const nextStep = () => {
-  console.log(`\n  ${clay('▸ NEXT')}   run  ${bold('/sandpaper:init')}  in Claude Code — it reads this repo`);
+const nextStep = (integrations = ['claude']) => {
+  const entry = integrations.length === 2
+    ? `${bold('/sandpaper:init')} in Claude Code or ${bold('$sandpaper init')} in Codex`
+    : integrations[0] === 'codex'
+      ? `${bold('$sandpaper init')} in Codex`
+      : `${bold('/sandpaper:init')} in Claude Code`;
+  console.log(`\n  ${clay('▸ NEXT')}   run  ${entry} — it reads this repo`);
   console.log('           and fills your brain: the cover, the lenses, and the books.\n');
 };
 
@@ -174,7 +180,7 @@ export function ensureSourceMeta(brain, source) {
 }
 
 // Do the brain scaffold work (assets · manifest · multi-page skeleton) and print its BRAIN rows.
-function scaffoldBrain(target, pkg, options, { updateExistingManifest = false } = {}) {
+function scaffoldBrain(target, pkg, options, { updateExistingManifest = false, updateInstallationManifest = false } = {}) {
   const brain = join(target, 'brain'), project = projectName(target), date = today();
   const setupOptions = normalizeSetupOptions(options);
   const manPath = join(target, '.sandpaper', 'manifest.json'), hadMan = existsSync(manPath);
@@ -186,6 +192,11 @@ function scaffoldBrain(target, pkg, options, { updateExistingManifest = false } 
       lenses: ['product', 'engineering', 'project'], books: ['log', 'decisions', 'learnings'],
       cidPrefixes: { worklog: 'w', task: 't', decision: 'd', learning: 'l', initiative: 'i' },
       counters: { w: 1, t: 0, d: 0, l: 0, i: 0 },
+      ...setupOptions,
+    });
+  } else if (updateInstallationManifest) {
+    manifestToWrite = migrateManifest({
+      ...existingManifest,
       ...setupOptions,
     });
   } else if (updateExistingManifest && options !== undefined) {
@@ -242,11 +253,16 @@ function wireHooks(target) {
 
 export function installSkill(target, pkg, opts = {}) {
   const options = normalizeSetupOptions(opts);
+  const manifestPath = join(target, '.sandpaper', 'manifest.json');
+  if (existsSync(manifestPath)) readManifest(manifestPath);
   banner();
   console.log(`  ${clay('▸')} installing into  ${bold(projectName(target))}\n`);
   section('SKILL');
-  const nCmds = copyDirFiles(join(pkg, 'skill', 'sandpaper', 'commands'), join(target, '.claude', 'commands', 'sandpaper'));
-  row(`${nCmds} slash commands`, '.claude/commands/sandpaper/', '/sandpaper:<name>');
+  const installed = installIntegrations(target, pkg, options);
+  if (installed.claude) row('13 slash commands', '.claude/commands/sandpaper/', '/sandpaper:<name>');
+  else row('Claude integration', '.claude/commands/sandpaper/', 'not selected');
+  if (installed.codex) row('Codex skill', '.agents/skills/sandpaper/', '$sandpaper <action>');
+  else row('Codex integration', '.agents/skills/sandpaper/', 'not selected');
   const hookDir = join(target, '.sandpaper', 'hooks');
   ensureDir(hookDir);
   for (const h of ['brain-inject.js', 'brain-stamp-check.js']) copyFileSync(join(pkg, 'bin', h), join(hookDir, h));
@@ -262,8 +278,8 @@ export function installSkill(target, pkg, opts = {}) {
   // Scaffold the brain from THIS package now, so /sandpaper:init has the design-system assets
   // + the multi-page skeleton LOCALLY and never has to hunt the filesystem for a reference brain.
   section('BRAIN');
-  scaffoldBrain(target, pkg, options);
-  nextStep();
+  scaffoldBrain(target, pkg, options, { updateInstallationManifest: true });
+  nextStep(options.integrations);
 }
 
 // ---- init: scaffold brain/ (assets + manifest + the multi-page skeleton) — the mechanical part ----

@@ -1,18 +1,24 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  chmodSync,
+  cpSync,
+  existsSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
   readdirSync,
   rmSync,
+  statSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 import * as setup from '../src/setup.js';
+import { installIntegrations } from '../src/integrations.js';
 
 const PACKAGE = new URL('..', import.meta.url).pathname;
 const META = '<meta name="sandpaper:source" content="https://github.com/example/fixture/blob/HEAD/" data-pkg="@fixture/brain" />';
@@ -50,6 +56,250 @@ function repositorySnapshot(target) {
   walk(target);
   return entries;
 }
+
+const ACTIONS = ['canvas', 'decide', 'help', 'init', 'learn', 'log', 'open', 'plan', 'release', 'serve', 'stamp', 'sync', 'theme'];
+const BEGIN = '<!-- sandpaper:begin -->';
+const END = '<!-- sandpaper:end -->';
+
+function quietInstall(target, options) {
+  const log = console.log;
+  console.log = () => {};
+  try { setup.installSkill(target, PACKAGE, options); } finally { console.log = log; }
+}
+
+function managedCount(file) {
+  if (!existsSync(file)) return 0;
+  return readFileSync(file, 'utf8').split(BEGIN).length - 1;
+}
+
+function assertExactIntegrationBytes(target) {
+  for (const action of ACTIONS) {
+    const wrapper = join(target, '.claude', 'commands', 'sandpaper', `${action}.md`);
+    const workflowSource = join(PACKAGE, 'skill', 'sandpaper', 'references', 'workflows', `${action}.md`);
+    assert.deepEqual(readFileSync(wrapper), readFileSync(join(PACKAGE, 'skill', 'sandpaper', 'commands', `${action}.md`)));
+    assert.deepEqual(readFileSync(join(target, '.claude', 'commands', 'sandpaper', 'references', 'workflows', `${action}.md`)), readFileSync(workflowSource));
+    assert.deepEqual(readFileSync(join(target, '.agents', 'skills', 'sandpaper', 'references', 'workflows', `${action}.md`)), readFileSync(workflowSource));
+  }
+  assert.deepEqual(
+    readFileSync(join(target, '.agents', 'skills', 'sandpaper', 'SKILL.md')),
+    readFileSync(join(PACKAGE, 'skill', 'sandpaper', 'SKILL.md')),
+  );
+}
+
+test('default installation creates exact Claude and Codex integration trees from canonical bytes', (t) => {
+  const target = mkdtempSync(join(tmpdir(), 'sandpaper-dual-integration-'));
+  t.after(() => rmSync(target, { recursive: true, force: true }));
+  write(target, 'package.json', JSON.stringify({ name: '@fixture/dual' }));
+
+  quietInstall(target);
+
+  assert.deepEqual(
+    readdirSync(join(target, '.claude', 'commands', 'sandpaper')).sort(),
+    [...ACTIONS.map((action) => `${action}.md`), 'references'].sort(),
+  );
+  assert.deepEqual(
+    readdirSync(join(target, '.agents', 'skills', 'sandpaper')).sort(),
+    ['SKILL.md', 'references'],
+  );
+  assertExactIntegrationBytes(target);
+  assert.equal(managedCount(join(target, 'CLAUDE.md')), 1);
+  assert.equal(managedCount(join(target, 'AGENTS.md')), 1);
+  const claudeBlock = readFileSync(join(target, 'CLAUDE.md'), 'utf8');
+  const codexBlock = readFileSync(join(target, 'AGENTS.md'), 'utf8');
+  assert.match(claudeBlock, /brain\/index\.html/);
+  assert.match(claudeBlock, /\/sandpaper:<action>/);
+  assert.match(codexBlock, /brain\/index\.html/);
+  assert.match(codexBlock, /\$sandpaper <action>/);
+  assert.doesNotMatch(claudeBlock + codexBlock, /canvas\|decide|release ordering|stamp checklist/i);
+});
+
+test('fresh solo installations create only the selected namespace and a truthful manifest', (t) => {
+  for (const provider of ['claude', 'codex']) {
+    const target = mkdtempSync(join(tmpdir(), `sandpaper-${provider}-only-`));
+    t.after(() => rmSync(target, { recursive: true, force: true }));
+    write(target, 'package.json', JSON.stringify({ name: `@fixture/${provider}` }));
+    quietInstall(target, {
+      integrations: [provider],
+      defaultProvider: provider,
+      hooksEnabled: true,
+    });
+
+    const manifest = JSON.parse(readFileSync(join(target, '.sandpaper', 'manifest.json'), 'utf8'));
+    assert.deepEqual(manifest.integrations, [provider]);
+    assert.equal(manifest.defaultProvider, provider);
+    assert.equal(manifest.hooksEnabled, true);
+    assert.equal(existsSync(join(target, '.claude', 'commands', 'sandpaper')), provider === 'claude');
+    assert.equal(existsSync(join(target, '.agents', 'skills', 'sandpaper')), provider === 'codex');
+    assert.equal(managedCount(join(target, 'CLAUDE.md')), provider === 'claude' ? 1 : 0);
+    assert.equal(managedCount(join(target, 'AGENTS.md')), provider === 'codex' ? 1 : 0);
+  }
+});
+
+test('dual and solo transitions refresh owned namespaces while preserving every unrelated byte and mode', (t) => {
+  const target = mkdtempSync(join(tmpdir(), 'sandpaper-transition-'));
+  t.after(() => rmSync(target, { recursive: true, force: true }));
+  write(target, 'package.json', JSON.stringify({ name: '@fixture/transitions' }));
+  write(target, 'CLAUDE.md', '# Claude user prose\nNo clobber.');
+  write(target, 'AGENTS.md', '# Codex user prose\r\nNo clobber.\r\n');
+  write(target, '.claude/commands/user.md', 'custom claude command\n');
+  write(target, '.claude/commands/sibling.txt', 'claude sibling\n');
+  write(target, '.agents/skills/user/SKILL.md', 'custom codex skill\n');
+  write(target, '.agents/sibling.txt', 'codex sibling\n');
+  chmodSync(join(target, '.claude', 'commands', 'user.md'), 0o640);
+  chmodSync(join(target, '.agents', 'skills', 'user', 'SKILL.md'), 0o600);
+  const unrelated = [
+    '.claude/commands/user.md',
+    '.claude/commands/sibling.txt',
+    '.agents/skills/user/SKILL.md',
+    '.agents/sibling.txt',
+  ].map((relative) => ({
+    relative,
+    bytes: readFileSync(join(target, relative)),
+    mode: statSync(join(target, relative)).mode & 0o777,
+  }));
+
+  quietInstall(target, { integrations: ['claude', 'codex'], defaultProvider: 'claude', hooksEnabled: false });
+  write(target, '.claude/commands/sandpaper/stale.md', 'stale\n');
+  write(target, '.agents/skills/sandpaper/stale.md', 'stale\n');
+  writeFileSync(join(target, '.claude', 'commands', 'sandpaper', 'help.md'), 'changed generated bytes\n');
+
+  quietInstall(target, { integrations: ['claude'], defaultProvider: 'claude', hooksEnabled: false });
+  assert.equal(existsSync(join(target, '.claude', 'commands', 'sandpaper', 'stale.md')), false);
+  assert.deepEqual(
+    readFileSync(join(target, '.claude', 'commands', 'sandpaper', 'help.md')),
+    readFileSync(join(PACKAGE, 'skill', 'sandpaper', 'commands', 'help.md')),
+  );
+  assert.equal(existsSync(join(target, '.agents', 'skills', 'sandpaper')), false);
+  assert.equal(readFileSync(join(target, 'AGENTS.md'), 'utf8'), '# Codex user prose\r\nNo clobber.\r\n');
+  assert.equal(managedCount(join(target, 'CLAUDE.md')), 1);
+
+  for (const entry of unrelated) {
+    assert.deepEqual(readFileSync(join(target, entry.relative)), entry.bytes, entry.relative);
+    if (process.platform !== 'win32') assert.equal(statSync(join(target, entry.relative)).mode & 0o777, entry.mode, entry.relative);
+  }
+
+  quietInstall(target, { integrations: ['claude', 'codex'], defaultProvider: 'codex', hooksEnabled: false });
+  assertExactIntegrationBytes(target);
+  assert.equal(managedCount(join(target, 'CLAUDE.md')), 1);
+  assert.equal(managedCount(join(target, 'AGENTS.md')), 1);
+  const manifest = JSON.parse(readFileSync(join(target, '.sandpaper', 'manifest.json'), 'utf8'));
+  assert.deepEqual(manifest.integrations, ['claude', 'codex']);
+  assert.equal(manifest.defaultProvider, 'codex');
+  assert.equal(manifest.hooksEnabled, false);
+
+  const stableIntegration = repositorySnapshot(target).filter((entry) => (
+    entry.path.startsWith('.claude/commands/')
+    || entry.path.startsWith('.agents/')
+    || entry.path === 'CLAUDE.md'
+    || entry.path === 'AGENTS.md'
+    || entry.path === '.sandpaper/manifest.json'
+  ));
+  quietInstall(target, { integrations: ['claude', 'codex'], defaultProvider: 'codex', hooksEnabled: false });
+  assert.deepEqual(repositorySnapshot(target).filter((entry) => (
+    entry.path.startsWith('.claude/commands/')
+    || entry.path.startsWith('.agents/')
+    || entry.path === 'CLAUDE.md'
+    || entry.path === 'AGENTS.md'
+    || entry.path === '.sandpaper/manifest.json'
+  )), stableIntegration);
+});
+
+test('integration preflight rejects unsafe package and target trees before changing either provider', {
+  skip: process.platform === 'win32',
+}, (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'sandpaper-integration-preflight-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const packageRoot = join(root, 'package');
+  const target = join(root, 'target');
+  mkdirSync(target);
+  cpSync(join(PACKAGE, 'skill'), join(packageRoot, 'skill'), { recursive: true });
+  write(target, 'CLAUDE.md', 'user claude\n');
+  write(target, 'AGENTS.md', 'user codex\n');
+
+  const workflow = join(packageRoot, 'skill', 'sandpaper', 'references', 'workflows', 'help.md');
+  const workflowBytes = readFileSync(workflow);
+  rmSync(workflow);
+  symlinkSync(join(PACKAGE, 'skill', 'sandpaper', 'references', 'workflows', 'help.md'), workflow);
+  const beforeUnsafeSource = repositorySnapshot(target);
+  assert.throws(
+    () => installIntegrations(target, packageRoot, { integrations: ['claude', 'codex'] }),
+    /Sandpaper source tree.*symlink/i,
+  );
+  assert.deepEqual(repositorySnapshot(target), beforeUnsafeSource);
+
+  rmSync(workflow);
+  writeFileSync(workflow, workflowBytes);
+  const outside = join(root, 'outside');
+  mkdirSync(outside);
+  mkdirSync(join(target, '.agents'), { recursive: true });
+  symlinkSync(outside, join(target, '.agents', 'skills'));
+  const beforeUnsafeTarget = repositorySnapshot(target);
+  assert.throws(
+    () => installIntegrations(target, packageRoot, { integrations: ['claude', 'codex'] }),
+    /Sandpaper destination path.*symlink/i,
+  );
+  assert.deepEqual(repositorySnapshot(target), beforeUnsafeTarget);
+  assert.deepEqual(readdirSync(outside), []);
+});
+
+test('solo integration preflight requires only the selected provider sources', (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'sandpaper-selected-sources-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+
+  const claudePackage = join(root, 'claude-package');
+  cpSync(join(PACKAGE, 'skill'), join(claudePackage, 'skill'), { recursive: true });
+  rmSync(join(claudePackage, 'skill', 'sandpaper', 'SKILL.md'));
+  const claudeTarget = join(root, 'claude-target');
+  mkdirSync(claudeTarget);
+  installIntegrations(claudeTarget, claudePackage, { integrations: ['claude'] });
+  assert.equal(existsSync(join(claudeTarget, '.claude', 'commands', 'sandpaper', 'help.md')), true);
+  assert.equal(existsSync(join(claudeTarget, '.agents', 'skills', 'sandpaper')), false);
+
+  const codexPackage = join(root, 'codex-package');
+  cpSync(join(PACKAGE, 'skill'), join(codexPackage, 'skill'), { recursive: true });
+  rmSync(join(codexPackage, 'skill', 'sandpaper', 'commands'), { recursive: true });
+  const codexTarget = join(root, 'codex-target');
+  mkdirSync(codexTarget);
+  installIntegrations(codexTarget, codexPackage, { integrations: ['codex'] });
+  assert.equal(existsSync(join(codexTarget, '.agents', 'skills', 'sandpaper', 'SKILL.md')), true);
+  assert.equal(existsSync(join(codexTarget, '.claude', 'commands', 'sandpaper')), false);
+});
+
+test('integration preflight rejects a symlink in a package source path component', {
+  skip: process.platform === 'win32',
+}, (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'sandpaper-source-component-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const packageRoot = join(root, 'package');
+  const outsideSkill = join(root, 'outside-skill');
+  const target = join(root, 'target');
+  mkdirSync(packageRoot);
+  mkdirSync(target);
+  cpSync(join(PACKAGE, 'skill'), outsideSkill, { recursive: true });
+  symlinkSync(outsideSkill, join(packageRoot, 'skill'));
+  write(target, 'CLAUDE.md', 'user bytes\n');
+  const before = repositorySnapshot(target);
+
+  assert.throws(
+    () => installIntegrations(target, packageRoot, { integrations: ['claude'] }),
+    /Sandpaper source path.*symlink/i,
+  );
+  assert.deepEqual(repositorySnapshot(target), before);
+});
+
+test('invalid managed markers abort integration refresh before namespace mutation', (t) => {
+  const target = mkdtempSync(join(tmpdir(), 'sandpaper-marker-preflight-'));
+  t.after(() => rmSync(target, { recursive: true, force: true }));
+  write(target, '.claude/commands/sandpaper/old.md', 'old namespace bytes\n');
+  write(target, 'AGENTS.md', `user\n${BEGIN}\nunmatched\n`);
+  const before = repositorySnapshot(target);
+
+  assert.throws(
+    () => installIntegrations(target, PACKAGE, { integrations: ['claude', 'codex'] }),
+    /Invalid Sandpaper managed markers/,
+  );
+  assert.deepEqual(repositorySnapshot(target), before);
+});
 
 function populatedBrain(t) {
   const target = mkdtempSync(join(tmpdir(), 'sandpaper-inspect-'));
