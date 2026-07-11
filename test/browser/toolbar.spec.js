@@ -164,6 +164,29 @@ test('provider launch override controls initial identity without changing the ma
   expect(providerServices.defaultProvider).toBe('claude');
 });
 
+test('invalid bootstrap initial provider fails closed until an explicit ready provider is selected', async ({ page }) => {
+  await startProviderServer(page, { initialProvider: 'mystery-provider', defaultProvider: 'claude' });
+  const button = page.locator('#sp-provider-button');
+  await expect(button).toHaveText(/Choose provider/);
+  await expect(button).toBeEnabled();
+  await expect(page.locator('#sp-input')).toBeDisabled();
+  await expect(page.locator('#sp-send')).toBeDisabled();
+  await expect(page.locator('#sp-provider-default')).toBeDisabled();
+  await expect(page.locator('#sp-label')).toContainText(/choose a provider/i);
+
+  await button.click();
+  await expect(page.locator('[data-provider="claude"]')).toHaveAttribute('aria-checked', 'false');
+  await expect(page.locator('[data-provider="codex"]')).toHaveAttribute('aria-checked', 'false');
+  await expect(page.locator('#sp-provider-guidance')).toContainText(/choose an available provider/i);
+  await page.locator('[data-provider="codex"]').click();
+
+  await expect(button).toHaveText(/Codex/);
+  await expect(page.locator('#sp-input')).toBeEnabled();
+  await expect(page.locator('#sp-input')).toHaveAttribute('aria-label', 'Message Codex');
+  await expect(page.locator('#sp-provider-default')).toBeEnabled();
+  expect(providerServices.defaultProvider).toBe('claude');
+});
+
 test('provider storage discards unknown ids but preserves a known unavailable selection without fallback', async ({ page }) => {
   const key = await page.evaluate(() => {
     const script = document.querySelector('script[data-sandpaper-bootstrap]');
@@ -294,6 +317,42 @@ for (const failure of [
   });
 }
 
+for (const response of [
+  {
+    name: '200 error-shaped provider default response',
+    body: JSON.stringify({ ok: false, error: { code: 'default_refused', message: 'Default preference refused in body' } }),
+    message: 'Default preference refused in body',
+  },
+  { name: 'empty-object provider default response', body: '{}', message: /invalid default response/i },
+  {
+    name: 'wrong-provider default response',
+    body: JSON.stringify({ ok: true, defaultProvider: 'claude' }),
+    message: /invalid default response/i,
+  },
+  { name: 'malformed provider default response', body: '{', message: /invalid response/i },
+  { name: 'empty provider default response', body: '', message: /invalid response/i },
+]) {
+  test(`${response.name} fails closed without changing local markers`, async ({ page }) => {
+    await page.locator('#sp-provider-button').click();
+    await page.locator('[data-provider="codex"]').click();
+    await page.route('**/__sandpaper/provider-default', (route) => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: response.body,
+    }));
+    await page.locator('#sp-provider-button').click();
+    await page.locator('#sp-provider-default').click();
+
+    await expect(page.locator('#sp-provider-menu')).toBeVisible();
+    await expect(page.locator('#sp-provider-button')).toHaveText(/Codex/);
+    await expect(page.locator('#sp-provider-default')).toBeEnabled();
+    await expect(page.locator('#sp-provider-default')).toContainText(/Make Codex default/);
+    await expect(page.locator('[data-provider="claude"]')).toContainText('Default');
+    await expect(page.locator('#sp-provider-guidance')).toContainText(response.message);
+    expect(providerServices.defaultProvider).toBe('claude');
+  });
+}
+
 test('provider default action is inert when the selected provider is already default', async ({ page }) => {
   let defaultPosts = 0;
   await page.route('**/__sandpaper/provider-default', async (route) => {
@@ -339,7 +398,46 @@ test('provider accessibility keyboard model supports navigation, activation, dis
 
   await button.click();
   await page.locator('[data-provider="claude"]').press('Tab');
+  await expect(page.locator('[data-provider="codex"]')).toBeFocused();
+  await expect(menu).toBeVisible();
+  await page.keyboard.press('Escape');
   await expect(menu).toBeHidden();
+  await expect(button).toBeFocused();
+});
+
+test('provider accessibility reaches and activates Make default with arrows and coherent Tab traversal', async ({ page }) => {
+  const button = page.locator('#sp-provider-button');
+  const menu = page.locator('#sp-provider-menu');
+  const claude = page.locator('[data-provider="claude"]');
+  const codex = page.locator('[data-provider="codex"]');
+  const makeDefault = page.locator('#sp-provider-default');
+
+  await button.click();
+  await codex.click();
+  await button.press('ArrowDown');
+  await expect(claude).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(codex).toBeFocused();
+  await expect(menu).toBeVisible();
+  await page.keyboard.press('Tab');
+  await expect(makeDefault).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(codex).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(claude).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(menu).toBeHidden();
+  await expect(button).toBeFocused();
+
+  await button.press('ArrowDown');
+  await page.keyboard.press('End');
+  await expect(makeDefault).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(makeDefault).toContainText(/default/i);
+  await expect(makeDefault).toBeDisabled();
+  await expect(menu).toBeHidden();
+  await expect(button).toBeFocused();
+  expect(providerServices.defaultProvider).toBe('codex');
 });
 
 test('provider busy lifecycle locks every tab and matching idle restores controls', async ({ page, context }) => {
@@ -392,6 +490,56 @@ test('provider identity remains visible when minimized and through request error
   await expect(page.locator('#sp-head')).toContainText('Codex');
   await expect(page.locator('#sp-label')).not.toHaveText('Sending…');
   await expect(page.locator('#sp-provider-button')).toHaveText(/Codex/);
+});
+
+test('provider switch clears stale Claude header cost before showing Codex identity', async ({ page }) => {
+  const call = await submit(page, 'Report Claude cost');
+  runner.emit({ type: 'status', state: 'done', label: 'done', done: true, cost: 0.1234 }, call);
+  await expect(page.locator('#sp-cost')).toHaveText('$0.1234');
+  await expect(page.locator('#sp-cost')).toBeVisible();
+
+  await page.locator('#sp-provider-button').click();
+  await page.locator('[data-provider="codex"]').click();
+
+  await expect(page.locator('#sp-provider-button')).toHaveText(/Codex/);
+  await expect(page.locator('#sp-cost')).toBeHidden();
+  await expect(page.locator('#sp-cost')).toHaveText('');
+
+  await page.reload();
+  await expect(page.locator('#sp-provider-button')).toHaveText(/Codex/);
+  await expect(page.locator('#sp-cost')).toBeHidden();
+  await expect(page.locator('#sp-cost')).toHaveText('');
+});
+
+test('accepted turn provider marker survives a provider switch and transcript rehydrate', async ({ page }) => {
+  const call = await submit(page, 'Remember the accepted provider');
+  runner.complete(call);
+  const turn = page.locator('.sp-turn[data-turn]').first();
+  await expect(turn).toHaveAttribute('data-turn-provider', 'claude');
+
+  await page.locator('#sp-provider-button').click();
+  await page.locator('[data-provider="codex"]').click();
+  await page.reload();
+
+  await expect(page.locator('#sp-provider-button')).toHaveText(/Codex/);
+  await expect(page.locator('.sp-turn[data-turn]').first()).toHaveAttribute('data-turn-provider', 'claude');
+});
+
+test('rehydrate rejects an unknown persisted turn provider instead of relabeling it', async ({ page }) => {
+  const call = await submit(page, 'Persist a provider marker');
+  runner.complete(call);
+  await expect(page.locator('.sp-turnmeta .sp-tag')).toHaveText('Replied');
+  await page.evaluate(() => {
+    const key = `sp-thread:${location.pathname}`;
+    const saved = sessionStorage.getItem(key);
+    sessionStorage.setItem(key, saved.replace('data-turn-provider="claude"', 'data-turn-provider="mystery-provider"'));
+  });
+  await page.locator('#sp-provider-button').click();
+  await page.locator('[data-provider="codex"]').click();
+  await page.reload();
+
+  await expect(page.locator('#sp-provider-button')).toHaveText(/Codex/);
+  await expect(page.locator('.sp-turn[data-turn]').first()).not.toHaveAttribute('data-turn-provider', /.+/);
 });
 
 test('reply-only completion says Replied and has no AI undo', async ({ page }) => {
