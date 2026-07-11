@@ -98,6 +98,29 @@ test('open launch uses the local preference only when no explicit provider exist
   assert.equal(explicit.calls.starts[0][2].initialProvider, 'claude');
 });
 
+test('open stays scoped to cwd and rejects every positional target form', async () => {
+  const fixture = cliFixture();
+  for (const argv of [
+    ['open', 'some-existing-directory'],
+    ['open', '--', 'some-existing-directory'],
+    ['open', '--', '--dash-looking-directory'],
+  ]) {
+    await assert.rejects(runCli(argv, fixture.deps), /open does not accept a target/);
+  }
+  assert.equal(fixture.calls.starts.length, 0);
+
+  await runCli(['open'], fixture.deps);
+  await runCli(['open', '--provider', 'codex'], fixture.deps);
+  assert.equal(fixture.calls.starts[0][0], '/repo');
+  assert.equal(fixture.calls.starts[1][2].initialProvider, 'codex');
+  await assert.rejects(runCli(['open', '--provider'], fixture.deps), /requires a value/);
+  await assert.rejects(runCli(['open', '--provider', 'other'], fixture.deps), /Unknown provider/);
+  await assert.rejects(
+    runCli(['open', '--provider', 'codex', '--provider', 'claude'], fixture.deps),
+    /only be specified once/,
+  );
+});
+
 test('a target outside cwd uses its own root for port, preference, and session state', async (t) => {
   const root = mkdtempSync(join(tmpdir(), 'sandpaper-cli-target-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));

@@ -154,7 +154,9 @@ export async function runCli(argv = process.argv.slice(2), injected = {}) {
   }
   if (command === 'doctor') { rejectArguments(command); return runtime.doctor(cwd); }
   if (command === 'open') {
-    return serve(parseServeArguments(rest), { openBrowser: true, runtime, cwd });
+    const parsed = parseServeArguments(rest);
+    if (parsed.target !== null) throw new Error('open does not accept a target; it always serves the current repository');
+    return serve(parsed, { openBrowser: true, runtime, cwd });
   }
   return serve(parseServeArguments(argv), { openBrowser: false, runtime, cwd });
 }
