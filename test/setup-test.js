@@ -1287,6 +1287,103 @@ test('upgrade and rebuilt canvas lifecycle prose is provider neutral', (t) => {
   assert.doesNotMatch(lines.join('\n'), /in Claude Code|\/sandpaper:init/);
 });
 
+test('rebuild quarantine retains same-inode byte and mode edits at both cleanup checkpoints', {
+  skip: process.platform === 'win32',
+}, (t) => {
+  const mutations = [
+    ['file-bytes', (brain) => writeFileSync(join(brain, 'index.html'), 'same inode changed bytes\n')],
+    ['file-mode', (brain) => chmodSync(join(brain, 'index.html'), 0o600)],
+    ['root-mode', (brain) => chmodSync(brain, 0o700)],
+    ['nested-directory-mode', (brain) => chmodSync(join(brain, 'product'), 0o700)],
+  ];
+  const checkpoints = ['beforeQuarantineRename', 'beforeRecursiveCleanup'];
+
+  for (const checkpoint of checkpoints) {
+    for (const [mutationName, mutate] of mutations) {
+      const target = mkdtempSync(join(tmpdir(), `sandpaper-exact-${checkpoint}-${mutationName}-`));
+      t.after(() => rmSync(target, { recursive: true, force: true }));
+      write(target, 'package.json', JSON.stringify({ name: '@fixture/exact-quarantine' }));
+      quietInstall(target, { integrations: ['codex'], defaultProvider: 'codex', hooksEnabled: false });
+      write(target, 'brain/old-only.txt', 'old backup bytes\n');
+      const hooks = checkpoint === 'beforeQuarantineRename'
+        ? { beforeQuarantineRename({ transaction }) { mutate(transaction); } }
+        : { beforeRecursiveCleanup({ quarantinedTransaction }) { mutate(quarantinedTransaction); } };
+
+      const error = thrown(() => quietLifecycle(setup.rebuild, target, PACKAGE, {}, {
+        beforeIntegrationCommit() { throw new Error('injected precommit failure'); },
+        brainCleanupHooks: hooks,
+      }));
+
+      assert.equal(error.code, 'SANDPAPER_RECOVERY_REQUIRED', `${checkpoint}:${mutationName}`);
+      assert.equal(typeof error.brainRecoveryPath, 'string', `${checkpoint}:${mutationName}`);
+      assert.equal(existsSync(error.brainRecoveryPath), true, `${checkpoint}:${mutationName}`);
+      assert.equal(typeof error.brainBackupPath, 'string', `${checkpoint}:${mutationName}`);
+      assert.equal(readFileSync(join(error.brainBackupPath, 'old-only.txt'), 'utf8'), 'old backup bytes\n');
+    }
+  }
+});
+
+test('rebuild composes provider rollback recovery with fresh-brain drift recovery', (t) => {
+  const target = mkdtempSync(join(tmpdir(), 'sandpaper-composed-recovery-'));
+  t.after(() => rmSync(target, { recursive: true, force: true }));
+  write(target, 'package.json', JSON.stringify({ name: '@fixture/composed-recovery' }));
+  quietInstall(target, { integrations: ['claude', 'codex'], defaultProvider: 'codex', hooksEnabled: true });
+  write(target, 'brain/old-only.txt', 'old backup authoritative\n');
+
+  const error = thrown(() => quietLifecycle(setup.rebuild, target, PACKAGE, {}, {
+    integrationHooks: {
+      afterInstall({ label }) {
+        if (label === 'claude-namespace') throw new Error('injected provider precommit failure');
+      },
+      beforeRecursiveCleanup() { throw new Error('retain provider transaction'); },
+    },
+    brainCleanupHooks: {
+      beforeQuarantineRename({ transaction }) {
+        writeFileSync(join(transaction, 'index.html'), 'concurrent fresh brain bytes\n');
+      },
+    },
+  }));
+
+  assert.equal(error.code, 'SANDPAPER_RECOVERY_REQUIRED');
+  assert.equal(error.phase, 'precommit_recovery');
+  for (const key of ['providerRecoveryPath', 'brainBackupPath', 'brainRecoveryPath']) {
+    assert.equal(typeof error[key], 'string', key);
+    assert.equal(existsSync(error[key]), true, key);
+  }
+  assert.equal(readFileSync(join(error.brainBackupPath, 'old-only.txt'), 'utf8'), 'old backup authoritative\n');
+  assert.equal(readFileSync(join(error.brainRecoveryPath, 'index.html'), 'utf8'), 'concurrent fresh brain bytes\n');
+});
+
+test('upgrade preserves provider postcommit recovery when second editorial preflight fails', {
+  skip: process.platform === 'win32',
+}, (t) => {
+  const target = mkdtempSync(join(tmpdir(), 'sandpaper-upgrade-composed-recovery-'));
+  t.after(() => rmSync(target, { recursive: true, force: true }));
+  write(target, 'package.json', JSON.stringify({ name: '@fixture/upgrade-composed-recovery' }));
+  quietInstall(target, { integrations: ['claude'], defaultProvider: 'claude', hooksEnabled: false });
+  const outside = join(target, 'outside.css');
+  writeFileSync(outside, 'outside bytes stay unchanged\n');
+
+  const error = thrown(() => quietLifecycle(setup.upgrade, target, PACKAGE, {}, {
+    integrationHooks: {
+      beforeQuarantineRename() { throw new Error('retain committed provider transaction'); },
+    },
+    beforeEditorialPreflight({ brain }) {
+      rmSync(join(brain, 'assets', 'brain.css'));
+      symlinkSync(outside, join(brain, 'assets', 'brain.css'));
+    },
+  }));
+
+  assert.equal(error.code, 'SANDPAPER_RECOVERY_REQUIRED');
+  assert.equal(error.phase, 'postcommit_cleanup');
+  assert.equal(error.destinationsCommitted, true);
+  assert.equal(typeof error.providerRecoveryPath, 'string');
+  assert.equal(existsSync(error.providerRecoveryPath), true);
+  assert.match(error.editorialError, /symlink|unsafe/i);
+  assert.equal(typeof error.editorialCode, 'string');
+  assert.equal(readFileSync(outside, 'utf8'), 'outside bytes stay unchanged\n');
+});
+
 function populatedBrain(t) {
   const target = mkdtempSync(join(tmpdir(), 'sandpaper-inspect-'));
   t.after(() => rmSync(target, { recursive: true, force: true }));

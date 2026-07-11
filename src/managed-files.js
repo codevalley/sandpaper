@@ -154,6 +154,126 @@ export function sameIdentityTree(left, right) {
   return true;
 }
 
+function exactTreeError(detail = 'could not be inspected safely') {
+  return new Error(`Sandpaper exact tree ${detail}`);
+}
+
+function readExactFile(path, expectedStats, fs) {
+  const flags = fs.constants.O_RDONLY
+    | (fs.constants.O_NOFOLLOW || 0)
+    | (fs.constants.O_NONBLOCK || 0);
+  let descriptor;
+  try {
+    descriptor = fs.openSync(path, flags);
+    const before = fs.fstatSync(descriptor);
+    if (!before.isFile() || !sameStatIdentity(before, statIdentity(expectedStats))) {
+      throw exactTreeError('regular file changed before descriptor read');
+    }
+    const mode = before.mode & 0o777;
+    if (mode !== (expectedStats.mode & 0o777)) throw exactTreeError('file mode changed before descriptor read');
+    const bytes = Buffer.from(fs.readFileSync(descriptor));
+    const after = fs.fstatSync(descriptor);
+    if (!after.isFile() || !sameStatIdentity(after, statIdentity(before)) || (after.mode & 0o777) !== mode) {
+      throw exactTreeError('regular file changed during descriptor read');
+    }
+    return { bytes, mode, identity: statIdentity(after), type: 'file' };
+  } catch (error) {
+    if (error?.message?.startsWith('Sandpaper exact tree')) throw error;
+    throw exactTreeError('regular file could not be read safely');
+  } finally {
+    if (descriptor !== undefined) fs.closeSync(descriptor);
+  }
+}
+
+function scanExactTree(root, fs, pathApi) {
+  const rootStats = lstatIfPresent(root, fs);
+  if (!rootStats?.isDirectory() || rootStats.isSymbolicLink()) throw exactTreeError('root is unsafe');
+  const inventory = new Map([['', {
+    type: 'directory',
+    mode: rootStats.mode & 0o777,
+    identity: statIdentity(rootStats),
+  }]]);
+  const walk = (directory, prefix, expectedDirectory) => {
+    const currentDirectory = lstatIfPresent(directory, fs);
+    if (!currentDirectory?.isDirectory()
+      || !sameStatIdentity(currentDirectory, expectedDirectory.identity)
+      || (currentDirectory.mode & 0o777) !== expectedDirectory.mode) {
+      throw exactTreeError('directory changed during scan');
+    }
+    let names;
+    try { names = fs.readdirSync(directory).sort(); }
+    catch { throw exactTreeError('directory could not be read safely'); }
+    for (const name of names) {
+      const path = pathApi.join(directory, name);
+      const relative = prefix ? pathApi.join(prefix, name) : name;
+      let inspected;
+      try {
+        inspected = inspectTrustedPath(root, path, {
+          fs,
+          pathApi,
+          pathClass: 'exact tree component',
+        });
+      } catch { throw exactTreeError('contains an unsafe component'); }
+      const stats = inspected.stats;
+      if (!inspected.exists || stats.isSymbolicLink()) throw exactTreeError('contains an unsafe component');
+      if (stats.isDirectory()) {
+        const entry = { type: 'directory', mode: stats.mode & 0o777, identity: statIdentity(stats) };
+        inventory.set(relative, entry);
+        walk(path, relative, entry);
+        const verified = lstatIfPresent(path, fs);
+        if (!verified?.isDirectory()
+          || !sameStatIdentity(verified, entry.identity)
+          || (verified.mode & 0o777) !== entry.mode) {
+          throw exactTreeError('directory changed during scan');
+        }
+      } else if (stats.isFile()) {
+        inventory.set(relative, readExactFile(path, stats, fs));
+      } else {
+        throw exactTreeError('contains a special file');
+      }
+    }
+    const finalDirectory = lstatIfPresent(directory, fs);
+    if (!finalDirectory?.isDirectory()
+      || !sameStatIdentity(finalDirectory, expectedDirectory.identity)
+      || (finalDirectory.mode & 0o777) !== expectedDirectory.mode) {
+      throw exactTreeError('directory changed during scan');
+    }
+  };
+  walk(root, '', inventory.get(''));
+  return inventory;
+}
+
+export function sameExactTree(left, right) {
+  if (!(left instanceof Map) || !(right instanceof Map) || left.size !== right.size) return false;
+  for (const [path, expected] of left) {
+    const actual = right.get(path);
+    if (!actual
+      || actual.type !== expected.type
+      || actual.mode !== expected.mode
+      || actual.identity.dev !== expected.identity.dev
+      || actual.identity.ino !== expected.identity.ino
+      || actual.identity.type !== expected.identity.type) return false;
+    if (expected.type === 'file' && !actual.bytes.equals(expected.bytes)) return false;
+  }
+  return true;
+}
+
+export function captureExactTree(root, { fs: overrides, pathApi = nodePath } = {}) {
+  const fs = runtimeFs(overrides);
+  const first = scanExactTree(root, fs, pathApi);
+  const second = scanExactTree(root, fs, pathApi);
+  if (!sameExactTree(first, second)) throw exactTreeError('changed between validation scans');
+  return first;
+}
+
+function exactIdentityContents(inventory) {
+  const identities = new Map();
+  for (const [path, entry] of inventory || []) {
+    if (path) identities.set(path, entry.identity);
+  }
+  return identities;
+}
+
 function transactionContents(transaction, fs, pathApi) {
   const snapshot = identityTree(transaction, { fs, pathApi });
   snapshot.delete('');
@@ -207,14 +327,19 @@ export function quarantineCleanup(transaction, transactionIdentity, {
   pathApi = nodePath,
   hooks = {},
   expectedContents = new Map(),
+  expectedExactTree = null,
 } = {}) {
   const fs = runtimeFs(overrides);
+  const expectedIdentities = expectedExactTree ? exactIdentityContents(expectedExactTree) : expectedContents;
+  const exactMatches = (path) => !expectedExactTree
+    || sameExactTree(captureExactTree(path, { fs, pathApi }), expectedExactTree);
   const current = lstatIfPresent(transaction, fs);
   if (!sameStatIdentity(current, transactionIdentity) || !current?.isDirectory()) {
     throw recoveryForPhase(transaction, null, null, transactionIdentity, fs, pathApi);
   }
   try {
-    if (!sameIdentityTree(transactionContents(transaction, fs, pathApi), expectedContents)) {
+    if (!sameIdentityTree(transactionContents(transaction, fs, pathApi), expectedIdentities)
+      || !exactMatches(transaction)) {
       throw new SandpaperRecoveryError(transaction);
     }
   } catch (error) {
@@ -238,7 +363,8 @@ export function quarantineCleanup(transaction, transactionIdentity, {
     if (!sameStatIdentity(beforeMove, transactionIdentity)) {
       throw recoveryForPhase(transaction, quarantinedTransaction, quarantineRoot, transactionIdentity, fs, pathApi);
     }
-    if (!sameIdentityTree(transactionContents(transaction, fs, pathApi), expectedContents)) {
+    if (!sameIdentityTree(transactionContents(transaction, fs, pathApi), expectedIdentities)
+      || !exactMatches(transaction)) {
       throw recoveryForPhase(transaction, quarantinedTransaction, quarantineRoot, transactionIdentity, fs, pathApi);
     }
     fs.renameSync(transaction, quarantinedTransaction);
@@ -246,7 +372,8 @@ export function quarantineCleanup(transaction, transactionIdentity, {
     if (!sameStatIdentity(moved, transactionIdentity)) {
       throw recoveryForPhase(transaction, quarantinedTransaction, quarantineRoot, transactionIdentity, fs, pathApi);
     }
-    if (!sameIdentityTree(transactionContents(quarantinedTransaction, fs, pathApi), expectedContents)) {
+    if (!sameIdentityTree(transactionContents(quarantinedTransaction, fs, pathApi), expectedIdentities)
+      || !exactMatches(quarantinedTransaction)) {
       throw recoveryForPhase(transaction, quarantinedTransaction, quarantineRoot, transactionIdentity, fs, pathApi);
     }
     hooks.beforeRecursiveCleanup?.({ quarantineRoot, quarantinedTransaction });
@@ -254,7 +381,8 @@ export function quarantineCleanup(transaction, transactionIdentity, {
     if (!sameStatIdentity(finalMoved, transactionIdentity)) {
       throw recoveryForPhase(transaction, quarantinedTransaction, quarantineRoot, transactionIdentity, fs, pathApi);
     }
-    if (!sameIdentityTree(transactionContents(quarantinedTransaction, fs, pathApi), expectedContents)) {
+    if (!sameIdentityTree(transactionContents(quarantinedTransaction, fs, pathApi), expectedIdentities)
+      || !exactMatches(quarantinedTransaction)) {
       throw recoveryForPhase(transaction, quarantinedTransaction, quarantineRoot, transactionIdentity, fs, pathApi);
     }
     if (!sameStatIdentity(lstatIfPresent(quarantineRoot, fs), quarantineIdentity)) {

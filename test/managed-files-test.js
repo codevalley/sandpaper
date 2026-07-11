@@ -873,3 +873,42 @@ test('standalone managed removal preserves concurrent replacement and original r
   assert.equal(readFileSync(file, 'utf8'), 'concurrent replacement\n');
   assert.deepEqual(readFileSync(join(error.recoveryPath, 'backup')), original);
 });
+
+test('exact tree inventory rejects a regular-file to FIFO open race without blocking', {
+  skip: process.platform === 'win32',
+}, (t) => {
+  const root = fixture(t, 'sandpaper-exact-fifo-race-');
+  writeFileSync(join(root, 'page.html'), 'regular bytes\n');
+  const script = `
+    import { openSync, rmSync } from 'node:fs';
+    import { execFileSync } from 'node:child_process';
+    import { captureExactTree } from ${JSON.stringify(new URL('../src/managed-files.js', import.meta.url).href)};
+    const root = ${JSON.stringify(root)};
+    let swapped = false;
+    try {
+      captureExactTree(root, {
+        fs: {
+          openSync(path, flags, mode) {
+            if (!swapped && String(path).endsWith('page.html')) {
+              swapped = true;
+              rmSync(path);
+              execFileSync('mkfifo', [path]);
+            }
+            return openSync(path, flags, mode);
+          },
+        },
+      });
+      process.exit(2);
+    } catch (error) {
+      if (!/exact tree|regular file|changed|unsafe/i.test(error.message)) throw error;
+      console.log('SAFE_FIFO_REJECT');
+    }
+  `;
+
+  const output = execFileSync(process.execPath, ['--input-type=module', '-e', script], {
+    encoding: 'utf8',
+    timeout: 1_500,
+  });
+  assert.match(output, /SAFE_FIFO_REJECT/);
+  assert.equal(lstatSync(join(root, 'page.html')).isFIFO(), true);
+});

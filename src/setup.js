@@ -21,10 +21,11 @@ import { execFileSync } from 'node:child_process';
 import { prepareInstallIntegrations } from './integrations.js';
 import { installationHookPlans } from './hooks.js';
 import {
+  captureExactTree,
   ensureTrustedParents,
-  identityTree,
   inspectTrustedPath,
   quarantineCleanup,
+  sameExactTree,
   statIdentity,
 } from './managed-files.js';
 import { PATH_REASONS, resolveRepositoryPath } from './path-policy.js';
@@ -795,30 +796,20 @@ function safeThemeSnapshot(brain) {
   return readEditorialFile(brain, file, 'brain theme path');
 }
 
-function brainTreeSignature(brain) {
-  const entries = [];
-  const walk = (directory, prefix = '') => {
-    let names;
-    try { names = readdirSync(directory).sort(); } catch { return false; }
-    for (const name of names) {
-      const file = join(directory, name);
-      const path = prefix ? `${prefix}/${name}` : name;
-      const stats = lstatIfPresent(file);
-      if (!stats || stats.isSymbolicLink()) return false;
-      if (stats.isDirectory()) {
-        entries.push(['directory', path, stats.mode & 0o777]);
-        if (!walk(file, path)) return false;
-      } else if (stats.isFile()) {
-        let bytes;
-        try { bytes = readFileSync(file).toString('base64'); } catch { return false; }
-        const verified = lstatIfPresent(file);
-        if (!verified || !verified.isFile() || verified.dev !== stats.dev || verified.ino !== stats.ino) return false;
-        entries.push(['file', path, verified.mode & 0o777, bytes]);
-      } else return false;
-    }
-    return true;
-  };
-  return walk(brain) ? JSON.stringify(entries) : null;
+function lifecycleRecovery({ providerError = null, brainError = null, brainBackupPath = null, activeBrainPath = null }) {
+  const recovery = new Error('Sandpaper lifecycle recovery required');
+  recovery.code = 'SANDPAPER_RECOVERY_REQUIRED';
+  recovery.phase = providerError?.phase || brainError?.phase || 'precommit_recovery';
+  recovery.destinationsCommitted = Boolean(providerError?.destinationsCommitted);
+  if (providerError?.recoveryPath) recovery.providerRecoveryPath = providerError.recoveryPath;
+  if (brainBackupPath) recovery.brainBackupPath = brainBackupPath;
+  const brainRecoveryPath = brainError?.brainRecoveryPath || brainError?.recoveryPath || activeBrainPath;
+  if (brainRecoveryPath) recovery.brainRecoveryPath = brainRecoveryPath;
+  recovery.recoveryPath = recovery.providerRecoveryPath
+    || brainError?.recoveryPath
+    || recovery.brainBackupPath
+    || recovery.brainRecoveryPath;
+  return recovery;
 }
 
 function upgradeWithOptions(target, pkg, overrides = {}, dependencies = {}) {
@@ -858,7 +849,9 @@ function upgradeWithOptions(target, pkg, overrides = {}, dependencies = {}) {
   ok(`hook intent preserved (${options.hooksEnabled ? 'enabled' : 'disabled'})`);
   ok('manifest selections and shared hook scripts preserved');
 
-  preflightLifecycleEditorial(target, pkg);
+  try {
+    dependencies.beforeEditorialPreflight?.({ brain });
+    preflightLifecycleEditorial(target, pkg);
 
   // Editorial brain refresh is deliberately a separate best-effort phase. Provider
   // intent has already committed atomically; custom theme bytes are never replaced.
@@ -899,8 +892,20 @@ function upgradeWithOptions(target, pkg, overrides = {}, dependencies = {}) {
 
   console.log('\n  Upgraded. `npx sandpaper open` to view.');
   if (nSkel) console.log('  Added missing structure — run the Sandpaper init workflow in your selected agent to fill the new pages.');
-  console.log('');
-  if (postcommitRecovery) throw postcommitRecovery;
+    console.log('');
+  } catch (editorialError) {
+    if (postcommitRecovery) {
+      postcommitRecovery.providerRecoveryPath ||= postcommitRecovery.recoveryPath;
+      postcommitRecovery.editorialError = String(editorialError?.message || 'Editorial phase failed').slice(0, 160);
+      postcommitRecovery.editorialCode = String(editorialError?.code || 'EDITORIAL_FAILURE').slice(0, 80);
+      throw postcommitRecovery;
+    }
+    throw editorialError;
+  }
+  if (postcommitRecovery) {
+    postcommitRecovery.providerRecoveryPath ||= postcommitRecovery.recoveryPath;
+    throw postcommitRecovery;
+  }
 }
 
 // ---- rebuild: a full, safe reset — back up the old brain, then reinstall + a fresh skeleton ----
@@ -925,8 +930,7 @@ export function rebuild(target, pkg, overrides = {}, dependencies = {}) {
     files: installationHookPlans(target, pkg, options),
   });
   let generatedIdentity = null;
-  let generatedSignature = null;
-  let generatedContents = null;
+  let generatedInventory = null;
   let committed = false;
   try {
     if (backup) {
@@ -950,10 +954,7 @@ export function rebuild(target, pkg, overrides = {}, dependencies = {}) {
       const themeFile = join(brain, 'assets', 'theme.css');
       writeEditorialFile(brain, themeFile, theme.bytes, { mode: theme.mode, setMode: true });
     }
-    generatedSignature = brainTreeSignature(brain);
-    if (generatedSignature === null) throw new Error('Could not verify the fresh Sandpaper brain');
-    generatedContents = identityTree(brain);
-    generatedContents.delete('');
+    generatedInventory = captureExactTree(brain);
     dependencies.afterScaffold?.({ brain, backup });
     dependencies.beforeIntegrationCommit?.();
     try {
@@ -978,8 +979,9 @@ export function rebuild(target, pkg, overrides = {}, dependencies = {}) {
     if (error?.destinationsCommitted || committed) {
       throw error;
     }
-    let providerRecovery = null;
-    try { installation.abort(); } catch (recoveryError) { providerRecovery = recoveryError; }
+    let providerRecovery = error?.code === 'SANDPAPER_RECOVERY_REQUIRED' ? error : null;
+    try { installation.abort(); }
+    catch (recoveryError) { providerRecovery ||= recoveryError; }
     try {
       const active = lstatIfPresent(brain);
       if (active) {
@@ -988,27 +990,31 @@ export function rebuild(target, pkg, overrides = {}, dependencies = {}) {
           && active.ino === generatedIdentity.ino
           && active.isDirectory()
           && !active.isSymbolicLink();
-        const complete = generatedSignature !== null && generatedContents !== null;
-        const unchanged = complete && brainTreeSignature(brain) === generatedSignature;
+        const complete = generatedInventory !== null;
+        let unchanged = false;
+        if (complete) {
+          try { unchanged = sameExactTree(captureExactTree(brain), generatedInventory); }
+          catch { unchanged = false; }
+        }
         if (!owned || !complete || !unchanged) {
-          const recovery = new Error('Sandpaper rebuild recovery required; active brain changed concurrently');
-          recovery.code = 'SANDPAPER_RECOVERY_REQUIRED';
-          recovery.recoveryPath = backup;
-          recovery.brainBackupPath = backup;
-          recovery.activeBrainPath = brain;
-          if (providerRecovery?.recoveryPath) recovery.providerRecoveryPath = providerRecovery.recoveryPath;
-          throw recovery;
+          const brainError = new Error('Sandpaper fresh brain changed concurrently');
+          brainError.code = 'SANDPAPER_RECOVERY_REQUIRED';
+          brainError.recoveryPath = backup;
+          brainError.brainRecoveryPath = brain;
+          throw lifecycleRecovery({ providerError: providerRecovery, brainError, brainBackupPath: backup, activeBrainPath: brain });
         }
         try {
           quarantineCleanup(brain, generatedIdentity, {
             hooks: dependencies.brainCleanupHooks,
-            expectedContents: generatedContents,
+            expectedExactTree: generatedInventory,
           });
         } catch (cleanupError) {
-          cleanupError.brainBackupPath = backup;
-          cleanupError.activeBrainPath = brain;
-          if (providerRecovery?.recoveryPath) cleanupError.providerRecoveryPath = providerRecovery.recoveryPath;
-          throw cleanupError;
+          throw lifecycleRecovery({
+            providerError: providerRecovery,
+            brainError: cleanupError,
+            brainBackupPath: backup,
+            activeBrainPath: brain,
+          });
         }
       }
       if (backup) renameSync(backup, brain);
@@ -1021,7 +1027,10 @@ export function rebuild(target, pkg, overrides = {}, dependencies = {}) {
       recovery.activeBrainPath = brain;
       throw recovery;
     }
-    if (providerRecovery) throw providerRecovery;
+    if (providerRecovery) {
+      providerRecovery.providerRecoveryPath ||= providerRecovery.recoveryPath;
+      throw providerRecovery;
+    }
     throw error;
   }
 }

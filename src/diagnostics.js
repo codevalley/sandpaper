@@ -269,12 +269,20 @@ function equalTrees(left, right) {
 function repairForProvider(provider, code) {
   if (code === 'unauthenticated') return provider === 'codex' ? 'codex login' : 'claude auth login';
   return provider === 'codex'
-    ? 'Install or upgrade Codex CLI, then run `codex login`.'
-    : 'Install or upgrade Claude Code, then run `claude auth login`.';
+    ? 'Install or upgrade Codex CLI. Then execute: codex login'
+    : 'Install or upgrade Claude Code. Then execute: claude auth login';
 }
 
 function driftRepair() {
   return 'npx @nynb/sandpaper upgrade';
+}
+
+function uniqueBackupRepair(path, next) {
+  return `Move ${path} to a new unoccupied backup path using a unique timestamp/suffix. ${next}`;
+}
+
+function uniqueCopyRepair(path, next) {
+  return `Copy ${path} to a new unoccupied backup path using a unique timestamp/suffix. ${next}`;
 }
 
 function entry(code, message, repair) {
@@ -293,11 +301,11 @@ export function inspectInstallation(target, packageRoot, { runCommand = defaultR
   } else if (manifestResult.status === 'legacy') {
     addWarning('manifest-v1-residue', 'Manifest schema v1 is supported migration residue.', 'npx @nynb/sandpaper upgrade');
   } else if (manifestResult.status === 'unsupported') {
-    addProblem('manifest-unsupported', 'Manifest schema version is unsupported.', 'cp .sandpaper/manifest.json .sandpaper/manifest.json.sandpaper.bak; manually repair it, preserving provider choices.');
+    addProblem('manifest-unsupported', 'Manifest schema version is unsupported.', uniqueCopyRepair('.sandpaper/manifest.json', 'Manually repair it, preserving provider choices.'));
   } else if (manifestResult.status === 'unsafe') {
-    addProblem('manifest-unsafe', 'Manifest path is a symlink or special/unsafe file.', 'mv .sandpaper/manifest.json .sandpaper/manifest.json.sandpaper.bak; restore a regular manifest preserving provider choices.');
+    addProblem('manifest-unsafe', 'Manifest path is a symlink or special/unsafe file.', uniqueBackupRepair('.sandpaper/manifest.json', 'Restore a regular manifest preserving provider choices.'));
   } else if (manifestResult.status === 'corrupt') {
-    addProblem('manifest-corrupt', 'Manifest JSON or schema is invalid.', 'cp .sandpaper/manifest.json .sandpaper/manifest.json.sandpaper.bak; manually repair JSON preserving provider choices.');
+    addProblem('manifest-corrupt', 'Manifest JSON or schema is invalid.', uniqueCopyRepair('.sandpaper/manifest.json', 'Manually repair JSON preserving provider choices.'));
   }
 
   const manifest = manifestResult.manifest;
@@ -324,15 +332,23 @@ export function inspectInstallation(target, packageRoot, { runCommand = defaultR
     const actual = collectTree(target, destination, `${provider} integration tree`);
     const expected = expectedTree(packageRoot, provider);
     const current = equalTrees(actual, expected);
-    if (selected && actual.status === 'unsafe') {
+    if (expected.status === 'unsafe') {
       addProblem(
-        `${provider}-tree-unsafe`,
-        `${provider === 'claude' ? 'Claude' : 'Codex'} generated integration tree is an unsafe path.`,
-        `mv ${contract.namespace} ${contract.namespace}.sandpaper.bak; run npx @nynb/sandpaper upgrade.`,
+        `package-${provider}-source-unsafe`,
+        `Executing package ${provider} integration source is missing or unsafe.`,
+        'Repair or reinstall the executing Sandpaper package; target upgrade cannot repair package source.',
       );
-    } else if (selected && !current) {
+    }
+    if (actual.status === 'unsafe') {
+      const add = selected ? addProblem : addWarning;
+      add(
+        selected ? `${provider}-tree-unsafe` : `${provider}-tree-unsafe-unselected`,
+        `${provider === 'claude' ? 'Claude' : 'Codex'} generated integration tree is an unsafe path.`,
+        uniqueBackupRepair(contract.namespace, 'Then execute: npx @nynb/sandpaper upgrade'),
+      );
+    } else if (expected.status === 'directory' && selected && !current) {
       addProblem(`${provider}-tree-drift`, `${provider === 'claude' ? 'Claude' : 'Codex'} generated integration tree is missing, stale, or unsafe.`, driftRepair());
-    } else if (!selected && actual.status !== 'absent') {
+    } else if (expected.status === 'directory' && !selected && actual.status !== 'absent') {
       addWarning(`${provider}-stale-tree`, `An unselected ${provider} generated integration tree remains.`, 'npx @nynb/sandpaper upgrade');
     }
 
@@ -343,7 +359,7 @@ export function inspectInstallation(target, packageRoot, { runCommand = defaultR
       addProblem(
         `${provider}-managed-block-unsafe`,
         `${contract.managedFile} is an unsafe path.`,
-        `mv ${contract.managedFile} ${contract.managedFile}.sandpaper.bak; restore a regular file preserving user rules, then rerun doctor.`,
+        uniqueBackupRepair(contract.managedFile, 'Restore a regular file preserving user rules. Then execute: npx @nynb/sandpaper doctor'),
       );
     } else if (managed.status === 'file') {
       const source = managed.bytes.toString('utf8');
@@ -372,13 +388,13 @@ export function inspectInstallation(target, packageRoot, { runCommand = defaultR
     const hookRelevant = selected && hooksEnabled;
     if (hookRelevant && (hookInspection.status === 'unsafe' || hookInspection.status === 'invalid')) {
       const relativeHook = provider === 'claude' ? '.claude/settings.json' : '.codex/hooks.json';
-      const backupCommand = hookInspection.status === 'unsafe'
-        ? `mv ${relativeHook} ${relativeHook}.sandpaper.bak`
-        : `cp ${relativeHook} ${relativeHook}.sandpaper.bak`;
+      const repair = hookInspection.status === 'unsafe'
+        ? uniqueBackupRepair(relativeHook, 'Restore regular valid JSON preserving user hooks. Then execute: npx @nynb/sandpaper doctor')
+        : uniqueCopyRepair(relativeHook, 'Restore regular valid JSON preserving user hooks. Then execute: npx @nynb/sandpaper doctor');
       addProblem(
         `${provider}-hook-config-${hookInspection.status}`,
         `${provider === 'claude' ? 'Claude' : 'Codex'} hook configuration is invalid or unsafe.`,
-        `${backupCommand}; restore regular valid JSON preserving user hooks, then rerun doctor.`,
+        repair,
       );
     } else if (hookInspection.status === 'valid') {
       const owned = Object.values(hookInspection.ownedCounts);
@@ -396,13 +412,20 @@ export function inspectInstallation(target, packageRoot, { runCommand = defaultR
     for (const script of ['brain-inject.js', 'brain-stamp-check.js']) {
       const installed = safeRead(target, join(target, '.sandpaper', 'hooks', script), 'shared hook script');
       const packaged = safeRead(packageRoot, join(packageRoot, 'bin', script), 'package hook script');
-      if (installed.status === 'unsafe') {
+      if (packaged.status === 'unsafe') {
+        addProblem(
+          'package-hook-script-unsafe',
+          `Executing package hook script ${script} is missing or unsafe.`,
+          'Repair or reinstall the executing Sandpaper package; target upgrade cannot repair package source.',
+        );
+      } else if (installed.status === 'unsafe') {
         addProblem(
           'shared-hook-script-unsafe',
           `Shared hook script ${script} is an unsafe path.`,
-          `mv .sandpaper/hooks/${script} .sandpaper/hooks/${script}.sandpaper.bak; run npx @nynb/sandpaper upgrade.`,
+          uniqueBackupRepair(`.sandpaper/hooks/${script}`, 'Then execute: npx @nynb/sandpaper upgrade'),
         );
-      } else if (installed.status !== 'file' || packaged.status !== 'file' || !installed.bytes.equals(packaged.bytes)) {
+      } else if (packaged.status === 'file'
+        && (installed.status !== 'file' || !installed.bytes.equals(packaged.bytes))) {
         addProblem('shared-hook-script-drift', `Shared hook script ${script} is missing, stale, or unsafe.`, 'npx @nynb/sandpaper upgrade');
       }
     }
@@ -410,11 +433,11 @@ export function inspectInstallation(target, packageRoot, { runCommand = defaultR
 
   const session = inspectSessionState(target);
   if (session.status === 'unsafe') {
-    addProblem('session-unsafe', 'Session state path is a symlink or special/unsafe file.', 'mv .sandpaper/session.json .sandpaper/session.json.sandpaper.bak; start Sandpaper with a new session.');
+    addProblem('session-unsafe', 'Session state path is a symlink or special/unsafe file.', uniqueBackupRepair('.sandpaper/session.json', 'Start Sandpaper with a new session.'));
   } else if (session.status === 'corrupt') {
-    addWarning('session-corrupt', 'Session state is corrupt; resume safely fails closed.', 'mv .sandpaper/session.json .sandpaper/session.json.sandpaper.bak; start Sandpaper with a new session.');
+    addWarning('session-corrupt', 'Session state is corrupt; resume safely fails closed.', uniqueBackupRepair('.sandpaper/session.json', 'Start Sandpaper with a new session.'));
   } else if (session.status === 'unsupported') {
-    addWarning('session-unsupported', 'Session state schema is unsupported; resume safely fails closed.', 'mv .sandpaper/session.json .sandpaper/session.json.sandpaper.bak; start Sandpaper with a new session.');
+    addWarning('session-unsupported', 'Session state schema is unsupported; resume safely fails closed.', uniqueBackupRepair('.sandpaper/session.json', 'Start Sandpaper with a new session.'));
   } else if (session.status === 'legacy') {
     addWarning('session-legacy', 'Legacy Claude session state will migrate on normal runtime use.', 'Start Sandpaper once to migrate this local resume state.');
   }

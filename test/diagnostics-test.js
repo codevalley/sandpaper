@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  cpSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -306,8 +307,9 @@ test('unsafe selected managed paths are classified before drift with reversible 
   const result = inspectInstallation(target, PACKAGE, { runCommand: readyRun });
   const unsafe = result.problems.find(({ code }) => code === 'claude-managed-block-unsafe');
   assert.ok(unsafe);
-  assert.match(unsafe.repair, /CLAUDE\.md.*\.bak|backup/i);
+  assert.match(unsafe.repair, /unoccupied.*timestamp|timestamp.*suffix/i);
   assert.doesNotMatch(unsafe.repair, /upgrade/);
+  assert.doesNotMatch(unsafe.repair, /\brun\b/i);
   assert.equal(result.problems.some(({ code }) => code === 'claude-managed-block-drift'), false);
   assert.equal(readFileSync(outside, 'utf8'), 'private outside rules\n');
 });
@@ -324,7 +326,9 @@ test('unsafe generated trees and shared scripts require reversible path repair b
   let result = inspectInstallation(treeTarget, PACKAGE, { runCommand: readyRun });
   const treeUnsafe = result.problems.find(({ code }) => code === 'claude-tree-unsafe');
   assert.ok(treeUnsafe);
-  assert.match(treeUnsafe.repair, /sandpaper.*\.bak.*upgrade/i);
+  assert.match(treeUnsafe.repair, /unoccupied.*timestamp|timestamp.*suffix/i);
+  assert.match(treeUnsafe.repair, /npx @nynb\/sandpaper upgrade/);
+  assert.doesNotMatch(treeUnsafe.repair, /\brun\b/i);
   assert.equal(result.problems.some(({ code }) => code === 'claude-tree-drift'), false);
 
   const scriptTarget = fixture(t, { integrations: ['claude'], defaultProvider: 'claude', hooksEnabled: false });
@@ -336,7 +340,9 @@ test('unsafe generated trees and shared scripts require reversible path repair b
   result = inspectInstallation(scriptTarget, PACKAGE, { runCommand: readyRun });
   const scriptUnsafe = result.problems.find(({ code }) => code === 'shared-hook-script-unsafe');
   assert.ok(scriptUnsafe);
-  assert.match(scriptUnsafe.repair, /brain-inject\.js.*\.bak.*upgrade/i);
+  assert.match(scriptUnsafe.repair, /unoccupied.*timestamp|timestamp.*suffix/i);
+  assert.match(scriptUnsafe.repair, /npx @nynb\/sandpaper upgrade/);
+  assert.doesNotMatch(scriptUnsafe.repair, /\brun\b/i);
   assert.equal(readFileSync(outsideScript, 'utf8'), 'outside script bytes\n');
 });
 
@@ -356,7 +362,7 @@ test('irrelevant invalid hook configs do not block unselected or hooks-disabled 
   result = inspectInstallation(target, PACKAGE, { runCommand: readyRun });
   const invalid = result.problems.find(({ code }) => code === 'codex-hook-config-invalid');
   assert.ok(invalid);
-  assert.match(invalid.repair, /hooks\.json.*\.bak|backup/i);
+  assert.match(invalid.repair, /unoccupied.*timestamp|timestamp.*suffix/i);
   assert.doesNotMatch(invalid.repair, /upgrade/);
 });
 
@@ -368,9 +374,57 @@ test('corrupt manifest and session repairs preserve bytes in explicit backup com
   const result = inspectInstallation(target, PACKAGE, { runCommand: readyRun });
   const manifest = result.problems.find(({ code }) => code === 'manifest-corrupt');
   const session = result.warnings.find(({ code }) => code === 'session-corrupt');
-  assert.match(manifest.repair, /manifest\.json.*\.bak/);
+  assert.match(manifest.repair, /unoccupied.*timestamp|timestamp.*suffix/i);
   assert.doesNotMatch(manifest.repair, /upgrade/);
-  assert.match(session.repair, /session\.json.*\.bak/);
+  assert.match(session.repair, /unoccupied.*timestamp|timestamp.*suffix/i);
+  assert.doesNotMatch(JSON.stringify(result), /\brun\b/i);
+});
+
+test('unsafe unselected trees are distinct from ordinary stale drift and preserve manifest intent', {
+  skip: process.platform === 'win32',
+}, (t) => {
+  const target = fixture(t, { integrations: ['claude'], defaultProvider: 'claude', hooksEnabled: false });
+  const manifest = join(target, '.sandpaper', 'manifest.json');
+  const manifestBytes = readFileSync(manifest);
+  const namespace = join(target, '.agents', 'skills', 'sandpaper');
+  const outside = join(target, 'outside-unselected-tree');
+  mkdirSync(join(target, '.agents', 'skills'), { recursive: true });
+  mkdirSync(outside);
+  symlinkSync(outside, namespace);
+
+  const result = inspectInstallation(target, PACKAGE, { runCommand: readyRun });
+  const unsafe = result.warnings.find(({ code }) => code === 'codex-tree-unsafe-unselected');
+  assert.ok(unsafe);
+  assert.equal(result.warnings.some(({ code }) => code === 'codex-stale-tree'), false);
+  assert.match(unsafe.repair, /unoccupied.*timestamp|timestamp.*suffix/i);
+  assert.doesNotMatch(unsafe.repair, /upgrade only|^npx @nynb\/sandpaper upgrade$/i);
+  assert.deepEqual(readFileSync(manifest), manifestBytes);
+});
+
+test('unsafe package integration source is a package problem, not target upgrade drift', {
+  skip: process.platform === 'win32',
+}, (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'sandpaper-diagnostics-package-source-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const packageRoot = join(root, 'package');
+  const outside = join(root, 'outside-help.md');
+  cpSync(join(PACKAGE, 'skill'), join(packageRoot, 'skill'), { recursive: true });
+  cpSync(join(PACKAGE, 'bin'), join(packageRoot, 'bin'), { recursive: true });
+  writeFileSync(outside, 'unsafe package source\n');
+  const source = join(packageRoot, 'skill', 'sandpaper', 'commands', 'help.md');
+  rmSync(source);
+  symlinkSync(outside, source);
+  const target = fixture(t, { integrations: ['claude'], defaultProvider: 'claude', hooksEnabled: false });
+  const manifest = join(target, '.sandpaper', 'manifest.json');
+  const before = readFileSync(manifest);
+
+  const result = inspectInstallation(target, packageRoot, { runCommand: readyRun });
+  const unsafe = result.problems.find(({ code }) => code === 'package-claude-source-unsafe');
+  assert.ok(unsafe);
+  assert.doesNotMatch(unsafe.repair, /^npx @nynb\/sandpaper upgrade$/);
+  assert.match(unsafe.repair, /package|reinstall/i);
+  assert.equal(result.problems.some(({ code }) => code === 'claude-tree-drift'), false);
+  assert.deepEqual(readFileSync(manifest), before);
 });
 
 test('installation inspection makes missing selected readiness a problem without fallback', (t) => {
