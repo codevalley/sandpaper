@@ -9,6 +9,7 @@ import {
   mkdtempSync,
   openSync,
   readFileSync,
+  readlinkSync,
   readdirSync,
   renameSync,
   rmSync,
@@ -65,6 +66,32 @@ function repositorySnapshot(target) {
   };
   walk(target);
   return entries;
+}
+
+function repositorySnapshotWithoutBrainBackups(target) {
+  return repositorySnapshot(target).filter(({ path }) => !path.startsWith('brain.bak-'));
+}
+
+function treeBytesAndModes(root) {
+  return {
+    rootMode: statSync(root).mode & 0o777,
+    entries: repositorySnapshot(root),
+  };
+}
+
+function occupiedPathSnapshot(path) {
+  const stats = lstatSync(path);
+  const type = stats.isDirectory() ? 'directory'
+    : stats.isFile() ? 'file'
+      : stats.isSymbolicLink() ? 'symlink' : stats.isFIFO() ? 'fifo' : 'special';
+  return {
+    type,
+    dev: stats.dev,
+    ino: stats.ino,
+    mode: stats.mode & 0o777,
+    bytes: type === 'file' ? readFileSync(path).toString('base64') : null,
+    link: type === 'symlink' ? readlinkSync(path) : null,
+  };
 }
 
 const ACTIONS = ['canvas', 'decide', 'help', 'init', 'learn', 'log', 'open', 'plan', 'release', 'serve', 'stamp', 'sync', 'theme'];
@@ -1001,13 +1028,13 @@ test('rebuild restores the exact old active brain when work fails after backup',
   quietInstall(target, { integrations: ['codex'], defaultProvider: 'codex', hooksEnabled: false });
   customizeLifecycleState(target, { integrations: ['codex'], defaultProvider: 'codex', hooksEnabled: false });
   write(target, 'brain/exact-old.txt', 'restore me exactly\n');
-  const before = repositorySnapshot(target);
+  const before = repositorySnapshotWithoutBrainBackups(target);
 
   assert.throws(() => quietLifecycle(setup.rebuild, target, PACKAGE, {}, {
     afterBrainBackup() { throw new Error('injected after brain backup'); },
   }), /injected after brain backup/);
 
-  assert.deepEqual(repositorySnapshot(target), before);
+  assert.deepEqual(repositorySnapshotWithoutBrainBackups(target), before);
 });
 
 test('rebuild rolls back the active brain and every provider surface when integration commit fails', (t) => {
@@ -1017,7 +1044,7 @@ test('rebuild rolls back the active brain and every provider surface when integr
   quietInstall(target, { integrations: ['claude', 'codex'], defaultProvider: 'codex', hooksEnabled: true });
   customizeLifecycleState(target, { integrations: ['claude', 'codex'], defaultProvider: 'codex', hooksEnabled: true });
   write(target, 'brain/exact-old.txt', 'restore after transaction failure\n');
-  const before = repositorySnapshot(target);
+  const before = repositorySnapshotWithoutBrainBackups(target);
 
   assert.throws(() => quietLifecycle(setup.rebuild, target, PACKAGE, {}, {
     integrationHooks: {
@@ -1027,7 +1054,7 @@ test('rebuild rolls back the active brain and every provider surface when integr
     },
   }), /Could not commit Sandpaper integration transaction/);
 
-  assert.deepEqual(repositorySnapshot(target), before);
+  assert.deepEqual(repositorySnapshotWithoutBrainBackups(target), before);
 });
 
 test('upgrade transaction failure preserves brain and provider state exactly', (t) => {
@@ -1355,6 +1382,77 @@ test('rebuild retains provider and both brain recoveries when backup restore mee
   }
   assert.equal(readFileSync(join(error.brainBackupPath, 'old-only.txt'), 'utf8'), 'old backup remains authoritative\n');
   assert.equal(readFileSync(join(error.brainRecoveryPath, 'concurrent.txt'), 'utf8'), 'concurrent active brain\n');
+});
+
+test('rebuild restore never replaces an occupied empty directory, file, symlink, or FIFO', {
+  skip: process.platform === 'win32',
+}, (t) => {
+  const cases = [
+    ['empty-directory', (brain) => { mkdirSync(brain, { mode: 0o711 }); chmodSync(brain, 0o711); }],
+    ['file', (brain) => { writeFileSync(brain, 'concurrent file bytes\n'); chmodSync(brain, 0o640); }],
+    ['symlink', (brain, target) => {
+      const outside = join(target, 'outside-brain-target');
+      mkdirSync(outside);
+      symlinkSync(outside, brain);
+    }],
+    ['fifo', (brain) => { execFileSync('mkfifo', [brain]); chmodSync(brain, 0o620); }],
+  ];
+
+  for (const [name, occupy] of cases) {
+    const target = mkdtempSync(join(tmpdir(), `sandpaper-no-clobber-${name}-`));
+    t.after(() => rmSync(target, { recursive: true, force: true }));
+    write(target, 'package.json', JSON.stringify({ name: `@fixture/no-clobber-${name}` }));
+    quietInstall(target, { integrations: ['claude', 'codex'], defaultProvider: 'codex', hooksEnabled: true });
+    write(target, 'brain/old-only.txt', `old backup ${name}\n`);
+    let concurrentSnapshot;
+
+    const error = thrown(() => quietLifecycle(setup.rebuild, target, PACKAGE, {}, {
+      integrationHooks: {
+        afterInstall({ label }) {
+          if (label === 'claude-namespace') throw new Error('injected provider precommit failure');
+        },
+        beforeRecursiveCleanup() { throw new Error('retain provider transaction'); },
+      },
+      brainCleanupHooks: {
+        beforeRecursiveCleanup() {
+          const brain = join(target, 'brain');
+          occupy(brain, target);
+          concurrentSnapshot = occupiedPathSnapshot(brain);
+        },
+      },
+    }));
+
+    assert.equal(error.code, 'SANDPAPER_RECOVERY_REQUIRED', name);
+    assert.equal(error.phase, 'precommit_recovery', name);
+    assert.deepEqual(occupiedPathSnapshot(join(target, 'brain')), concurrentSnapshot, name);
+    for (const key of ['providerRecoveryPath', 'brainBackupPath', 'brainRecoveryPath']) {
+      assert.equal(typeof error[key], 'string', `${name}:${key}`);
+      assert.equal(existsSync(error[key]), true, `${name}:${key}`);
+    }
+    assert.equal(readFileSync(join(error.brainBackupPath, 'old-only.txt'), 'utf8'), `old backup ${name}\n`);
+    assert.equal(error.brainRecoveryPath, join(target, 'brain'));
+  }
+});
+
+test('rebuild restores exact backup bytes and modes without consuming the backup', (t) => {
+  const target = mkdtempSync(join(tmpdir(), 'sandpaper-exact-backup-restore-'));
+  t.after(() => rmSync(target, { recursive: true, force: true }));
+  write(target, 'package.json', JSON.stringify({ name: '@fixture/exact-backup-restore' }));
+  quietInstall(target, { integrations: ['codex'], defaultProvider: 'codex', hooksEnabled: false });
+  write(target, 'brain/private/nested.txt', 'exact old private bytes\n');
+  chmodSync(join(target, 'brain/private/nested.txt'), 0o640);
+  chmodSync(join(target, 'brain/private'), 0o710);
+  chmodSync(join(target, 'brain'), 0o750);
+  const expected = treeBytesAndModes(join(target, 'brain'));
+
+  assert.throws(() => quietLifecycle(setup.rebuild, target, PACKAGE, {}, {
+    beforeIntegrationCommit() { throw new Error('injected normal precommit failure'); },
+  }), /injected normal precommit failure/);
+
+  const backupName = readdirSync(target).find((name) => name.startsWith('brain.bak-'));
+  assert.equal(typeof backupName, 'string');
+  assert.deepEqual(treeBytesAndModes(join(target, 'brain')), expected);
+  assert.deepEqual(treeBytesAndModes(join(target, backupName)), expected);
 });
 
 test('rebuild composes provider rollback recovery with fresh-brain drift recovery', (t) => {

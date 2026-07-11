@@ -24,6 +24,7 @@ import {
   captureExactTree,
   ensureTrustedParents,
   inspectTrustedPath,
+  materializeExactTree,
   quarantineCleanup,
   sameExactTree,
   statIdentity,
@@ -1027,7 +1028,7 @@ export function rebuild(target, pkg, overrides = {}, dependencies = {}) {
           });
         }
       }
-      if (backup) renameSync(backup, brain);
+      if (backup) materializeExactTree(backup, brain, { trustedRoot: target });
     } catch (recoveryError) {
       if (!recoveryError?.phase || recoveryError.phase === 'unknown') {
         recoveryError.phase = 'brain_restore_recovery';

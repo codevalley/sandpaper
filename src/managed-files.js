@@ -266,6 +266,170 @@ export function captureExactTree(root, { fs: overrides, pathApi = nodePath } = {
   return first;
 }
 
+function sameExactTreeContents(left, right) {
+  if (!(left instanceof Map) || !(right instanceof Map) || left.size !== right.size) return false;
+  for (const [path, expected] of left) {
+    const actual = right.get(path);
+    if (!actual || actual.type !== expected.type || actual.mode !== expected.mode) return false;
+    if (expected.type === 'file' && !actual.bytes.equals(expected.bytes)) return false;
+  }
+  return true;
+}
+
+function exactDirectoryDescriptor(path, expectedIdentity, fs) {
+  const flags = fs.constants.O_RDONLY
+    | (fs.constants.O_DIRECTORY || 0)
+    | (fs.constants.O_NOFOLLOW || 0)
+    | (fs.constants.O_NONBLOCK || 0);
+  const descriptor = fs.openSync(path, flags);
+  try {
+    const stats = fs.fstatSync(descriptor);
+    if (!stats.isDirectory() || !sameStatIdentity(stats, expectedIdentity)) {
+      throw exactTreeError('destination directory identity changed');
+    }
+    return descriptor;
+  } catch (error) {
+    fs.closeSync(descriptor);
+    throw error;
+  }
+}
+
+function createExactDirectory(path, mode, fs) {
+  fs.mkdirSync(path, { mode });
+  const stats = fs.lstatSync(path);
+  if (!stats.isDirectory() || stats.isSymbolicLink()) throw exactTreeError('destination directory is unsafe');
+  const identity = statIdentity(stats);
+  const descriptor = exactDirectoryDescriptor(path, identity, fs);
+  try { fs.fchmodSync(descriptor, mode); }
+  finally { fs.closeSync(descriptor); }
+  const verified = fs.lstatSync(path);
+  if (!sameStatIdentity(verified, identity) || (verified.mode & 0o777) !== mode) {
+    throw exactTreeError('destination directory changed during creation');
+  }
+  return identity;
+}
+
+function setExactDirectoryMode(path, identity, mode, fs) {
+  const descriptor = exactDirectoryDescriptor(path, identity, fs);
+  try { fs.fchmodSync(descriptor, mode); }
+  finally { fs.closeSync(descriptor); }
+  const verified = fs.lstatSync(path);
+  if (!sameStatIdentity(verified, identity) || (verified.mode & 0o777) !== mode) {
+    throw exactTreeError('destination directory changed during mode restoration');
+  }
+}
+
+function createExactFile(path, entry, fs) {
+  const flags = fs.constants.O_CREAT
+    | fs.constants.O_EXCL
+    | fs.constants.O_WRONLY
+    | (fs.constants.O_NOFOLLOW || 0)
+    | (fs.constants.O_NONBLOCK || 0);
+  const descriptor = fs.openSync(path, flags, entry.mode);
+  let identity;
+  try {
+    const stats = fs.fstatSync(descriptor);
+    if (!stats.isFile()) throw exactTreeError('destination file is unsafe');
+    identity = statIdentity(stats);
+    fs.writeFileSync(descriptor, entry.bytes);
+    fs.fchmodSync(descriptor, entry.mode);
+    const verified = fs.fstatSync(descriptor);
+    if (!verified.isFile()
+      || !sameStatIdentity(verified, identity)
+      || (verified.mode & 0o777) !== entry.mode) {
+      throw exactTreeError('destination file changed during creation');
+    }
+  } finally {
+    fs.closeSync(descriptor);
+  }
+  const installed = fs.lstatSync(path);
+  if (!sameStatIdentity(installed, identity) || (installed.mode & 0o777) !== entry.mode) {
+    throw exactTreeError('destination file identity changed');
+  }
+}
+
+export function materializeExactTree(source, destination, {
+  trustedRoot,
+  fs: overrides,
+  pathApi = nodePath,
+} = {}) {
+  if (typeof trustedRoot !== 'string' || !trustedRoot) {
+    throw new TypeError('Sandpaper trusted root is required');
+  }
+  const fs = runtimeFs(overrides);
+  inspectTrustedPath(trustedRoot, source, {
+    fs,
+    pathApi,
+    pathClass: 'exact tree source',
+    finalType: 'directory',
+  });
+  const destinationInspection = inspectTrustedPath(trustedRoot, destination, {
+    fs,
+    pathApi,
+    pathClass: 'exact tree destination',
+  });
+  if (destinationInspection.exists) throw exactTreeError('destination is occupied');
+  const sourceInventory = captureExactTree(source, { fs, pathApi });
+  const rootEntry = sourceInventory.get('');
+  const temporaryRootMode = rootEntry.mode | 0o700;
+  const rootIdentity = createExactDirectory(destination, temporaryRootMode, fs);
+  const verifyRoot = () => {
+    const stats = lstatIfPresent(destination, fs);
+    if (!stats?.isDirectory() || !sameStatIdentity(stats, rootIdentity)) {
+      throw exactTreeError('destination root changed during restoration');
+    }
+  };
+  const depth = (path) => path.split(pathApi.sep).filter(Boolean).length;
+  const directories = [...sourceInventory]
+    .filter(([path, entry]) => path && entry.type === 'directory')
+    .sort(([left], [right]) => depth(left) - depth(right) || left.localeCompare(right));
+  const directoryIdentities = new Map();
+  for (const [relative, entry] of directories) {
+    verifyRoot();
+    const path = pathApi.join(destination, relative);
+    inspectTrustedPath(destination, pathApi.dirname(path), {
+      fs,
+      pathApi,
+      pathClass: 'exact tree destination parent',
+      finalType: 'directory',
+    });
+    directoryIdentities.set(relative, createExactDirectory(path, entry.mode | 0o700, fs));
+  }
+  const files = [...sourceInventory]
+    .filter(([path, entry]) => path && entry.type === 'file')
+    .sort(([left], [right]) => left.localeCompare(right));
+  for (const [relative, entry] of files) {
+    verifyRoot();
+    const path = pathApi.join(destination, relative);
+    inspectTrustedPath(destination, pathApi.dirname(path), {
+      fs,
+      pathApi,
+      pathClass: 'exact tree destination parent',
+      finalType: 'directory',
+    });
+    createExactFile(path, entry, fs);
+  }
+  for (const [relative, entry] of [...directories].sort(([left], [right]) => (
+    depth(right) - depth(left) || right.localeCompare(left)
+  ))) {
+    verifyRoot();
+    setExactDirectoryMode(
+      pathApi.join(destination, relative),
+      directoryIdentities.get(relative),
+      entry.mode,
+      fs,
+    );
+  }
+  setExactDirectoryMode(destination, rootIdentity, rootEntry.mode, fs);
+  if (!sameExactTree(captureExactTree(source, { fs, pathApi }), sourceInventory)) {
+    throw exactTreeError('source changed during restoration');
+  }
+  if (!sameExactTreeContents(captureExactTree(destination, { fs, pathApi }), sourceInventory)) {
+    throw exactTreeError('destination does not match source contents');
+  }
+  return { sourceInventory, rootIdentity };
+}
+
 function exactIdentityContents(inventory) {
   const identities = new Map();
   for (const [path, entry] of inventory || []) {
