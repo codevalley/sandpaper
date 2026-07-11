@@ -12,6 +12,8 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
     waiting: '#C98A1E', error: '#B23A2E', done: '#4E7C59', idle: '#8A8578',
   };
   var BUSY = ['init', 'thinking', 'editing', 'tool_using', 'waiting'];
+  var MAX_CHANGE_PATHS = 24, MAX_CHANGE_PATH_INSPECTION = 256,
+      MAX_CHANGE_PATH_LENGTH = 240, MAX_CHANGE_KIND_LENGTH = 80;
   var bootstrap = document.querySelector('script[type="module"][src="/__sandpaper/toolbar.js"][data-sandpaper-token]');
   var token = bootstrap ? bootstrap.getAttribute('data-sandpaper-token') : '';
   var bootstrapData = {};
@@ -68,11 +70,11 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
             '<button type="button" id="sp-provider-default" role="menuitem"></button>' +
             '<button type="button" id="sp-provider-new-session" role="menuitem" disabled>New provider session</button>' +
           '</div>' +
-          '<div id="sp-provider-guidance" role="status" aria-live="polite" hidden></div>' +
+          '<div id="sp-provider-guidance" role="status" aria-label="Provider guidance" aria-live="polite" aria-atomic="true" hidden></div>' +
         '</div>' +
       '</div>' +
-      '<span id="sp-chip" role="status" aria-live="polite" aria-atomic="true"><span id="sp-led"></span><span id="sp-label">idle</span></span>' +
-      '<span id="sp-cost" hidden></span>' +
+      '<span id="sp-chip" role="status" aria-label="Sandpaper status" aria-live="polite" aria-atomic="true"><span id="sp-led"></span><span id="sp-label">idle</span></span>' +
+      '<span id="sp-cost" class="sp-usage" role="status" aria-label="Provider usage" aria-live="polite" aria-atomic="true" hidden></span>' +
       '<button type="button" id="sp-undo" hidden aria-label="Undo the last direct edit" title="Undo the last direct edit">⟲ undo</button>' +
       '<button type="button" id="sp-min" aria-label="Minimize Sandpaper" title="Minimize">–</button>' +
       '<button type="button" id="sp-toggle" aria-label="Expand or collapse conversation" aria-controls="sp-thread" aria-expanded="false">▸</button>' +
@@ -85,7 +87,7 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
         '<button type="button" id="sp-pick" aria-label="Pick a page element" aria-pressed="false" aria-disabled="false" title="Scope — point at an element to target your message">' + ICON_PICK + '</button>' +
         '<button type="button" id="sp-edit" aria-label="Edit page content directly" aria-pressed="false" aria-disabled="false" title="Edit text in place — your words, no AI">' + ICON_EDIT + '</button>' +
         '<span class="sp-spring"></span>' +
-        '<button type="button" id="sp-sling" aria-label="Copy instruction for terminal" title="Send to terminal — copy a ready instruction to paste into your Claude session">&gt;_</button>' +
+        '<button type="button" id="sp-sling" aria-label="Copy instruction for terminal" title="Send to terminal — copy a ready instruction to paste into your agent session">&gt;_</button>' +
         '<button type="submit" id="sp-send">Sand</button>' +
       '</div>' +
     '</form>';
@@ -182,6 +184,24 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
     throw new Error('Unable to allocate disclosure ID');
   }
   function selectedProviderState() { return selectedProvider ? providersById[selectedProvider] || null : null; }
+  function finiteNonnegative(value) { return typeof value === 'number' && Number.isFinite(value) && value >= 0; }
+  function usageLabel(frame, providerId) {
+    if (!frame || frame.provider !== providerId) return '';
+    if (providerId === 'claude' && frame.type === 'status' &&
+        (frame.state === 'done' || frame.state === 'error' || frame.done) && finiteNonnegative(frame.cost)) {
+      return '$' + frame.cost.toFixed(4);
+    }
+    if (providerId === 'codex' && frame.type === 'usage' && finiteNonnegative(frame.totalTokens)) {
+      return frame.totalTokens.toLocaleString() + ' tokens';
+    }
+    return '';
+  }
+  function clearUsage() { cost.textContent = ''; cost.hidden = true; }
+  function renderUsage(frame, providerId) {
+    var text = usageLabel(frame, providerId);
+    cost.textContent = text;
+    cost.hidden = !text;
+  }
   function providerRepairGuidance(provider) {
     if (!provider) return 'Choose an available provider to start.';
     var name = provider && provider.label ? provider.label : 'This provider';
@@ -254,8 +274,7 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
     } else {
       showProviderGuidance('');
       if (options && options.selectionChanged) {
-        cost.textContent = '';
-        cost.hidden = true;
+        clearUsage();
         label.textContent = 'idle';
         led.style.background = COLORS.idle;
         chip.style.color = COLORS.idle;
@@ -477,9 +496,10 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
   function reducedMotion() {
     return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   }
-  function announceRequestError(error) {
+  function announceRequestError(error, providerId) {
     var message = errorMessage(error);
-    label.textContent = message;
+    var provider = providersById[providerId];
+    label.textContent = provider ? provider.label + ' · ' + message : message;
     led.style.background = COLORS.error;
     chip.style.color = COLORS.error;
     persist(); stick();
@@ -501,7 +521,7 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
     if (draft != null) input.value = draft;
     renderScope(record && record.scope ? record.scope : null);
     setBusy(false);
-    announceRequestError(error);
+    announceRequestError(error, terminal && record && record.provider);
     if (record && terminal && terminal.changed) finalizeTurn(record, terminal);
     persist(); stick(); input.focus();
   }
@@ -601,13 +621,12 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
     }
     var c = COLORS[f.state] || '#8A8578';
     led.style.background = c; chip.style.color = c;
-    if (f.label) label.textContent = f.label;
+    var ownedTurn = f.turnId ? getTurn(f.turnId, f.provider) : null;
+    if (f.label) label.textContent = ownedTurn ? providersById[ownedTurn.provider].label + ' · ' + f.label : f.label;
     var busy = BUSY.indexOf(f.state) >= 0;
     setBusy(busy);
-    if (typeof f.cost === 'number' && (!f.provider || f.provider === selectedProvider)) {
-      cost.textContent = '$' + f.cost.toFixed(4);
-      cost.hidden = false;
-    }
+    if (ownedTurn && ownedTurn.provider === 'claude' &&
+        (f.state === 'done' || f.state === 'error' || f.done || f.phase === 'done')) renderUsage(f, ownedTurn.provider);
     if (f.state === 'error' && f.turnId) {
       var te = knownTerminalTurn(f.turnId, f.provider);
       var terminalError = new Error(f.detail || f.label || 'Turn failed');
@@ -631,7 +650,8 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
     var saveLabel = 'Saved';
     if (edited && rec.editCount) saveLabel += ' · ' + rec.editCount + (rec.editCount > 1 ? ' changes' : ' change');
     rec.metaEl.appendChild(el('span', 'sp-tag', edited ? saveLabel : 'Replied'));
-    if (typeof f.cost === 'number') rec.metaEl.appendChild(el('span', 'sp-tagcost', ' · $' + f.cost.toFixed(4)));
+    var terminalUsage = usageLabel(f, rec.provider);
+    if (terminalUsage) rec.metaEl.appendChild(el('span', 'sp-tagcost', ' · ' + terminalUsage));
     if (f.undoable) {
       var u = el('button', 'sp-undo', 'Undo'); u.setAttribute('data-act', 'undo'); if (rec.id) u.setAttribute('data-turn', rec.id);
       rec.metaEl.appendChild(u);
@@ -641,20 +661,77 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
   }
 
   // ---------- the "what changed" card ----------
+  function ensureEditCard(rec) {
+    if (rec.cardEl) return;
+    rec.cardEl = el('div', 'sp-card');
+    var head = el('button', 'sp-card-head'); head.type = 'button'; head.setAttribute('data-act', 'card');
+    rec.cardTitle = el('span', 'sp-card-title', '');
+    head.appendChild(rec.cardTitle); head.appendChild(el('span', 'sp-card-chev', '▸'));
+    rec.cardBody = el('div', 'sp-card-body'); rec.cardBody.hidden = true;
+    var cardId = allocateDisclosureId('sp-card-body-');
+    rec.cardBody.id = cardId; head.setAttribute('aria-controls', cardId); head.setAttribute('aria-expanded', 'false');
+    rec.cardEl.appendChild(head); rec.cardEl.appendChild(rec.cardBody);
+    rec.box.querySelector('.sp-asst').appendChild(rec.cardEl);
+  }
+  function boundedChangeText(value, limit) {
+    if (typeof value !== 'string' || !value || !value.trim()) return null;
+    var bounded = value.slice(0, limit);
+    if (/[\u0000-\u001f\u007f]/.test(bounded)) return null;
+    return value.length > limit ? bounded + '…' : bounded;
+  }
+  function normalizedReportedPath(value) {
+    var text = value.replace(/\\/g, '/');
+    while (text.indexOf('./') === 0) text = text.slice(2);
+    while (text.indexOf('/') === 0) text = text.slice(1);
+    return text;
+  }
+  function selectedDocumentPaths() {
+    var path = location.pathname;
+    try { path = decodeURIComponent(path); } catch (error) {}
+    path = normalizedReportedPath(path);
+    if (!path) path = 'index.html';
+    return [path, path.split('/').pop()];
+  }
+  function addSparseEdit(rec, frame) {
+    var reported = Array.isArray(frame.paths) ? frame.paths : [];
+    var paths = [], selectedPaths = selectedDocumentPaths(), external = false;
+    reported.slice(0, MAX_CHANGE_PATH_INSPECTION).forEach(function (entry) {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return false;
+      var path = boundedChangeText(entry.path, MAX_CHANGE_PATH_LENGTH);
+      var kind = boundedChangeText(entry.kind, MAX_CHANGE_KIND_LENGTH);
+      if (!path || !kind) return false;
+      if (paths.length < MAX_CHANGE_PATHS) paths.push({ path: path, kind: kind });
+      if (selectedPaths.indexOf(normalizedReportedPath(path)) < 0) external = true;
+    });
+    if (!paths.length) return false;
+    rec.editCount += 1;
+    ensureEditCard(rec);
+    rec.cardTitle.textContent = '✦ reported file changes';
+    paths.forEach(function (change) {
+      var row = el('div', 'sp-change-path-row');
+      row.appendChild(el('span', 'sp-change-path', change.path));
+      row.appendChild(el('span', 'sp-change-kind', change.kind));
+      rec.cardBody.appendChild(row);
+    });
+    if ((external || reported.length > MAX_CHANGE_PATH_INSPECTION) && !rec.cardBody.querySelector('.sp-safety-warning')) {
+      var warning = el('div', 'sp-safety-warning', external
+        ? 'External change reported: Sandpaper cannot verify or undo that change.'
+        : 'Additional changes were reported: Sandpaper cannot verify or undo changes outside the selected document.');
+      warning.setAttribute('role', 'alert');
+      warning.setAttribute('aria-label', 'External change warning');
+      rec.cardBody.appendChild(warning);
+    }
+    stick();
+    return true;
+  }
   function addEdit(rec, f) {
+    if (rec.provider === 'codex' && Array.isArray(f.paths)) {
+      addSparseEdit(rec, f);
+      return;
+    }
     rec.editCount += 1;
     (f.cids || []).forEach(function (c) { if (rec.changedCids.indexOf(c) < 0) rec.changedCids.push(c); });
-    if (!rec.cardEl) {
-      rec.cardEl = el('div', 'sp-card');
-      var head = el('button', 'sp-card-head'); head.type = 'button'; head.setAttribute('data-act', 'card');
-      rec.cardTitle = el('span', 'sp-card-title', '');
-      head.appendChild(rec.cardTitle); head.appendChild(el('span', 'sp-card-chev', '▸'));
-      rec.cardBody = el('div', 'sp-card-body'); rec.cardBody.hidden = true;
-      var cardId = allocateDisclosureId('sp-card-body-');
-      rec.cardBody.id = cardId; head.setAttribute('aria-controls', cardId); head.setAttribute('aria-expanded', 'false');
-      rec.cardEl.appendChild(head); rec.cardEl.appendChild(rec.cardBody);
-      rec.box.querySelector('.sp-asst').appendChild(rec.cardEl);
-    }
+    ensureEditCard(rec);
     rec.cardTitle.textContent = '✦ changed ' + rec.editCount + (rec.editCount > 1 ? ' things' : ' thing');
     rec.cardBody.appendChild(el('div', 'sp-hunkfile', f.file + '  (+' + f.added + ' / -' + f.removed + ')'));
     (f.hunks || []).forEach(function (h) {
@@ -825,8 +902,9 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
       expandIfContent(); addEdit(editTurn, f); return;
     }
     if (f.type === 'usage') {
-      if (!getTurn(f.turnId, f.provider)) return;
-      setChip(f);
+      var usageTurn = getTurn(f.turnId, f.provider);
+      if (!usageTurn) return;
+      renderUsage(f, usageTurn.provider);
       return;
     }
     if (f.type === 'status') {
@@ -889,6 +967,7 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
     if (chip.classList.contains('sp-busy') || resetPending || !provider || provider.available !== true) return; // a turn/reset is already running or provider is unavailable
     var prompt = input.value.trim(); if (!prompt) return;
     var attach = sel ? ((sel.cid ? '#' + sel.cid : sel.selector) + (sel.snippet ? ' — ' + sel.snippet : '')) : null;
+    clearUsage();
     clearEarlyFrames();
     pendingTurn = createTurn(null, prompt, attach, provider.id);
     pendingTurn.awaitingAcceptance = true;

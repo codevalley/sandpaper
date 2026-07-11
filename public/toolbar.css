@@ -78,14 +78,15 @@
 #sp-panel #sp-led{ width:8px; height:8px; border-radius:50%; background:var(--sp-mute); flex:none; box-shadow:0 0 0 3px rgba(244,240,230,.08); }
 #sp-panel #sp-chip.sp-busy #sp-led{ animation:sp-pulse 1.2s ease-in-out infinite; }
 @keyframes sp-pulse{ 0%,100%{ box-shadow:0 0 0 0 currentColor; opacity:1; } 50%{ box-shadow:0 0 0 5px transparent; opacity:.5; } }
-#sp-panel #sp-cost{ margin-left:auto; font-size:11px; color:var(--sp-mute); }
+#sp-panel .sp-usage{ margin-left:auto; min-width:0; max-width:100%; overflow:hidden; text-overflow:ellipsis;
+  font-size:11px; color:var(--sp-mute); white-space:nowrap; }
 #sp-panel #sp-toggle{ position:static; inset:auto; width:auto; height:auto; border:0; background:transparent; color:var(--sp-paper-2); cursor:pointer; font-size:13px; padding:2px 4px; line-height:1; }
 #sp-panel #sp-min{ position:static; inset:auto; width:auto; height:auto; border:0; background:transparent; color:var(--sp-paper-2); cursor:pointer; font-size:17px; padding:0 6px 3px; line-height:1; }
 #sp-panel #sp-min:hover, #sp-panel #sp-toggle:hover{ color:var(--sp-clay); }
 /* minimized → a small status pill; click it to restore */
 #sp-panel.sp-min{ width:auto; max-width:300px; cursor:pointer; }
 #sp-panel.sp-min #sp-thread, #sp-panel.sp-min #sp-target, #sp-panel.sp-min #sp-form,
-#sp-panel.sp-min #sp-cost, #sp-panel.sp-min #sp-undo, #sp-panel.sp-min #sp-min, #sp-panel.sp-min #sp-toggle,
+#sp-panel.sp-min .sp-usage, #sp-panel.sp-min #sp-undo, #sp-panel.sp-min #sp-min, #sp-panel.sp-min #sp-toggle,
 #sp-panel.sp-min #sp-provider-menu{ display:none; }
 #sp-panel.sp-min #sp-head{ border-bottom:0; padding:9px 15px; }
 #sp-panel.sp-min #sp-chip::after{ content:"▸"; color:var(--sp-paper-2); margin-left:9px; font-size:11px; opacity:.7; }
@@ -123,6 +124,11 @@
 #sp-panel .sp-card-chev{ color:var(--sp-mute); }
 #sp-panel .sp-card-body{ padding:8px 10px; font-family:'IBM Plex Mono',monospace; font-size:11px; max-height:240px; overflow:auto; background:#fff; }
 #sp-panel .sp-hunkfile{ color:var(--sp-mute); margin-bottom:5px; }
+#sp-panel .sp-change-path-row{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin:0 0 5px; }
+#sp-panel .sp-change-path{ min-width:0; color:var(--sp-ink); overflow-wrap:anywhere; }
+#sp-panel .sp-change-kind{ flex:none; color:var(--sp-pine); text-transform:lowercase; }
+#sp-panel .sp-safety-warning{ margin-top:8px; padding:7px 8px; border-left:2px solid var(--sp-rust); border-radius:0 5px 5px 0;
+  background:rgba(178,58,46,.08); color:var(--sp-rust); line-height:1.4; overflow-wrap:anywhere; }
 #sp-panel .sp-add{ color:#2f6b40; background:rgba(78,124,89,.10); white-space:pre-wrap; word-break:break-word; padding:1px 5px; border-radius:3px; margin:1px 0; }
 #sp-panel .sp-diff-del{ color:#9a3128; background:rgba(178,58,46,.10); white-space:pre-wrap; word-break:break-word; padding:1px 5px; border-radius:3px; margin:1px 0; }
 
@@ -253,6 +259,19 @@ body.sp-dragging .sp-editable{ transition:none; }
 @media (max-width:720px){
   #sp-panel{ right:8px; left:8px; bottom:8px; width:auto; max-height:72vh; }
   #sp-panel #sp-thread{ max-height:52vh; }
+}
+@media (max-width:420px){
+  #sp-panel #sp-head{ flex-wrap:wrap; gap:6px; padding:9px 10px; }
+  #sp-panel #sp-provider-wrap{ flex:1 1 120px; max-width:calc(100% - 74px); }
+  #sp-panel #sp-provider-button{ max-width:100%; }
+  #sp-panel #sp-chip{ flex:1 1 110px; order:4; }
+  #sp-panel .sp-usage{ flex:0 1 auto; order:5; margin-left:auto; }
+  #sp-panel #sp-provider-menu{ width:min(258px,calc(100vw - 32px)); }
+  #sp-panel #sp-form{ padding:10px; }
+  #sp-panel #sp-actions{ gap:6px; }
+  #sp-panel #sp-sling{ padding:0 10px; }
+  #sp-panel #sp-send{ padding:0 14px; }
+  #sp-panel .sp-card-body{ padding:8px; }
 }
 @media (prefers-reduced-motion:reduce){
   #sp-panel #sp-chip.sp-busy #sp-led{ animation:none; }

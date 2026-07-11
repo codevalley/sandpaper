@@ -544,6 +544,205 @@ test('provider switch clears stale Claude header cost before showing Codex ident
   await expect(page.locator('#sp-cost')).toHaveText('');
 });
 
+test('Codex usage shows only a finite owned total token count and clears on the next turn', async ({ page }) => {
+  await chooseProvider(page, 'codex');
+  const call = await submit(page, 'Report Codex usage', codexRunner);
+  codexRunner.emit({
+    type: 'usage', inputTokens: 1_200, cachedInputTokens: 400, outputTokens: 300,
+    totalTokens: 1_500, cost: 123.45,
+  }, call);
+
+  const usage = page.locator('#sp-cost');
+  await expect(usage).toHaveClass(/sp-usage/);
+  await expect(usage).toHaveText('1,500 tokens');
+  await expect(usage).not.toContainText('$');
+  await expect(usage).toHaveAttribute('role', 'status');
+  await expect(usage).toHaveAttribute('aria-label', 'Provider usage');
+  await expect(usage).toHaveAttribute('aria-live', 'polite');
+  codexRunner.complete(call);
+  await expect(page.locator('#sp-label')).toContainText('Codex');
+
+  const second = await submit(page, 'No stale Codex usage', codexRunner);
+  await expect(usage).toBeHidden();
+  await expect(usage).toHaveText('');
+  codexRunner.emit({ type: 'usage', inputTokens: 9, outputTokens: 4, cost: 0.4 }, second);
+  await expect(usage).toBeHidden();
+  await expect(usage).toHaveText('');
+  codexRunner.complete(second);
+});
+
+test('Claude usage accepts only a finite nonnegative owned cost and never adopts Codex tokens', async ({ page }) => {
+  const first = await submit(page, 'Report Claude cost');
+  runner.emit({
+    type: 'status', state: 'done', label: 'done', done: true,
+    cost: 0.125, totalTokens: 8_888,
+  }, first);
+  await expect(page.locator('#sp-cost')).toHaveText('$0.1250');
+  await expect(page.locator('#sp-cost')).not.toContainText('tokens');
+
+  const wrongFrame = await submit(page, 'Reject nonterminal Claude usage');
+  runner.emit({ type: 'usage', cost: 8.75, totalTokens: 123 }, wrongFrame);
+  await expect(page.locator('#sp-cost')).toBeHidden();
+  await expect(page.locator('#sp-cost')).toHaveText('');
+  runner.complete(wrongFrame);
+
+  for (const invalidCost of [-1, Number.NaN, Number.POSITIVE_INFINITY, '0.25', null]) {
+    const call = await submit(page, `Invalid Claude cost ${String(invalidCost)}`);
+    runner.emit({ type: 'status', state: 'done', label: 'done', done: true, cost: invalidCost, totalTokens: 9_999 }, call);
+    await expect(page.locator('#sp-cost')).toBeHidden();
+    await expect(page.locator('#sp-cost')).toHaveText('');
+  }
+
+  const resetCall = await submit(page, 'Cost before reset');
+  runner.emit({ type: 'status', state: 'done', label: 'done', done: true, cost: 0.5 }, resetCall);
+  await expect(page.locator('#sp-cost')).toBeVisible();
+  await page.evaluate(() => { window.confirm = () => true; });
+  await page.locator('#sp-provider-button').click();
+  await page.locator('#sp-provider-new-session').click();
+  await expect(page.locator('#sp-cost')).toBeHidden();
+  await expect(page.locator('#sp-cost')).toHaveText('');
+  await page.reload();
+  await expect(page.locator('#sp-cost')).toBeHidden();
+  await expect(page.locator('#sp-cost')).toHaveText('');
+});
+
+test('provider-owned completion and error copy name the accepted provider without hiding server detail', async ({ page }) => {
+  await chooseProvider(page, 'codex');
+  const done = await submit(page, 'Finish with Codex', codexRunner);
+  codexRunner.complete(done);
+  await expect(page.locator('#sp-label')).toContainText('Codex');
+  await expect(page.locator('#sp-label')).toContainText('done');
+
+  const failed = await submit(page, 'Fail with Codex', codexRunner);
+  codexRunner.fail('Exact provider failure detail', failed);
+  await expect(page.locator('#sp-label')).toContainText('Codex');
+  await expect(page.locator('#sp-label')).toContainText('Exact provider failure detail');
+  await expect(page.locator('.sp-turn').last().locator('.sp-err')).toHaveText('Exact provider failure detail');
+});
+
+test('Codex sparse path cards preserve truthful path kinds and warn once for external changes', async ({ page }) => {
+  await chooseProvider(page, 'codex');
+  const call = await submit(page, 'Show sparse Codex edits', codexRunner);
+  const longPath = `outside/${'x'.repeat(500)}.html`;
+  codexRunner.emit({
+    type: 'edit', tool: 'Codex', file: 'hostile.html', added: 80, removed: 70,
+    cids: ['row-a'], hunks: [{ oldText: 'invented old', newText: 'invented new' }],
+    paths: [
+      { path: 'hostile.html', kind: 'update' },
+      null,
+      { path: '', kind: 'delete' },
+      { path: 'other.html', kind: 'create' },
+      { path: longPath, kind: 'rename' },
+      { path: 'ignored.html' },
+      ...Array.from({ length: 30 }, (_, index) => ({ path: `bounded-${index}.html`, kind: 'update' })),
+    ],
+  }, call);
+  codexRunner.complete(call);
+
+  const card = page.locator('.sp-turn').last().locator('.sp-card');
+  await card.locator('.sp-card-head').click();
+  await expect(card.locator('.sp-change-path')).toHaveCount(24);
+  await expect(card.locator('.sp-change-path').nth(0)).toHaveText('hostile.html');
+  await expect(card.locator('.sp-change-kind').nth(0)).toHaveText('update');
+  await expect(card.locator('.sp-change-path').nth(1)).toHaveText('other.html');
+  await expect(card.locator('.sp-change-kind').nth(1)).toHaveText('create');
+  expect((await card.locator('.sp-change-path').nth(2).textContent()).length).toBeLessThanOrEqual(241);
+  await expect(card).not.toContainText('bounded-21.html');
+  await expect(card.locator('.sp-safety-warning')).toHaveCount(1);
+  await expect(card.locator('.sp-safety-warning')).toContainText(/cannot verify or undo/i);
+  await expect(card.locator('.sp-add, .sp-diff-del')).toHaveCount(0);
+  await expect(card).not.toContainText(/\(\+80 \/ -70\)|invented old|invented new/);
+  await expect(page.locator('[data-cid="row-a"]')).not.toHaveClass(/sp-flash/);
+  await expect(page.locator('.sp-turnmeta .sp-tag')).toHaveText('Replied');
+  await expect(page.locator('.sp-turnmeta .sp-undo')).toHaveCount(0);
+});
+
+test('Codex target-only sparse paths do not show an external-change warning', async ({ page }) => {
+  await chooseProvider(page, 'codex');
+  const call = await submit(page, 'Show target-only Codex edit', codexRunner);
+  codexRunner.emit({
+    type: 'edit', tool: 'Codex', file: 'hostile.html',
+    paths: [{ path: './hostile.html', kind: 'update' }, { path: '/hostile.html', kind: 'update' }],
+  }, call);
+  codexRunner.complete(call);
+
+  await page.locator('.sp-card-head').click();
+  await expect(page.locator('.sp-change-path')).toHaveCount(2);
+  await expect(page.locator('.sp-safety-warning')).toHaveCount(0);
+});
+
+test('Sling and first-run guidance are provider-neutral and expose dual command forms', async ({ page, context }) => {
+  const sling = page.locator('#sp-sling');
+  await expect(sling).toHaveAttribute('title', /agent session|terminal/i);
+  await expect(sling).not.toHaveAttribute('title', /Claude session/i);
+  await expect(page.locator('#sp-chip')).toHaveAttribute('aria-label', 'Sandpaper status');
+  await expect(page.locator('#sp-provider-guidance')).toHaveAttribute('aria-label', 'Provider guidance');
+
+  const tour = await context.newPage();
+  await tour.addInitScript(() => {
+    localStorage.removeItem('sp-welcomed:v1');
+    sessionStorage.removeItem('sp-welcomed:v1');
+  });
+  await tour.goto(new URL('/hostile.html', baseUrl).href);
+  await expect(tour.locator('.sp-w-tools')).toContainText('Sling to terminal');
+  await expect(tour.locator('.sp-w-tip')).toContainText('/sandpaper:theme');
+  await expect(tour.locator('.sp-w-tip')).toContainText('$sandpaper theme');
+  await expect(tour.locator('#sp-welcome')).not.toContainText(/fallback|handoff/i);
+  await tour.close();
+});
+
+for (const viewport of [
+  { width: 1280, height: 800 },
+  { width: 375, height: 720 },
+  { width: 320, height: 640 },
+]) {
+  test(`toolbar presentation stays inside a ${viewport.width}px viewport with hit-testable controls`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await chooseProvider(page, 'codex');
+    const call = await submit(page, `Geometry at ${viewport.width}px`, codexRunner);
+    codexRunner.emit({ type: 'usage', totalTokens: 1_500 }, call);
+    codexRunner.emit({
+      type: 'edit', tool: 'Codex', file: 'hostile.html',
+      paths: [{ path: 'hostile.html', kind: 'update' }, { path: 'other.html', kind: 'create' }],
+    }, call);
+    codexRunner.complete(call);
+    await page.locator('.sp-card-head').click();
+    await page.locator('#sp-provider-button').click();
+
+    const geometry = await page.evaluate(() => {
+      const selectors = [
+        '#sp-panel', '#sp-provider-menu', '#sp-provider-button', '#sp-provider-default', '#sp-provider-new-session',
+        '#sp-form', '#sp-input', '#sp-actions', '#sp-pick', '#sp-edit', '#sp-sling', '#sp-send',
+        '#sp-cost', '.sp-safety-warning',
+      ];
+      const rects = Object.fromEntries(selectors.map((selector) => {
+        const node = document.querySelector(selector);
+        const rect = node?.getBoundingClientRect();
+        const center = rect && document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+        return [selector, rect && {
+          left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom,
+          width: rect.width, height: rect.height,
+          hit: !!center && (center === node || node.contains(center)),
+        }];
+      }));
+      return {
+        innerWidth: window.innerWidth,
+        documentWidth: document.documentElement.scrollWidth,
+        bodyWidth: document.body.scrollWidth,
+        rects,
+      };
+    });
+    expect(geometry.documentWidth).toBeLessThanOrEqual(viewport.width);
+    expect(geometry.bodyWidth).toBeLessThanOrEqual(viewport.width);
+    for (const evidence of Object.values(geometry.rects)) {
+      expect(evidence.left).toBeGreaterThanOrEqual(0);
+      expect(evidence.right).toBeLessThanOrEqual(viewport.width);
+      expect(evidence.width).toBeGreaterThan(0);
+      expect(evidence.hit).toBe(true);
+    }
+  });
+}
+
 test('Claude and Codex histories use exact independent project/page/provider keys through switch and reload', async ({ page }) => {
   const legacyKey = 'sp-thread:/hostile.html';
   await page.evaluate((key) => sessionStorage.setItem(key, '<div>legacy shared history</div>'), legacyKey);
@@ -968,7 +1167,7 @@ test('the initiating tab replays only its ordered frames after an exact accepted
   await expect(page.locator('.sp-prose')).toHaveText('first then second');
   await expect(page.locator('.sp-turnmeta .sp-tag')).toHaveText('Replied');
   await expect(page.locator('#sp-thread')).not.toContainText('foreign buffered text');
-  await expect(page.locator('#sp-label')).toHaveText('done');
+  await expect(page.locator('#sp-label')).toHaveText('Claude Code · done');
   await expect(page.locator('#sp-input')).toBeEnabled();
   for (const frame of [
     { type: 'status', turnId: 'foreign-turn', provider: 'claude', page: '/hostile.html', state: 'thinking', label: 'foreign accepted busy' },
@@ -977,7 +1176,7 @@ test('the initiating tab replays only its ordered frames after an exact accepted
   ]) {
     await page.evaluate((value) => window.__sandpaperFakeEvents.onmessage({ data: JSON.stringify(value) }), frame);
   }
-  await expect(page.locator('#sp-label')).toHaveText('done');
+  await expect(page.locator('#sp-label')).toHaveText('Claude Code · done');
   await expect(page.locator('#sp-input')).toBeEnabled();
   await expect(page.locator('#sp-chip')).not.toHaveClass(/sp-busy/);
   await expect(page.locator('#sp-cost')).toBeHidden();
