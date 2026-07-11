@@ -1,9 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
@@ -23,6 +25,30 @@ function write(target, relative, contents) {
 
 function page(body, meta = META) {
   return `<!doctype html><html><head>${meta}</head><body>${body}</body></html>`;
+}
+
+function repositorySnapshot(target) {
+  const entries = [];
+  const walk = (directory, prefix = '') => {
+    for (const name of readdirSync(directory).sort()) {
+      const file = join(directory, name);
+      const relative = prefix ? `${prefix}/${name}` : name;
+      const stats = lstatSync(file);
+      if (stats.isDirectory()) {
+        entries.push({ path: `${relative}/`, type: 'directory', mode: stats.mode & 0o777 });
+        walk(file, relative);
+      } else {
+        entries.push({
+          path: relative,
+          type: stats.isSymbolicLink() ? 'symlink' : 'file',
+          mode: stats.mode & 0o777,
+          bytes: stats.isSymbolicLink() ? null : readFileSync(file).toString('base64'),
+        });
+      }
+    }
+  };
+  walk(target);
+  return entries;
 }
 
 function populatedBrain(t) {
@@ -229,6 +255,39 @@ test('explicit init provider updates an existing scaffold manifest without losin
   } finally {
     console.log = log;
   }
+});
+
+test('scaffold rejects an incompatible existing provider before changing the repository tree', (t) => {
+  const target = mkdtempSync(join(tmpdir(), 'sandpaper-scaffold-preflight-'));
+  t.after(() => rmSync(target, { recursive: true, force: true }));
+  write(target, 'package.json', JSON.stringify({ name: '@fixture/preflight' }));
+  write(target, '.sandpaper/manifest.json', `${JSON.stringify({
+    version: 2,
+    project: '@fixture/preflight',
+    created: '2026-07-11',
+    port: 4848,
+    counters: { w: 17 },
+    defaultProvider: 'codex',
+    integrations: ['codex'],
+    hooksEnabled: false,
+  }, null, 2)}\n`);
+  const before = repositorySnapshot(target);
+  const log = console.log;
+  console.log = () => {};
+  try {
+    assert.throws(
+      () => setup.scaffold(target, PACKAGE, {
+        integrations: ['claude', 'codex'],
+        defaultProvider: 'claude',
+        hooksEnabled: true,
+      }),
+      /not installed/,
+    );
+  } finally {
+    console.log = log;
+  }
+
+  assert.deepEqual(repositorySnapshot(target), before);
 });
 
 test('inspectBrain reports stale stamped fallback counts and progress', (t) => {

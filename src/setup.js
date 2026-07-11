@@ -177,23 +177,28 @@ export function ensureSourceMeta(brain, source) {
 function scaffoldBrain(target, pkg, options, { updateExistingManifest = false } = {}) {
   const brain = join(target, 'brain'), project = projectName(target), date = today();
   const setupOptions = normalizeSetupOptions(options);
-  const nA = copyDirFiles(join(pkg, 'brain', 'assets'), join(brain, 'assets'), true); // never clobber a skin
-  row('design system', 'brain/assets/', nA ? 'theme · engine · search' : 'kept your skin');
-  ensureDir(join(target, '.sandpaper'));
   const manPath = join(target, '.sandpaper', 'manifest.json'), hadMan = existsSync(manPath);
-  if (!hadMan) writeManifest(manPath, {
-    version: 2, project, created: date, theme: 'brain/assets/theme.css', pkg, port: 4848,
-    lenses: ['product', 'engineering', 'project'], books: ['log', 'decisions', 'learnings'],
-    cidPrefixes: { worklog: 'w', task: 't', decision: 'd', learning: 'l', initiative: 'i' },
-    counters: { w: 1, t: 0, d: 0, l: 0, i: 0 },
-    ...setupOptions,
-  });
-  else if (updateExistingManifest && options !== undefined) {
-    writeManifest(manPath, {
-      ...readManifest(manPath),
+  const existingManifest = hadMan ? readManifest(manPath) : null;
+  let manifestToWrite = null;
+  if (!existingManifest) {
+    manifestToWrite = migrateManifest({
+      version: 2, project, created: date, theme: 'brain/assets/theme.css', pkg, port: 4848,
+      lenses: ['product', 'engineering', 'project'], books: ['log', 'decisions', 'learnings'],
+      cidPrefixes: { worklog: 'w', task: 't', decision: 'd', learning: 'l', initiative: 'i' },
+      counters: { w: 1, t: 0, d: 0, l: 0, i: 0 },
+      ...setupOptions,
+    });
+  } else if (updateExistingManifest && options !== undefined) {
+    manifestToWrite = migrateManifest({
+      ...existingManifest,
       defaultProvider: setupOptions.defaultProvider,
     });
   }
+
+  const nA = copyDirFiles(join(pkg, 'brain', 'assets'), join(brain, 'assets'), true); // never clobber a skin
+  row('design system', 'brain/assets/', nA ? 'theme · engine · search' : 'kept your skin');
+  ensureDir(join(target, '.sandpaper'));
+  if (manifestToWrite) writeManifest(manPath, manifestToWrite);
   const source = repoSource(target);
   const nSkel = writeSkeleton(brain, project, date, source);
   row('multi-page shell', nSkel ? 'cover · 3 lenses · 3 books' : 'already present', nSkel ? 'nav wired · ready to fill' : '');

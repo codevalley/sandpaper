@@ -1,17 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  chmodSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
   readdirSync,
   rmSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 
 import {
   MANIFEST_VERSION,
@@ -29,6 +32,10 @@ function fixture(t) {
   const file = join(directory, 'manifest.json');
   mkdirSync(directory);
   return { root, directory, file };
+}
+
+function controlledTemporary(file, entropy) {
+  return join(dirname(file), `.manifest.json.tmp-${entropy.toString('hex')}`);
 }
 
 test('v1 migration preserves identity, counters, and unknown fields exactly', () => {
@@ -170,7 +177,84 @@ test('failed writes preserve existing corrupt or valid bytes and leave no tempor
   );
   assert.equal(readFileSync(file, 'utf8'), valid);
   assert.deepEqual(readdirSync(directory), ['manifest.json']);
-  assert.equal(existsSync(`${file}.tmp-${process.pid}`), false);
+});
+
+test('manifest writes retry an exclusive collision without altering it', (t) => {
+  const { directory, file } = fixture(t);
+  const collisionEntropy = Buffer.alloc(16, 0x11);
+  const successEntropy = Buffer.alloc(16, 0x22);
+  const collision = controlledTemporary(file, collisionEntropy);
+  const success = controlledTemporary(file, successEntropy);
+  const collisionBytes = 'attacker-owned collision\n';
+  writeFileSync(collision, collisionBytes, { mode: 0o644 });
+  chmodSync(collision, 0o644);
+  const entropy = [collisionEntropy, successEntropy];
+  let calls = 0;
+
+  writeManifest(file, { version: 2, project: 'Fixture' }, {
+    randomBytes() { calls += 1; return entropy.shift(); },
+  });
+
+  assert.equal(calls, 2);
+  assert.equal(readFileSync(collision, 'utf8'), collisionBytes);
+  if (process.platform !== 'win32') assert.equal(statSync(collision).mode & 0o777, 0o644);
+  assert.equal(existsSync(success), false);
+  assert.equal(readFileSync(file, 'utf8').endsWith('\n'), true);
+  if (process.platform !== 'win32') assert.equal(statSync(file).mode & 0o777, 0o600);
+  assert.deepEqual(readdirSync(directory).sort(), [basename(collision), 'manifest.json'].sort());
+});
+
+test('manifest writes bound exclusive-collision retries and never clean up another file', (t) => {
+  const { file } = fixture(t);
+  const collisionEntropy = Buffer.alloc(16, 0x33);
+  const collision = controlledTemporary(file, collisionEntropy);
+  const collisionBytes = 'must remain owned by the creator\n';
+  writeFileSync(collision, collisionBytes);
+  let calls = 0;
+
+  assert.throws(
+    () => writeManifest(file, { version: 2, project: 'Fixture' }, {
+      randomBytes() { calls += 1; return collisionEntropy; },
+    }),
+    /temporary file/,
+  );
+
+  assert.equal(calls, 8);
+  assert.equal(readFileSync(collision, 'utf8'), collisionBytes);
+  assert.equal(existsSync(file), false);
+});
+
+test('manifest writes never follow an attacker-created temporary symlink', {
+  skip: process.platform === 'win32',
+}, (t) => {
+  const { root, directory, file } = fixture(t);
+  const outside = join(root, 'outside.txt');
+  const outsideBytes = 'outside must not change\n';
+  writeFileSync(outside, outsideBytes, { mode: 0o644 });
+  chmodSync(outside, 0o644);
+
+  const collisionEntropy = Buffer.alloc(16, 0x44);
+  const successEntropy = Buffer.alloc(16, 0x55);
+  const controlledCollision = controlledTemporary(file, collisionEntropy);
+  symlinkSync(outside, controlledCollision);
+
+  // Reproduce the predictable pre-fix naming scheme as well as exercising controlled entropy.
+  for (let index = 1; index <= 64; index += 1) {
+    symlinkSync(outside, join(directory, `.manifest.json.tmp-${process.pid}-${index}`));
+  }
+  const entropy = [collisionEntropy, successEntropy];
+  let calls = 0;
+
+  writeManifest(file, { version: 2, project: 'Fixture' }, {
+    randomBytes() { calls += 1; return entropy.shift(); },
+  });
+
+  assert.equal(readFileSync(outside, 'utf8'), outsideBytes);
+  assert.equal(statSync(outside).mode & 0o777, 0o644);
+  assert.equal(lstatSync(controlledCollision).isSymbolicLink(), true);
+  assert.equal(lstatSync(file).isSymbolicLink(), false);
+  assert.equal(statSync(file).mode & 0o777, 0o600);
+  assert.equal(calls, 2);
 });
 
 test('setup option defaults keep installation and runtime preference separate', () => {

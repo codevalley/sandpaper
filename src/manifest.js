@@ -1,17 +1,26 @@
 import {
+  closeSync,
+  constants,
   existsSync,
+  fchmodSync,
   mkdirSync,
+  openSync,
   readFileSync,
   renameSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
+import { randomBytes as secureRandomBytes } from 'node:crypto';
 import { basename, dirname, join } from 'node:path';
 
 export const MANIFEST_VERSION = 2;
 export const PROVIDERS = Object.freeze(['claude', 'codex']);
 
-let temporaryCounter = 0;
+const MAX_TEMPORARY_ATTEMPTS = 8;
+const TEMPORARY_OPEN_FLAGS = constants.O_CREAT
+  | constants.O_EXCL
+  | constants.O_WRONLY
+  | (constants.O_NOFOLLOW || 0);
 
 const hasOwn = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
 const isPlainObject = (value) => {
@@ -76,22 +85,50 @@ export function readManifest(file) {
   return migrateManifest(value);
 }
 
-export function writeManifest(file, value) {
+function createTemporaryManifest(file, randomBytes) {
+  const directory = dirname(file);
+  for (let attempt = 0; attempt < MAX_TEMPORARY_ATTEMPTS; attempt += 1) {
+    let suffix;
+    try {
+      suffix = Buffer.from(randomBytes(16)).toString('hex');
+    } catch {
+      throw new Error('Could not create manifest temporary file');
+    }
+    const temporary = join(directory, `.${basename(file)}.tmp-${suffix}`);
+    try {
+      const descriptor = openSync(temporary, TEMPORARY_OPEN_FLAGS, 0o600);
+      return { descriptor, temporary };
+    } catch (error) {
+      if (error && (error.code === 'EEXIST' || error.code === 'ELOOP')) continue;
+      throw new Error('Could not create manifest temporary file');
+    }
+  }
+  throw new Error('Could not create manifest temporary file after bounded retries');
+}
+
+export function writeManifest(file, value, { randomBytes = secureRandomBytes } = {}) {
   if (existsSync(file)) readManifest(file);
   const normalized = migrateManifest(value);
   const directory = dirname(file);
   mkdirSync(directory, { recursive: true });
-  temporaryCounter += 1;
-  const temporary = join(
-    directory,
-    `.${basename(file)}.tmp-${process.pid}-${temporaryCounter}`,
-  );
+  const created = createTemporaryManifest(file, randomBytes);
+  let descriptor = created.descriptor;
+  let temporary = created.temporary;
   try {
-    writeFileSync(temporary, `${JSON.stringify(normalized, null, 2)}\n`, { mode: 0o600 });
+    writeFileSync(descriptor, `${JSON.stringify(normalized, null, 2)}\n`);
+    fchmodSync(descriptor, 0o600);
+    closeSync(descriptor);
+    descriptor = null;
     renameSync(temporary, file);
-  } catch (error) {
-    rmSync(temporary, { force: true });
-    throw error;
+    temporary = null;
+  } catch {
+    if (descriptor !== null) {
+      try { closeSync(descriptor); } catch { /* preserve the bounded manifest error */ }
+    }
+    if (temporary !== null) {
+      try { rmSync(temporary, { force: true }); } catch { /* best-effort owned-temp cleanup */ }
+    }
+    throw new Error('Could not write manifest');
   }
   return normalized;
 }
