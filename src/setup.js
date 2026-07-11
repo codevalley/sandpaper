@@ -2,22 +2,31 @@
 // The plumbing half of Sandpaper (no AI): copy the skill + hooks + design-system templates from
 // THIS package into a target repo, write the manifest, and health-check a setup. Zero deps.
 import {
-  chmodSync,
-  copyFileSync,
+  closeSync,
+  constants,
   existsSync,
+  fchmodSync,
+  fstatSync,
+  ftruncateSync,
   lstatSync,
   mkdirSync,
+  openSync,
   readFileSync,
   readdirSync,
   renameSync,
-  rmSync,
-  statSync,
   writeFileSync,
 } from 'node:fs';
 import { join, dirname, basename, extname, relative, resolve, sep } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { prepareInstallIntegrations } from './integrations.js';
 import { installationHookPlans } from './hooks.js';
+import {
+  ensureTrustedParents,
+  identityTree,
+  inspectTrustedPath,
+  quarantineCleanup,
+  statIdentity,
+} from './managed-files.js';
 import { PATH_REASONS, resolveRepositoryPath } from './path-policy.js';
 import { inspectInstallation } from './diagnostics.js';
 import { inspectManifest, migrateManifest, PROVIDERS, readManifest, serializeManifest, writeManifest } from './manifest.js';
@@ -27,18 +36,6 @@ const warn = (m) => console.log('  · ' + m);
 const bad = (m) => console.log('  ✗ ' + m);
 
 const ensureDir = (d) => { if (!existsSync(d)) mkdirSync(d, { recursive: true }); };
-const copyDirFiles = (srcDir, dstDir, skipExisting = false) => {
-  ensureDir(dstDir);
-  let n = 0;
-  for (const f of readdirSync(srcDir)) {
-    const s = join(srcDir, f);
-    if (!statSync(s).isFile()) continue;
-    const d = join(dstDir, f);
-    if (skipExisting && existsSync(d)) continue; // never clobber a user's customised file
-    copyFileSync(s, d); n++;
-  }
-  return n;
-};
 const projectName = (target) => {
   try { return JSON.parse(readFileSync(join(target, 'package.json'), 'utf8')).name || basename(target); }
   catch { return basename(target); }
@@ -170,8 +167,116 @@ const sourceMetaTag = (source) => source
 // every .html page under brain/, recursively
 function htmlPages(brain) {
   const pages = [];
-  (function walk(d) { for (const e of readdirSync(d)) { const p = join(d, e); if (statSync(p).isDirectory()) walk(p); else if (extname(p) === '.html') pages.push(p); } })(brain);
+  (function walk(d) {
+    for (const e of readdirSync(d)) {
+      const p = join(d, e);
+      const stats = lstatSync(p);
+      if (stats.isSymbolicLink()) throw new Error('Sandpaper brain editorial tree contains a symlink');
+      if (stats.isDirectory()) walk(p);
+      else if (!stats.isFile()) throw new Error('Sandpaper brain editorial tree contains a special file');
+      else if (extname(p) === '.html') pages.push(p);
+    }
+  })(brain);
   return pages;
+}
+
+function readEditorialFile(trustedRoot, file, pathClass) {
+  const inspected = inspectTrustedPath(trustedRoot, file, { pathClass, finalType: 'file' });
+  const flags = constants.O_RDONLY
+    | (constants.O_NOFOLLOW || 0)
+    | (constants.O_NONBLOCK || 0);
+  let descriptor;
+  try {
+    descriptor = openSync(file, flags);
+    const stats = fstatSync(descriptor);
+    const expected = statIdentity(inspected.stats);
+    const actual = statIdentity(stats);
+    if (!stats.isFile() || actual.dev !== expected.dev || actual.ino !== expected.ino) {
+      throw new Error(`Sandpaper ${pathClass} changed during inspection`);
+    }
+    return { bytes: Buffer.from(readFileSync(descriptor)), mode: stats.mode & 0o777 };
+  } catch (error) {
+    if (error?.message?.startsWith('Sandpaper ')) throw error;
+    throw new Error(`Sandpaper ${pathClass} could not be read safely`);
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+  }
+}
+
+function writeEditorialFile(trustedRoot, file, bytes, {
+  mode = 0o644,
+  onlyIfMissing = false,
+  setMode = false,
+} = {}) {
+  ensureTrustedParents(trustedRoot, file, { pathClass: 'brain editorial path' });
+  const inspected = inspectTrustedPath(trustedRoot, file, { pathClass: 'brain editorial path' });
+  if (inspected.exists && onlyIfMissing) return false;
+  if (inspected.exists && !inspected.stats.isFile()) throw new Error('Sandpaper brain editorial path is unsafe');
+  const existingIdentity = statIdentity(inspected.stats);
+  const flags = inspected.exists
+    ? constants.O_WRONLY | (constants.O_NOFOLLOW || 0) | (constants.O_NONBLOCK || 0)
+    : constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | (constants.O_NOFOLLOW || 0);
+  let descriptor;
+  try {
+    descriptor = openSync(file, flags, mode);
+    const stats = fstatSync(descriptor);
+    const openedIdentity = statIdentity(stats);
+    if (!stats.isFile()
+      || (existingIdentity && (openedIdentity.dev !== existingIdentity.dev || openedIdentity.ino !== existingIdentity.ino))) {
+      throw new Error('Sandpaper brain editorial path changed before write');
+    }
+    if (inspected.exists) ftruncateSync(descriptor, 0);
+    writeFileSync(descriptor, bytes);
+    if (!inspected.exists || setMode) fchmodSync(descriptor, mode);
+  } catch (error) {
+    if (error?.message?.startsWith('Sandpaper ')) throw error;
+    throw new Error('Sandpaper brain editorial write failed safely');
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+  }
+  return true;
+}
+
+function preflightEditorialTree(trustedRoot, directory, pathClass, { allowAbsent = false } = {}) {
+  const inspected = inspectTrustedPath(trustedRoot, directory, { pathClass });
+  if (!inspected.exists && allowAbsent) return;
+  if (!inspected.exists || !inspected.stats.isDirectory()) throw new Error(`Sandpaper ${pathClass} is unsafe`);
+  const walk = (current) => {
+    for (const name of readdirSync(current).sort()) {
+      const child = join(current, name);
+      const childInspection = inspectTrustedPath(trustedRoot, child, { pathClass });
+      if (!childInspection.exists || childInspection.stats.isSymbolicLink()) {
+        throw new Error(`Sandpaper ${pathClass} contains a symlink`);
+      }
+      if (childInspection.stats.isDirectory()) walk(child);
+      else if (childInspection.stats.isFile()) readEditorialFile(trustedRoot, child, pathClass);
+      else throw new Error(`Sandpaper ${pathClass} contains a special file`);
+    }
+  };
+  walk(directory);
+}
+
+function preflightLifecycleEditorial(target, packageRoot, { allowMissingBrain = false } = {}) {
+  preflightEditorialTree(target, join(target, 'brain'), 'brain editorial tree', { allowAbsent: allowMissingBrain });
+  preflightEditorialTree(packageRoot, join(packageRoot, 'brain', 'assets'), 'package editorial assets');
+}
+
+function copyBrainAssets(packageRoot, brain, { skipExisting }) {
+  const sourceRoot = join(packageRoot, 'brain', 'assets');
+  preflightEditorialTree(packageRoot, sourceRoot, 'package editorial assets');
+  ensureTrustedParents(brain, join(brain, 'assets', 'placeholder'), { pathClass: 'brain editorial path' });
+  let copied = 0;
+  for (const name of readdirSync(sourceRoot).sort()) {
+    const source = join(sourceRoot, name);
+    const inspected = inspectTrustedPath(packageRoot, source, { pathClass: 'package editorial asset', finalType: 'file' });
+    if (!inspected.exists) throw new Error('Sandpaper package editorial asset is missing');
+    const file = readEditorialFile(packageRoot, source, 'package editorial asset');
+    if (writeEditorialFile(brain, join(brain, 'assets', name), file.bytes, {
+      mode: file.mode,
+      onlyIfMissing: skipExisting,
+    })) copied += 1;
+  }
+  return copied;
 }
 
 // inject (or refresh) the sandpaper:source meta on every EXISTING brain page. Idempotent;
@@ -181,13 +286,13 @@ export function ensureSourceMeta(brain, source) {
   const tag = sourceMetaTag(source);
   let touched = 0;
   for (const p of htmlPages(brain)) {
-    const html = readFileSync(p, 'utf8');
+    const html = readEditorialFile(brain, p, 'brain HTML page').bytes.toString('utf8');
     const next = html.includes('name="sandpaper:source"')
       ? html.replace(/<meta name="sandpaper:source"[^>]*\/?>/, tag)
       : /<meta name="viewport"/.test(html)
         ? html.replace(/(<meta name="viewport"[^>]*\/?>\s*\n?)/, `$1${tag}\n`)
         : html.replace(/(<head[^>]*>\s*\n?)/i, `$1${tag}\n`); // no viewport meta — inject at the head open
-    if (next !== html) { writeFileSync(p, next); touched++; }
+    if (next !== html) { writeEditorialFile(brain, p, Buffer.from(next)); touched++; }
     else if (!html.includes('name="sandpaper:source"')) warn(`could not place the source meta in ${basename(p)} — no <head>?`);
   }
   return touched;
@@ -243,7 +348,8 @@ function scaffoldBrain(target, pkg, options, {
     });
   }
 
-  const nA = copyDirFiles(join(pkg, 'brain', 'assets'), join(brain, 'assets'), true); // never clobber a skin
+  ensureDir(brain);
+  const nA = copyBrainAssets(pkg, brain, { skipExisting: true }); // never clobber a skin
   row('design system', 'brain/assets/', nA ? 'theme · engine · search' : 'kept your skin');
   ensureDir(join(target, '.sandpaper'));
   if (manifestToWrite && !skipManifestWrite) writeManifest(manPath, manifestToWrite);
@@ -684,10 +790,9 @@ function requireRegularBrain(brain, { allowAbsent = false } = {}) {
 
 function safeThemeSnapshot(brain) {
   const file = join(brain, 'assets', 'theme.css');
-  const stats = lstatIfPresent(file);
-  if (!stats) return null;
-  if (stats.isSymbolicLink() || !stats.isFile()) throw new Error('Sandpaper theme path is unsafe');
-  return { bytes: readFileSync(file), mode: stats.mode & 0o777 };
+  const inspected = inspectTrustedPath(brain, file, { pathClass: 'brain theme path' });
+  if (!inspected.exists) return null;
+  return readEditorialFile(brain, file, 'brain theme path');
 }
 
 function brainTreeSignature(brain) {
@@ -720,6 +825,7 @@ function upgradeWithOptions(target, pkg, overrides = {}, dependencies = {}) {
   console.log(`\n  🪵  Upgrading Sandpaper in ${target}\n`);
   const brain = join(target, 'brain');
   requireRegularBrain(brain);
+  preflightLifecycleEditorial(target, pkg);
   // Preflight the complete provider transaction before any editorial brain write.
   const manifestPlan = lifecycleManifestPlan(target, overrides);
   const options = {
@@ -734,33 +840,45 @@ function upgradeWithOptions(target, pkg, overrides = {}, dependencies = {}) {
     files: installationHookPlans(target, pkg, options),
   });
   let committed = false;
+  let postcommitRecovery = null;
   try {
     dependencies.beforeIntegrationCommit?.();
     installation.commit();
     committed = true;
   } catch (error) {
-    if (!committed) {
+    if (error?.destinationsCommitted) {
+      committed = true;
+      postcommitRecovery = error;
+    } else if (!committed) {
       try { installation.abort(); } catch (recoveryError) { throw recoveryError; }
+      throw error;
     }
-    throw error;
   }
   ok(`${options.integrations.join(' + ')} integrations refreshed transactionally`);
   ok(`hook intent preserved (${options.hooksEnabled ? 'enabled' : 'disabled'})`);
   ok('manifest selections and shared hook scripts preserved');
+
+  preflightLifecycleEditorial(target, pkg);
 
   // Editorial brain refresh is deliberately a separate best-effort phase. Provider
   // intent has already committed atomically; custom theme bytes are never replaced.
   //    (the skin). Same-path guard: run inside the Sandpaper repo itself, src and dst are ONE file —
   //    copyFileSync would truncate it before reading.
   const aSrc = join(pkg, 'brain', 'assets'), aDst = join(brain, 'assets');
-  ensureDir(aDst);
   const samePath = resolve(aSrc) === resolve(aDst);
   for (const a of ['brain.css', 'brain.js']) {
     if (samePath) { ok(`assets/${a} is the package copy`); continue; }
-    if (existsSync(join(aSrc, a))) { copyFileSync(join(aSrc, a), join(aDst, a)); ok(`assets/${a} → latest`); }
+    const sourceAsset = readEditorialFile(pkg, join(aSrc, a), 'package editorial asset');
+    writeEditorialFile(brain, join(aDst, a), sourceAsset.bytes, { mode: sourceAsset.mode });
+    ok(`assets/${a} → latest`);
   }
-  if (existsSync(join(aDst, 'theme.css'))) warn('assets/theme.css kept — it is your skin (delete it + re-run to take the shipped one)');
-  else if (existsSync(join(aSrc, 'theme.css'))) { copyFileSync(join(aSrc, 'theme.css'), join(aDst, 'theme.css')); ok('assets/theme.css added'); }
+  const installedTheme = inspectTrustedPath(brain, join(aDst, 'theme.css'), { pathClass: 'brain theme path' });
+  if (installedTheme.exists) warn('assets/theme.css kept — it is your skin (delete it + re-run to take the shipped one)');
+  else {
+    const sourceTheme = readEditorialFile(pkg, join(aSrc, 'theme.css'), 'package editorial asset');
+    writeEditorialFile(brain, join(aDst, 'theme.css'), sourceTheme.bytes, { mode: sourceTheme.mode });
+    ok('assets/theme.css added');
+  }
 
   // 3. multi-page structure → add any MISSING skeleton pages (a single-pager / old brain lacks the
   //    lens pages + books). skipExisting, so real content is never touched.
@@ -774,20 +892,22 @@ function upgradeWithOptions(target, pkg, overrides = {}, dependencies = {}) {
   } else warn('no git remote / repository field — sandpaper:source meta skipped (a detached deploy dims its out-links)');
 
   // 4. inject the canvas region into the cover if it predates the canvas
-  const r = ensureCanvas(join(brain, 'index.html'));
+  const r = ensureCanvas(brain, join(brain, 'index.html'));
   if (r.had) ok('cover already hosts the canvas');
   else if (r.injected) ok(`canvas added to the cover (${r.anchor})`);
   else { warn('couldn\'t find a safe spot to add the canvas — paste this into brain/index.html just below the NOW plate:'); console.log('\n' + canvasSection() + '\n'); }
 
   console.log('\n  Upgraded. `npx sandpaper open` to view.');
-  if (nSkel) console.log('  Added missing structure — run /sandpaper:init in Claude Code to fill the new pages.\n  (For a clean rebuild of a single-pager, move brain/ aside and re-run install-skill + /sandpaper:init.)');
+  if (nSkel) console.log('  Added missing structure — run the Sandpaper init workflow in your selected agent to fill the new pages.');
   console.log('');
+  if (postcommitRecovery) throw postcommitRecovery;
 }
 
 // ---- rebuild: a full, safe reset — back up the old brain, then reinstall + a fresh skeleton ----
 export function rebuild(target, pkg, overrides = {}, dependencies = {}) {
   const brain = join(target, 'brain');
   const oldBrain = requireRegularBrain(brain, { allowAbsent: true });
+  preflightLifecycleEditorial(target, pkg, { allowMissingBrain: true });
   const manifestPlan = lifecycleManifestPlan(target, overrides);
   const options = {
     integrations: manifestPlan.value.integrations,
@@ -806,6 +926,7 @@ export function rebuild(target, pkg, overrides = {}, dependencies = {}) {
   });
   let generatedIdentity = null;
   let generatedSignature = null;
+  let generatedContents = null;
   let committed = false;
   try {
     if (backup) {
@@ -815,7 +936,8 @@ export function rebuild(target, pkg, overrides = {}, dependencies = {}) {
     }
     mkdirSync(brain, { mode: 0o755 });
     const created = lstatSync(brain);
-    generatedIdentity = { dev: created.dev, ino: created.ino };
+    generatedIdentity = statIdentity(created);
+    dependencies.beforeScaffold?.({ brain, backup });
     banner();
     console.log(`  ${clay('▸')} rebuilding in  ${bold(projectName(target))}\n`);
     section('BRAIN');
@@ -826,24 +948,38 @@ export function rebuild(target, pkg, overrides = {}, dependencies = {}) {
     });
     if (theme) {
       const themeFile = join(brain, 'assets', 'theme.css');
-      writeFileSync(themeFile, theme.bytes);
-      chmodSync(themeFile, theme.mode);
+      writeEditorialFile(brain, themeFile, theme.bytes, { mode: theme.mode, setMode: true });
     }
     generatedSignature = brainTreeSignature(brain);
     if (generatedSignature === null) throw new Error('Could not verify the fresh Sandpaper brain');
+    generatedContents = identityTree(brain);
+    generatedContents.delete('');
     dependencies.afterScaffold?.({ brain, backup });
     dependencies.beforeIntegrationCommit?.();
-    installation.commit();
-    committed = true;
+    try {
+      installation.commit();
+      committed = true;
+    } catch (error) {
+      if (!error?.destinationsCommitted) throw error;
+      committed = true;
+      section('SKILL');
+      if (options.integrations.includes('claude')) row('Claude integration', '.claude/commands/sandpaper/', 'preserved');
+      if (options.integrations.includes('codex')) row('Codex integration', '.agents/skills/sandpaper/', 'preserved');
+      row('manifest', '.sandpaper/manifest.json', 'identity · counters · provider intent preserved');
+      nextStep(options.integrations);
+      throw error;
+    }
     section('SKILL');
     if (options.integrations.includes('claude')) row('Claude integration', '.claude/commands/sandpaper/', 'preserved');
     if (options.integrations.includes('codex')) row('Codex integration', '.agents/skills/sandpaper/', 'preserved');
     row('manifest', '.sandpaper/manifest.json', 'identity · counters · provider intent preserved');
     nextStep(options.integrations);
   } catch (error) {
-    if (!committed) {
-      try { installation.abort(); } catch (recoveryError) { throw recoveryError; }
+    if (error?.destinationsCommitted || committed) {
+      throw error;
     }
+    let providerRecovery = null;
+    try { installation.abort(); } catch (recoveryError) { providerRecovery = recoveryError; }
     try {
       const active = lstatIfPresent(brain);
       if (active) {
@@ -852,14 +988,28 @@ export function rebuild(target, pkg, overrides = {}, dependencies = {}) {
           && active.ino === generatedIdentity.ino
           && active.isDirectory()
           && !active.isSymbolicLink();
-        const unchanged = generatedSignature === null || brainTreeSignature(brain) === generatedSignature;
-        if (!owned || !unchanged) {
+        const complete = generatedSignature !== null && generatedContents !== null;
+        const unchanged = complete && brainTreeSignature(brain) === generatedSignature;
+        if (!owned || !complete || !unchanged) {
           const recovery = new Error('Sandpaper rebuild recovery required; active brain changed concurrently');
           recovery.code = 'SANDPAPER_RECOVERY_REQUIRED';
           recovery.recoveryPath = backup;
+          recovery.brainBackupPath = backup;
+          recovery.activeBrainPath = brain;
+          if (providerRecovery?.recoveryPath) recovery.providerRecoveryPath = providerRecovery.recoveryPath;
           throw recovery;
         }
-        rmSync(brain, { recursive: true, force: false });
+        try {
+          quarantineCleanup(brain, generatedIdentity, {
+            hooks: dependencies.brainCleanupHooks,
+            expectedContents: generatedContents,
+          });
+        } catch (cleanupError) {
+          cleanupError.brainBackupPath = backup;
+          cleanupError.activeBrainPath = brain;
+          if (providerRecovery?.recoveryPath) cleanupError.providerRecoveryPath = providerRecovery.recoveryPath;
+          throw cleanupError;
+        }
       }
       if (backup) renameSync(backup, brain);
     } catch (recoveryError) {
@@ -867,8 +1017,11 @@ export function rebuild(target, pkg, overrides = {}, dependencies = {}) {
       const recovery = new Error('Sandpaper rebuild recovery required; old brain retained at backup path');
       recovery.code = 'SANDPAPER_RECOVERY_REQUIRED';
       recovery.recoveryPath = backup;
+      recovery.brainBackupPath = backup;
+      recovery.activeBrainPath = brain;
       throw recovery;
     }
+    if (providerRecovery) throw providerRecovery;
     throw error;
   }
 }
@@ -886,12 +1039,12 @@ function backupName(target) {
 // The canvas section (empty state) — shared by the scaffold's starter cover and `upgrade`.
 function canvasSection() {
   return `  <section class="canvas" id="s-canvas" data-cid="s-canvas" aria-label="Canvas">
-    <div class="canvas-rail"><div class="eyebrow">Canvas <span class="canvas-sub">— where Claude's explanations show up</span></div></div>
+    <div class="canvas-rail"><div class="eyebrow">Canvas <span class="canvas-sub">— where agent explanations show up</span></div></div>
     <!-- BRAIN:CANVAS — the current board lives in .whiteboard; older ones fold into .canvas-earlier below -->
     <div class="whiteboard" data-cid="whiteboard">
       <div class="canvas-empty" data-cid="canvas-empty">
         <p class="canvas-empty-lead">Your canvas is empty — for now.</p>
-        <p>As you work with Claude here, the things worth keeping — how a part works, why a choice was
+        <p>As you work with an agent here, the things worth keeping — how a part works, why a choice was
           made — land on this whiteboard as little cards you can read and come back to, instead of
           scrolling past in the terminal.</p>
       </div>
@@ -901,9 +1054,10 @@ function canvasSection() {
 }
 
 // Add the canvas section to an existing cover that lacks it. Best-effort: try a few stable anchors.
-function ensureCanvas(coverPath) {
+function ensureCanvas(brain, coverPath) {
   let html;
-  try { html = readFileSync(coverPath, 'utf8'); } catch { return { injected: false }; }
+  try { html = readEditorialFile(brain, coverPath, 'brain cover').bytes.toString('utf8'); }
+  catch { return { injected: false }; }
   if (html.includes('BRAIN:CANVAS') || html.includes('class="whiteboard"')) return { had: true };
   const section = canvasSection();
   // ordered anchors: just after the NOW plate, else above the doors / first section
@@ -918,7 +1072,10 @@ function ensureCanvas(coverPath) {
     if (i < 0) continue;
     const pos = a.after ? i + a.find.length : i;
     const out = html.slice(0, pos) + (a.after ? '\n' + section : section + '\n  ') + html.slice(pos);
-    try { writeFileSync(coverPath, out); return { injected: true, anchor: a.name }; } catch { return { injected: false }; }
+    try {
+      writeEditorialFile(brain, coverPath, Buffer.from(out));
+      return { injected: true, anchor: a.name };
+    } catch { return { injected: false }; }
   }
   return { injected: false };
 }
@@ -974,8 +1131,7 @@ function writeSkeleton(brain, project, date, source = null) {
   let added = 0;
   const write = (rel, html) => {
     const p = join(brain, rel);
-    if (existsSync(p)) return;
-    ensureDir(dirname(p)); writeFileSync(p, html); added++;
+    if (writeEditorialFile(brain, p, Buffer.from(html), { onlyIfMissing: true })) added++;
   };
   write('index.html', pageShell({ project, prefix: '', title: 'cover', headExtra: coverDigest(project, date), main: coverMain(project, date), source }));
   for (const [slug, name, blurb] of [['product', 'Product', 'what it is & why it earns its place'],
@@ -985,7 +1141,7 @@ function writeSkeleton(brain, project, date, source = null) {
     ['decisions', 'Decisions', 'the ledger of calls made'], ['learnings', 'Learnings', 'gotchas & verdicts']])
     write(`${slug}.html`, pageShell({ project, prefix: '', title: name, main: bookMain(name, blurb), source }));
   const readme = join(brain, 'README.md'); // the deploy guide rides along — not counted as a skeleton PAGE
-  if (!existsSync(readme)) { ensureDir(brain); writeFileSync(readme, deployReadme()); }
+  writeEditorialFile(brain, readme, Buffer.from(deployReadme()), { onlyIfMissing: true });
   return added;
 }
 
@@ -1126,7 +1282,7 @@ ${main}
 function coverDigest(project, date) {
   return `<script type="application/json" id="brain-state">
 { "v":1, "project":${JSON.stringify(String(project))}, "phase":"fresh", "updated":"${date}", "session":"S01",
-  "focus":{ "one":"Brain scaffolded — run /sandpaper:init in Claude to harvest this repo and fill it", "ref":"#" },
+  "focus":{ "one":"Brain scaffolded — run the Sandpaper init workflow to harvest this repo and fill it", "ref":"#" },
   "worklog":[ {"date":"${date}","one":"Brain scaffolded by sandpaper","cid":"w-0001"} ],
   "open":[], "docs":[] }
 </script>
@@ -1135,13 +1291,13 @@ function coverDigest(project, date) {
 function coverMain(project, date) {
   return `  <header class="plate" data-cid="cover" style="margin-top:14px">
     <div class="pl-meta">Fresh brain · stamped ${date}</div>
-    <p class="now-line" data-cid="now" data-kind="now">Run <code>/sandpaper:init</code> in Claude Code to harvest
+    <p class="now-line" data-cid="now" data-kind="now">Run the Sandpaper init workflow in your agent to harvest
       this repo and fill the brain — it discovers your code, specs, and docs, asks a few questions, then fills
       these pages.</p>
   </header>
 ${canvasSection()}
   <section class="zone"><div class="eyebrow">Where it stands</div>
-    <p class="muted">The plan board, decisions, and log fill in when you run <code>/sandpaper:init</code>.</p>
+    <p class="muted">The plan board, decisions, and log fill in when you initialize the Sandpaper brain.</p>
   </section>`;
 }
 function lensMain(name, blurb) {
@@ -1149,7 +1305,7 @@ function lensMain(name, blurb) {
   return `  <header class="lens-hero lens--${slug}" data-cid="lens-${slug}" data-lens="${slug}">
     <div class="eyebrow">${name}</div>
     <h1>${blurb}</h1>
-    <p>Run <code>/sandpaper:init</code> to fill this lens with real, linked content.</p>
+    <p>Run the Sandpaper init workflow to fill this lens with real, linked content.</p>
   </header>
   <!-- FILL: ${name} lens prose + records (.entry grammar). Keep this a SEPARATE page; do not merge lenses. -->
   <section class="zone"><p class="muted">Not filled yet.</p></section>`;
@@ -1161,5 +1317,5 @@ function bookMain(name, blurb) {
     <p class="muted">${blurb}</p>
   </section>
   <!-- FILL: ${name} entries. Keep this a SEPARATE page. -->
-  <section class="zone flush"><p class="muted">Empty until /sandpaper:init.</p></section>`;
+  <section class="zone flush"><p class="muted">Empty until the Sandpaper init workflow runs.</p></section>`;
 }

@@ -401,7 +401,12 @@ function rollbackTransaction(state) {
     }
   }
 
-  if (recoveryRequired) throw new SandpaperRecoveryError(transaction);
+  if (recoveryRequired) {
+    throw new SandpaperRecoveryError(transaction, {
+      phase: 'precommit_recovery',
+      destinationsCommitted: false,
+    });
+  }
   quarantineCleanup(transaction, transactionIdentity, {
     fs,
     pathApi,
@@ -409,6 +414,13 @@ function rollbackTransaction(state) {
     expectedContents: owned,
   });
   removeCreatedParents(created, fs);
+}
+
+function phaseRecovery(error, phase, destinationsCommitted) {
+  if (!error || typeof error !== 'object') return error;
+  error.phase = phase;
+  error.destinationsCommitted = destinationsCommitted;
+  return error;
 }
 
 function prepareTransaction({
@@ -479,7 +491,11 @@ function prepareTransaction({
           expectedContents: owned,
         });
       }
-      catch (error) { if (error instanceof SandpaperRecoveryError) throw error; }
+      catch (error) {
+        if (error instanceof SandpaperRecoveryError) {
+          throw phaseRecovery(error, 'precommit_prepare_cleanup', false);
+        }
+      }
     }
     removeCreatedParents(created, fs);
     throw new Error(`Could not prepare Sandpaper ${errorClass}`);
@@ -536,27 +552,36 @@ function prepareTransaction({
         }
       } catch {
         settled = true;
-        rollbackTransaction(state);
+        try { rollbackTransaction(state); }
+        catch (error) { throw phaseRecovery(error, 'precommit_recovery', false); }
         throw new Error(`Could not commit Sandpaper ${errorClass}`);
       }
       settled = true;
-      quarantineCleanup(transaction, transactionIdentity, {
-        fs,
-        pathApi,
-        hooks,
-        expectedContents: owned,
-      });
+      try {
+        quarantineCleanup(transaction, transactionIdentity, {
+          fs,
+          pathApi,
+          hooks,
+          expectedContents: owned,
+        });
+      } catch (error) {
+        throw phaseRecovery(error, 'postcommit_cleanup', true);
+      }
       return true;
     },
     abort() {
       if (settled) return;
       settled = true;
-      quarantineCleanup(transaction, transactionIdentity, {
-        fs,
-        pathApi,
-        hooks,
-        expectedContents: owned,
-      });
+      try {
+        quarantineCleanup(transaction, transactionIdentity, {
+          fs,
+          pathApi,
+          hooks,
+          expectedContents: owned,
+        });
+      } catch (error) {
+        throw phaseRecovery(error, 'precommit_abort_cleanup', false);
+      }
       removeCreatedParents(created, fs);
     },
   };

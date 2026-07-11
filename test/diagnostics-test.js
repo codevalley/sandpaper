@@ -20,6 +20,7 @@ import {
   probeCodex,
 } from '../src/diagnostics.js';
 import { doctor, installSkill } from '../src/setup.js';
+import { integrationContract } from '../src/integrations.js';
 
 const PACKAGE = new URL('..', import.meta.url).pathname;
 const commandResult = (status, stdout = '', stderr = '') => ({ status, stdout, stderr });
@@ -92,10 +93,14 @@ function codexRun({ loginStatus = 0, login = 'Logged in using ChatGPT' } = {}) {
     calls.push([command, args]);
     const key = args.join(' ');
     if (key === '--version') return { status: 0, stdout: 'codex-cli 0.143.0\nSECRET\n', stderr: 'token=stderr-secret' };
-    if (key === '--help') return { status: 0, stdout: '--ask-for-approval --sandbox --config --disable' };
-    if (key === 'exec --help') return { status: 0, stdout: 'resume --json --ignore-user-config --ignore-rules' };
+    if (key === '--help') {
+      return { status: 0, stdout: 'Options:\n  --ask-for-approval <POLICY>\n  --sandbox <MODE>\n  --config <key=value>\n  --disable <FEATURE>\n' };
+    }
+    if (key === 'exec --help') {
+      return { status: 0, stdout: 'Commands:\n  resume  Resume a session\nOptions:\n  --json\n  --ignore-user-config\n  --ignore-rules\n' };
+    }
     if (key === 'exec resume --help') {
-      return { status: 0, stdout: 'Usage: codex exec resume --config --json --ignore-user-config --ignore-rules [SESSION_ID] [PROMPT]' };
+      return { status: 0, stdout: 'Usage: codex exec resume [OPTIONS] [SESSION_ID] [PROMPT]\nOptions:\n  --config <key=value>\n  --json\n  --ignore-user-config\n  --ignore-rules\n' };
     }
     if (key === 'login status') return { status: loginStatus, stdout: login, stderr: 'sk-stderr-secret' };
     throw new Error(`unexpected command: ${command} ${key}`);
@@ -186,6 +191,44 @@ test('Codex probe classifies missing, incompatible, logged out, api-key, and unk
   }).unavailableCode, 'incompatible');
 });
 
+test('Codex probe rejects lookalike capability tokens, subcommands, usage, and operands', () => {
+  const valid = {
+    root: 'Options:\n  --ask-for-approval <POLICY>\n  --sandbox <MODE>\n  --config <key=value>\n  --disable <FEATURE>\n',
+    exec: 'Commands:\n  resume  Resume a session\nOptions:\n  --json\n  --ignore-user-config\n  --ignore-rules\n',
+    resume: 'Usage: codex exec resume [OPTIONS] [SESSION_ID] [PROMPT]\nArguments:\n  [SESSION_ID]\n  [PROMPT]\nOptions:\n  --config <key=value>\n  --json\n  --ignore-user-config\n  --ignore-rules\n',
+  };
+  const mutations = [
+    ['root sandbox suffix', { root: valid.root.replace('--sandbox ', '--sandboxed ') }],
+    ['root disable prefix', { root: valid.root.replace('--disable ', '--disablement ') }],
+    ['root option in wrong section', {
+      root: `Arguments:\n  --sandbox <FAKE>\n${valid.root.replace('  --sandbox <MODE>\n', '')}`,
+    }],
+    ['exec presume command', { exec: valid.exec.replace('  resume  ', '  presume  ') }],
+    ['exec command in wrong section', {
+      exec: `Arguments:\n  resume  not a command\n${valid.exec.replace('  resume  Resume a session\n', '')}`,
+    }],
+    ['exec json suffix', { exec: valid.exec.replace('  --json\n', '  --jsonish\n') }],
+    ['exec rules suffix', { exec: valid.exec.replace('  --ignore-rules\n', '  --ignore-rules-extra\n') }],
+    ['resume subcommand suffix', { resume: valid.resume.replace('codex exec resume ', 'codex exec resumeLater ') }],
+    ['resume session operand suffix', { resume: valid.resume.replaceAll('[SESSION_ID]', '[SESSION_ID]junk') }],
+    ['resume prompt operand suffix', { resume: valid.resume.replaceAll('[PROMPT]', '[PROMPT]ly') }],
+    ['resume config suffix', { resume: valid.resume.replace('  --config ', '  --configuration ') }],
+  ];
+  for (const [name, change] of mutations) {
+    const help = { ...valid, ...change };
+    const diagnosis = probeCodex((_command, args) => {
+      const key = args.join(' ');
+      if (key === '--version') return { status: 0, stdout: 'codex-cli 0.143.0' };
+      if (key === '--help') return { status: 0, stdout: help.root };
+      if (key === 'exec --help') return { status: 0, stdout: help.exec };
+      if (key === 'exec resume --help') return { status: 0, stdout: help.resume };
+      return { status: 0, stdout: 'Logged in using ChatGPT' };
+    });
+    assert.equal(diagnosis.compatible, false, name);
+    assert.equal(diagnosis.unavailableCode, 'incompatible', name);
+  }
+});
+
 function fixture(t, options = {}) {
   const target = mkdtempSync(join(tmpdir(), 'sandpaper-diagnostics-'));
   t.after(() => rmSync(target, { recursive: true, force: true }));
@@ -225,9 +268,109 @@ test('inspection makes selected provider drift a problem and unselected readines
     },
   });
   assert.ok(result.problems.some(({ code, repair }) => code === 'claude-tree-drift'
-    && /install-skill.*--integration claude|upgrade/.test(repair)));
+    && repair === 'npx @nynb/sandpaper upgrade'));
   assert.ok(result.warnings.some(({ code }) => code === 'codex-binary-missing'));
   assert.equal(result.problems.some(({ code }) => code.startsWith('codex-')), false);
+});
+
+test('managed block inspection accepts LF or CRLF user files without a final newline', (t) => {
+  for (const provider of ['claude', 'codex']) {
+    for (const newline of ['\n', '\r\n']) {
+      const target = fixture(t, { integrations: [provider], defaultProvider: provider, hooksEnabled: false });
+      const contract = integrationContract(provider);
+      const content = contract.managedContent.replaceAll('\n', newline);
+      writeFileSync(join(target, contract.managedFile), [
+        '# User prose',
+        'Keep this.',
+        contract.markers.begin,
+        content,
+        contract.markers.end,
+      ].join(newline));
+
+      const result = inspectInstallation(target, PACKAGE, { runCommand: readyRun });
+      assert.equal(result.problems.some(({ code }) => code === `${provider}-managed-block-drift`), false, `${provider}:${JSON.stringify(newline)}`);
+    }
+  }
+});
+
+test('unsafe selected managed paths are classified before drift with reversible repair', {
+  skip: process.platform === 'win32',
+}, (t) => {
+  const target = fixture(t, { integrations: ['claude'], defaultProvider: 'claude', hooksEnabled: false });
+  const managed = join(target, 'CLAUDE.md');
+  const outside = join(target, 'outside-user-rules.md');
+  writeFileSync(outside, 'private outside rules\n');
+  rmSync(managed);
+  symlinkSync(outside, managed);
+
+  const result = inspectInstallation(target, PACKAGE, { runCommand: readyRun });
+  const unsafe = result.problems.find(({ code }) => code === 'claude-managed-block-unsafe');
+  assert.ok(unsafe);
+  assert.match(unsafe.repair, /CLAUDE\.md.*\.bak|backup/i);
+  assert.doesNotMatch(unsafe.repair, /upgrade/);
+  assert.equal(result.problems.some(({ code }) => code === 'claude-managed-block-drift'), false);
+  assert.equal(readFileSync(outside, 'utf8'), 'private outside rules\n');
+});
+
+test('unsafe generated trees and shared scripts require reversible path repair before upgrade', {
+  skip: process.platform === 'win32',
+}, (t) => {
+  const treeTarget = fixture(t, { integrations: ['claude'], defaultProvider: 'claude', hooksEnabled: false });
+  const tree = join(treeTarget, '.claude', 'commands', 'sandpaper');
+  const outsideTree = join(treeTarget, 'outside-tree');
+  mkdirSync(outsideTree);
+  rmSync(tree, { recursive: true });
+  symlinkSync(outsideTree, tree);
+  let result = inspectInstallation(treeTarget, PACKAGE, { runCommand: readyRun });
+  const treeUnsafe = result.problems.find(({ code }) => code === 'claude-tree-unsafe');
+  assert.ok(treeUnsafe);
+  assert.match(treeUnsafe.repair, /sandpaper.*\.bak.*upgrade/i);
+  assert.equal(result.problems.some(({ code }) => code === 'claude-tree-drift'), false);
+
+  const scriptTarget = fixture(t, { integrations: ['claude'], defaultProvider: 'claude', hooksEnabled: false });
+  const script = join(scriptTarget, '.sandpaper', 'hooks', 'brain-inject.js');
+  const outsideScript = join(scriptTarget, 'outside-script.js');
+  writeFileSync(outsideScript, 'outside script bytes\n');
+  rmSync(script);
+  symlinkSync(outsideScript, script);
+  result = inspectInstallation(scriptTarget, PACKAGE, { runCommand: readyRun });
+  const scriptUnsafe = result.problems.find(({ code }) => code === 'shared-hook-script-unsafe');
+  assert.ok(scriptUnsafe);
+  assert.match(scriptUnsafe.repair, /brain-inject\.js.*\.bak.*upgrade/i);
+  assert.equal(readFileSync(outsideScript, 'utf8'), 'outside script bytes\n');
+});
+
+test('irrelevant invalid hook configs do not block unselected or hooks-disabled installs', (t) => {
+  const target = fixture(t, { integrations: ['codex'], defaultProvider: 'codex', hooksEnabled: false });
+  mkdirSync(join(target, '.codex'), { recursive: true });
+  writeFileSync(join(target, '.codex', 'hooks.json'), '{ invalid selected-but-disabled');
+  mkdirSync(join(target, '.claude'), { recursive: true });
+  writeFileSync(join(target, '.claude', 'settings.json'), '{ invalid unselected');
+
+  let result = inspectInstallation(target, PACKAGE, { runCommand: readyRun });
+  assert.equal(result.problems.some(({ code }) => code.includes('hook-config')), false);
+
+  const manifest = join(target, '.sandpaper', 'manifest.json');
+  const value = JSON.parse(readFileSync(manifest, 'utf8'));
+  writeFileSync(manifest, `${JSON.stringify({ ...value, hooksEnabled: true }, null, 2)}\n`);
+  result = inspectInstallation(target, PACKAGE, { runCommand: readyRun });
+  const invalid = result.problems.find(({ code }) => code === 'codex-hook-config-invalid');
+  assert.ok(invalid);
+  assert.match(invalid.repair, /hooks\.json.*\.bak|backup/i);
+  assert.doesNotMatch(invalid.repair, /upgrade/);
+});
+
+test('corrupt manifest and session repairs preserve bytes in explicit backup commands', (t) => {
+  const target = fixture(t, { integrations: ['claude'], defaultProvider: 'claude', hooksEnabled: false });
+  writeFileSync(join(target, '.sandpaper', 'session.json'), '{ corrupt session secret');
+  writeFileSync(join(target, '.sandpaper', 'manifest.json'), '{ corrupt manifest secret');
+
+  const result = inspectInstallation(target, PACKAGE, { runCommand: readyRun });
+  const manifest = result.problems.find(({ code }) => code === 'manifest-corrupt');
+  const session = result.warnings.find(({ code }) => code === 'session-corrupt');
+  assert.match(manifest.repair, /manifest\.json.*\.bak/);
+  assert.doesNotMatch(manifest.repair, /upgrade/);
+  assert.match(session.repair, /session\.json.*\.bak/);
 });
 
 test('installation inspection makes missing selected readiness a problem without fallback', (t) => {

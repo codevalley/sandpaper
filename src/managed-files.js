@@ -9,11 +9,13 @@ function runtimeFs(overrides) {
 }
 
 export class SandpaperRecoveryError extends Error {
-  constructor(recoveryPath) {
+  constructor(recoveryPath, { phase = 'unknown', destinationsCommitted = false } = {}) {
     super('Sandpaper transaction recovery required');
     this.name = 'SandpaperRecoveryError';
     this.code = 'SANDPAPER_RECOVERY_REQUIRED';
     this.recoveryPath = recoveryPath;
+    this.phase = phase;
+    this.destinationsCommitted = destinationsCommitted;
   }
 }
 

@@ -10,7 +10,7 @@ import {
   readdirSync,
 } from 'node:fs';
 import { join, relative, sep } from 'node:path';
-import { inspectTrustedPath } from './managed-files.js';
+import { inspectTrustedPath, planManagedBlock } from './managed-files.js';
 import { inspectManifest } from './manifest.js';
 import { inspectSessionState } from './session-store.js';
 import { integrationContract } from './integrations.js';
@@ -127,16 +127,34 @@ export function diagnoseCodex(runCommand = defaultRunCommand) {
   const resumeHelp = runProbe(runCommand, 'codex', ['exec', 'resume', '--help']);
   const login = runProbe(runCommand, 'codex', ['login', 'status']);
 
+  const sectionLines = (output, heading) => {
+    const lines = String(output).split(/\r?\n/);
+    const start = lines.findIndex((line) => line === `${heading}:`);
+    if (start === -1) return [];
+    const section = [];
+    for (let index = start + 1; index < lines.length; index += 1) {
+      if (/^[A-Za-z][A-Za-z ]*:\s*$/.test(lines[index])) break;
+      section.push(lines[index]);
+    }
+    return section;
+  };
+  const options = (output) => new Set(sectionLines(output, 'Options').flatMap((line) => {
+    const match = line.match(/^\s*(?:-[A-Za-z],\s*)?(--[A-Za-z0-9][A-Za-z0-9-]*)(?:\s|$)/);
+    return match ? [match[1]] : [];
+  }));
+  const exactCommand = (output, command) => sectionLines(output, 'Commands')
+    .some((line) => new RegExp(`^\\s{2,}${command}(?:\\s{2,}|\\s*$)`).test(line));
+  const rootOptions = options(rootHelp.stdout);
+  const execOptions = options(execHelp.stdout);
+  const resumeOptions = options(resumeHelp.stdout);
   const rootCompatible = rootHelp.status === 0
-    && ['--ask-for-approval', '--sandbox', '--config', '--disable']
-      .every((flag) => rootHelp.stdout.includes(flag));
+    && ['--ask-for-approval', '--sandbox', '--config', '--disable'].every((flag) => rootOptions.has(flag));
   const execCompatible = execHelp.status === 0
-    && ['resume', '--json', '--ignore-user-config', '--ignore-rules']
-      .every((flag) => execHelp.stdout.includes(flag));
+    && exactCommand(execHelp.stdout, 'resume')
+    && ['--json', '--ignore-user-config', '--ignore-rules'].every((flag) => execOptions.has(flag));
   const resumeCompatible = resumeHelp.status === 0
-    && /Usage:\s*codex\s+exec\s+resume/i.test(resumeHelp.stdout)
-    && ['--config', '--json', '--ignore-user-config', '--ignore-rules', '[SESSION_ID]', '[PROMPT]']
-      .every((value) => resumeHelp.stdout.includes(value));
+    && /^Usage:\s+codex exec resume \[OPTIONS\] \[SESSION_ID\] \[PROMPT\]\s*$/m.test(resumeHelp.stdout)
+    && ['--config', '--json', '--ignore-user-config', '--ignore-rules'].every((flag) => resumeOptions.has(flag));
   const compatible = rootCompatible && execCompatible && resumeCompatible;
 
   const loginOutput = `${login.stdout}\n${login.stderr}`;
@@ -255,8 +273,8 @@ function repairForProvider(provider, code) {
     : 'Install or upgrade Claude Code, then run `claude auth login`.';
 }
 
-function driftRepair(provider) {
-  return `npx @nynb/sandpaper upgrade (or npx @nynb/sandpaper install-skill --integration ${provider} --provider ${provider})`;
+function driftRepair() {
+  return 'npx @nynb/sandpaper upgrade';
 }
 
 function entry(code, message, repair) {
@@ -275,11 +293,11 @@ export function inspectInstallation(target, packageRoot, { runCommand = defaultR
   } else if (manifestResult.status === 'legacy') {
     addWarning('manifest-v1-residue', 'Manifest schema v1 is supported migration residue.', 'npx @nynb/sandpaper upgrade');
   } else if (manifestResult.status === 'unsupported') {
-    addProblem('manifest-unsupported', 'Manifest schema version is unsupported.', 'Move .sandpaper/manifest.json to a backup, then reinitialize with explicit provider choices.');
+    addProblem('manifest-unsupported', 'Manifest schema version is unsupported.', 'cp .sandpaper/manifest.json .sandpaper/manifest.json.sandpaper.bak; manually repair it, preserving provider choices.');
   } else if (manifestResult.status === 'unsafe') {
-    addProblem('manifest-unsafe', 'Manifest path is a symlink or special/unsafe file.', 'Move the unsafe path to a reversible backup, then reinitialize with explicit provider choices.');
+    addProblem('manifest-unsafe', 'Manifest path is a symlink or special/unsafe file.', 'mv .sandpaper/manifest.json .sandpaper/manifest.json.sandpaper.bak; restore a regular manifest preserving provider choices.');
   } else if (manifestResult.status === 'corrupt') {
-    addProblem('manifest-corrupt', 'Manifest JSON or schema is invalid.', 'Move .sandpaper/manifest.json to a reversible backup, then reinitialize with explicit provider choices.');
+    addProblem('manifest-corrupt', 'Manifest JSON or schema is invalid.', 'cp .sandpaper/manifest.json .sandpaper/manifest.json.sandpaper.bak; manually repair JSON preserving provider choices.');
   }
 
   const manifest = manifestResult.manifest;
@@ -306,8 +324,14 @@ export function inspectInstallation(target, packageRoot, { runCommand = defaultR
     const actual = collectTree(target, destination, `${provider} integration tree`);
     const expected = expectedTree(packageRoot, provider);
     const current = equalTrees(actual, expected);
-    if (selected && !current) {
-      addProblem(`${provider}-tree-drift`, `${provider === 'claude' ? 'Claude' : 'Codex'} generated integration tree is missing, stale, or unsafe.`, driftRepair(provider));
+    if (selected && actual.status === 'unsafe') {
+      addProblem(
+        `${provider}-tree-unsafe`,
+        `${provider === 'claude' ? 'Claude' : 'Codex'} generated integration tree is an unsafe path.`,
+        `mv ${contract.namespace} ${contract.namespace}.sandpaper.bak; run npx @nynb/sandpaper upgrade.`,
+      );
+    } else if (selected && !current) {
+      addProblem(`${provider}-tree-drift`, `${provider === 'claude' ? 'Claude' : 'Codex'} generated integration tree is missing, stale, or unsafe.`, driftRepair());
     } else if (!selected && actual.status !== 'absent') {
       addWarning(`${provider}-stale-tree`, `An unselected ${provider} generated integration tree remains.`, 'npx @nynb/sandpaper upgrade');
     }
@@ -315,35 +339,53 @@ export function inspectInstallation(target, packageRoot, { runCommand = defaultR
     const managed = safeRead(target, join(target, contract.managedFile), `${provider} managed instructions`);
     let managedCurrent = false;
     let managedPresent = false;
-    if (managed.status === 'file') {
+    if (managed.status === 'unsafe') {
+      addProblem(
+        `${provider}-managed-block-unsafe`,
+        `${contract.managedFile} is an unsafe path.`,
+        `mv ${contract.managedFile} ${contract.managedFile}.sandpaper.bak; restore a regular file preserving user rules, then rerun doctor.`,
+      );
+    } else if (managed.status === 'file') {
       const source = managed.bytes.toString('utf8');
       const { begin, end } = contract.markers;
       const starts = source.split(begin).length - 1;
       const ends = source.split(end).length - 1;
       managedPresent = starts > 0 || ends > 0;
-      managedCurrent = starts === 1 && ends === 1
-        && source.includes(`${begin}\n${contract.managedContent}\n${end}`);
+      const plan = planManagedBlock(join(target, contract.managedFile), {
+        begin,
+        end,
+        content: contract.managedContent,
+        trustedRoot: target,
+      });
+      managedCurrent = plan.ok && !plan.changed;
     }
-    if (selected && !managedCurrent) {
-      addProblem(`${provider}-managed-block-drift`, `${contract.managedFile} is missing the exact Sandpaper managed block or has unsafe markers.`, driftRepair(provider));
+    if (managed.status !== 'unsafe' && selected && !managedCurrent) {
+      addProblem(`${provider}-managed-block-drift`, `${contract.managedFile} is missing the exact Sandpaper managed block or has unsafe markers.`, driftRepair());
     } else if (!selected && managedPresent) {
       addWarning(`${provider}-stale-managed-block`, `${contract.managedFile} retains an unselected Sandpaper block.`, 'npx @nynb/sandpaper upgrade');
-    } else if (managed.status === 'unsafe') {
-      addProblem(`${provider}-managed-block-unsafe`, `${contract.managedFile} is an unsafe path.`, 'Move the unsafe path to a reversible backup before running upgrade.');
     }
 
     const hookFile = join(target, provider === 'claude' ? '.claude/settings.json' : '.codex/hooks.json');
     const hookRead = safeRead(target, hookFile, `${provider} hook config`);
     let hookInspection = { status: hookRead.status, ownedCounts: {} };
     if (hookRead.status === 'file') hookInspection = inspectHookConfigSource(provider, hookRead.bytes);
-    if (hookInspection.status === 'unsafe' || hookInspection.status === 'invalid') {
-      addProblem(`${provider}-hook-config-${hookInspection.status}`, `${provider === 'claude' ? 'Claude' : 'Codex'} hook configuration is invalid or unsafe.`, `Move the hook config to a reversible backup, repair its JSON, then run ${driftRepair(provider)}.`);
-    } else {
+    const hookRelevant = selected && hooksEnabled;
+    if (hookRelevant && (hookInspection.status === 'unsafe' || hookInspection.status === 'invalid')) {
+      const relativeHook = provider === 'claude' ? '.claude/settings.json' : '.codex/hooks.json';
+      const backupCommand = hookInspection.status === 'unsafe'
+        ? `mv ${relativeHook} ${relativeHook}.sandpaper.bak`
+        : `cp ${relativeHook} ${relativeHook}.sandpaper.bak`;
+      addProblem(
+        `${provider}-hook-config-${hookInspection.status}`,
+        `${provider === 'claude' ? 'Claude' : 'Codex'} hook configuration is invalid or unsafe.`,
+        `${backupCommand}; restore regular valid JSON preserving user hooks, then rerun doctor.`,
+      );
+    } else if (hookInspection.status === 'valid') {
       const owned = Object.values(hookInspection.ownedCounts);
       const exactOnce = owned.length > 0 && owned.every((count) => count === 1);
       const anyOwned = owned.some((count) => count > 0);
-      if (selected && hooksEnabled && !exactOnce) {
-        addProblem(`${provider}-hook-drift`, `${provider === 'claude' ? 'Claude' : 'Codex'} Sandpaper hooks are missing or duplicated.`, driftRepair(provider));
+      if (hookRelevant && !exactOnce) {
+        addProblem(`${provider}-hook-drift`, `${provider === 'claude' ? 'Claude' : 'Codex'} Sandpaper hooks are missing or duplicated.`, driftRepair());
       } else if ((!selected || !hooksEnabled) && anyOwned) {
         addWarning(`${provider}-disabled-hook-drift`, `Owned ${provider} hooks remain despite disabled or unselected intent.`, 'npx @nynb/sandpaper upgrade');
       }
@@ -354,7 +396,13 @@ export function inspectInstallation(target, packageRoot, { runCommand = defaultR
     for (const script of ['brain-inject.js', 'brain-stamp-check.js']) {
       const installed = safeRead(target, join(target, '.sandpaper', 'hooks', script), 'shared hook script');
       const packaged = safeRead(packageRoot, join(packageRoot, 'bin', script), 'package hook script');
-      if (installed.status !== 'file' || packaged.status !== 'file' || !installed.bytes.equals(packaged.bytes)) {
+      if (installed.status === 'unsafe') {
+        addProblem(
+          'shared-hook-script-unsafe',
+          `Shared hook script ${script} is an unsafe path.`,
+          `mv .sandpaper/hooks/${script} .sandpaper/hooks/${script}.sandpaper.bak; run npx @nynb/sandpaper upgrade.`,
+        );
+      } else if (installed.status !== 'file' || packaged.status !== 'file' || !installed.bytes.equals(packaged.bytes)) {
         addProblem('shared-hook-script-drift', `Shared hook script ${script} is missing, stale, or unsafe.`, 'npx @nynb/sandpaper upgrade');
       }
     }
@@ -362,11 +410,11 @@ export function inspectInstallation(target, packageRoot, { runCommand = defaultR
 
   const session = inspectSessionState(target);
   if (session.status === 'unsafe') {
-    addProblem('session-unsafe', 'Session state path is a symlink or special/unsafe file.', 'Move .sandpaper/session.json to a reversible backup before starting Sandpaper.');
+    addProblem('session-unsafe', 'Session state path is a symlink or special/unsafe file.', 'mv .sandpaper/session.json .sandpaper/session.json.sandpaper.bak; start Sandpaper with a new session.');
   } else if (session.status === 'corrupt') {
-    addWarning('session-corrupt', 'Session state is corrupt; resume safely fails closed.', 'Move .sandpaper/session.json to a reversible backup to start new provider sessions.');
+    addWarning('session-corrupt', 'Session state is corrupt; resume safely fails closed.', 'mv .sandpaper/session.json .sandpaper/session.json.sandpaper.bak; start Sandpaper with a new session.');
   } else if (session.status === 'unsupported') {
-    addWarning('session-unsupported', 'Session state schema is unsupported; resume safely fails closed.', 'Move .sandpaper/session.json to a reversible backup to start new provider sessions.');
+    addWarning('session-unsupported', 'Session state schema is unsupported; resume safely fails closed.', 'mv .sandpaper/session.json .sandpaper/session.json.sandpaper.bak; start Sandpaper with a new session.');
   } else if (session.status === 'legacy') {
     addWarning('session-legacy', 'Legacy Claude session state will migrate on normal runtime use.', 'Start Sandpaper once to migrate this local resume state.');
   }

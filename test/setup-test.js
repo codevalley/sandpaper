@@ -1068,6 +1068,225 @@ test('rebuild retains a recovery path instead of deleting concurrent content ins
   assert.equal(readFileSync(join(error.recoveryPath, 'old-only.txt'), 'utf8'), 'old user brain\n');
 });
 
+test('rebuild keeps the fresh brain when provider destinations committed but cleanup needs recovery', (t) => {
+  const target = mkdtempSync(join(tmpdir(), 'sandpaper-rebuild-postcommit-recovery-'));
+  t.after(() => rmSync(target, { recursive: true, force: true }));
+  write(target, 'package.json', JSON.stringify({ name: '@fixture/rebuild-postcommit-recovery' }));
+  quietInstall(target, { integrations: ['codex'], defaultProvider: 'codex', hooksEnabled: false });
+  write(target, 'brain/old-only.txt', 'successful old brain backup\n');
+  const date = new Date().toISOString().slice(0, 10);
+
+  const error = thrown(() => quietLifecycle(setup.rebuild, target, PACKAGE, {}, {
+    integrationHooks: {
+      beforeQuarantineRename() { throw new Error('injected provider cleanup failure'); },
+    },
+  }));
+
+  assert.equal(error.code, 'SANDPAPER_RECOVERY_REQUIRED');
+  assert.equal(error.phase, 'postcommit_cleanup');
+  assert.equal(error.destinationsCommitted, true);
+  assert.equal(existsSync(error.recoveryPath), true);
+  assert.equal(existsSync(join(target, 'brain/old-only.txt')), false);
+  assert.equal(readFileSync(join(target, `brain.bak-${date}`, 'old-only.txt'), 'utf8'), 'successful old brain backup\n');
+  assert.equal(existsSync(join(target, '.agents/skills/sandpaper/SKILL.md')), true);
+});
+
+test('upgrade finishes its editorial phase when provider cleanup needs recovery', (t) => {
+  const target = mkdtempSync(join(tmpdir(), 'sandpaper-upgrade-postcommit-recovery-'));
+  t.after(() => rmSync(target, { recursive: true, force: true }));
+  write(target, 'package.json', JSON.stringify({ name: '@fixture/upgrade-postcommit-recovery' }));
+  quietInstall(target, { integrations: ['claude'], defaultProvider: 'claude', hooksEnabled: false });
+  writeFileSync(join(target, 'brain/assets/brain.css'), 'stale engine bytes\n');
+
+  const error = thrown(() => quietLifecycle(setup.upgrade, target, PACKAGE, {}, {
+    integrationHooks: {
+      beforeQuarantineRename() { throw new Error('injected provider cleanup failure'); },
+    },
+  }));
+
+  assert.equal(error.code, 'SANDPAPER_RECOVERY_REQUIRED');
+  assert.equal(error.phase, 'postcommit_cleanup');
+  assert.equal(error.destinationsCommitted, true);
+  assert.deepEqual(readFileSync(join(target, 'brain/assets/brain.css')), readFileSync(join(PACKAGE, 'brain/assets/brain.css')));
+});
+
+test('rebuild retains partial fresh brain and old backup when failure precedes a complete inventory', (t) => {
+  const target = mkdtempSync(join(tmpdir(), 'sandpaper-rebuild-partial-inventory-'));
+  t.after(() => rmSync(target, { recursive: true, force: true }));
+  write(target, 'package.json', JSON.stringify({ name: '@fixture/rebuild-partial-inventory' }));
+  quietInstall(target, { integrations: ['codex'], defaultProvider: 'codex', hooksEnabled: false });
+  write(target, 'brain/old-only.txt', 'old brain retained\n');
+
+  const error = thrown(() => quietLifecycle(setup.rebuild, target, PACKAGE, {}, {
+    beforeScaffold({ brain }) {
+      write(brain, 'partial-user.txt', 'partial or concurrent bytes\n');
+      throw new Error('injected before complete inventory');
+    },
+  }));
+
+  assert.equal(error.code, 'SANDPAPER_RECOVERY_REQUIRED');
+  assert.equal(readFileSync(join(target, 'brain/partial-user.txt'), 'utf8'), 'partial or concurrent bytes\n');
+  assert.equal(readFileSync(join(error.recoveryPath, 'old-only.txt'), 'utf8'), 'old brain retained\n');
+});
+
+test('rebuild cleanup revalidates fresh brain after quarantine check-gap injection', (t) => {
+  const target = mkdtempSync(join(tmpdir(), 'sandpaper-rebuild-cleanup-gap-'));
+  t.after(() => rmSync(target, { recursive: true, force: true }));
+  write(target, 'package.json', JSON.stringify({ name: '@fixture/rebuild-cleanup-gap' }));
+  quietInstall(target, { integrations: ['codex'], defaultProvider: 'codex', hooksEnabled: false });
+  write(target, 'brain/old-only.txt', 'old brain retained\n');
+
+  const error = thrown(() => quietLifecycle(setup.rebuild, target, PACKAGE, {}, {
+    beforeIntegrationCommit() { throw new Error('injected precommit failure'); },
+    brainCleanupHooks: {
+      beforeQuarantineRename({ transaction }) {
+        write(transaction, 'concurrent-gap.txt', 'do not delete\n');
+      },
+    },
+  }));
+
+  assert.equal(error.code, 'SANDPAPER_RECOVERY_REQUIRED');
+  assert.equal(readFileSync(join(target, 'brain/concurrent-gap.txt'), 'utf8'), 'do not delete\n');
+  assert.equal(readFileSync(join(error.brainBackupPath, 'old-only.txt'), 'utf8'), 'old brain retained\n');
+});
+
+test('upgrade rejects internal brain symlinks before provider preparation or outside writes', {
+  skip: process.platform === 'win32',
+}, (t) => {
+  const cases = [
+    {
+      name: 'assets-directory',
+      mutate(target, outside) {
+        rmSync(join(target, 'brain/assets'), { recursive: true });
+        symlinkSync(outside, join(target, 'brain/assets'));
+      },
+    },
+    {
+      name: 'asset-file',
+      mutate(target, outside) {
+        rmSync(join(target, 'brain/assets/brain.css'));
+        symlinkSync(join(outside, 'outside.css'), join(target, 'brain/assets/brain.css'));
+      },
+    },
+    {
+      name: 'nested-directory',
+      mutate(target, outside) {
+        rmSync(join(target, 'brain/product'), { recursive: true });
+        symlinkSync(outside, join(target, 'brain/product'));
+      },
+    },
+    {
+      name: 'nested-page',
+      mutate(target, outside) {
+        rmSync(join(target, 'brain/log.html'));
+        symlinkSync(join(outside, 'outside.html'), join(target, 'brain/log.html'));
+      },
+    },
+  ];
+
+  for (const item of cases) {
+    const root = mkdtempSync(join(tmpdir(), `sandpaper-upgrade-${item.name}-`));
+    t.after(() => rmSync(root, { recursive: true, force: true }));
+    const target = join(root, 'target');
+    const outside = join(root, 'outside');
+    mkdirSync(target);
+    mkdirSync(outside);
+    write(target, 'package.json', JSON.stringify({ name: `@fixture/${item.name}` }));
+    write(outside, 'outside.css', 'outside css bytes\n');
+    write(outside, 'outside.html', '<!doctype html><p>outside html bytes</p>\n');
+    quietInstall(target, { integrations: ['codex'], defaultProvider: 'codex', hooksEnabled: false });
+    item.mutate(target, outside);
+    const providerBefore = taskThreeSnapshot(target);
+    const outsideBefore = repositorySnapshot(outside);
+    let providerPreparation = 0;
+
+    assert.throws(() => quietLifecycle(setup.upgrade, target, PACKAGE, {}, {
+      integrationHooks: { beforeStage() { providerPreparation += 1; } },
+    }), /brain.*symlink|editorial.*unsafe/i, item.name);
+
+    assert.equal(providerPreparation, 0, item.name);
+    assert.deepEqual(taskThreeSnapshot(target), providerBefore, item.name);
+    assert.deepEqual(repositorySnapshot(outside), outsideBefore, item.name);
+  }
+});
+
+test('upgrade rejects symlinked package editorial assets before provider preparation', {
+  skip: process.platform === 'win32',
+}, (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'sandpaper-upgrade-package-assets-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const target = join(root, 'target');
+  const packageRoot = join(root, 'package');
+  const outside = join(root, 'outside.css');
+  mkdirSync(target);
+  write(target, 'package.json', JSON.stringify({ name: '@fixture/package-assets' }));
+  quietInstall(target, { integrations: ['claude'], defaultProvider: 'claude', hooksEnabled: false });
+  cpSync(join(PACKAGE, 'skill'), join(packageRoot, 'skill'), { recursive: true });
+  cpSync(join(PACKAGE, 'bin'), join(packageRoot, 'bin'), { recursive: true });
+  cpSync(join(PACKAGE, 'brain'), join(packageRoot, 'brain'), { recursive: true });
+  writeFileSync(outside, 'outside package bytes\n');
+  rmSync(join(packageRoot, 'brain/assets/brain.css'));
+  symlinkSync(outside, join(packageRoot, 'brain/assets/brain.css'));
+  const before = repositorySnapshot(target);
+  let providerPreparation = 0;
+
+  assert.throws(() => quietLifecycle(setup.upgrade, target, packageRoot, {}, {
+    integrationHooks: { beforeStage() { providerPreparation += 1; } },
+  }), /package.*asset.*symlink|editorial.*unsafe/i);
+
+  assert.equal(providerPreparation, 0);
+  assert.deepEqual(repositorySnapshot(target), before);
+  assert.equal(readFileSync(outside, 'utf8'), 'outside package bytes\n');
+});
+
+test('rebuild rejects a symlinked theme parent before backup or provider preparation', {
+  skip: process.platform === 'win32',
+}, (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'sandpaper-rebuild-theme-parent-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const target = join(root, 'target');
+  const outside = join(root, 'outside');
+  mkdirSync(target);
+  mkdirSync(outside);
+  write(target, 'package.json', JSON.stringify({ name: '@fixture/rebuild-theme-parent' }));
+  quietInstall(target, { integrations: ['codex'], defaultProvider: 'codex', hooksEnabled: false });
+  write(outside, 'theme.css', 'outside theme bytes\n');
+  rmSync(join(target, 'brain/assets'), { recursive: true });
+  symlinkSync(outside, join(target, 'brain/assets'));
+  const before = repositorySnapshot(target);
+  const outsideBefore = repositorySnapshot(outside);
+  let providerPreparation = 0;
+
+  assert.throws(() => quietLifecycle(setup.rebuild, target, PACKAGE, {}, {
+    integrationHooks: { beforeStage() { providerPreparation += 1; } },
+  }), /brain.*symlink|theme.*unsafe/i);
+
+  assert.equal(providerPreparation, 0);
+  assert.deepEqual(repositorySnapshot(target), before);
+  assert.deepEqual(repositorySnapshot(outside), outsideBefore);
+});
+
+test('upgrade and rebuilt canvas lifecycle prose is provider neutral', (t) => {
+  const target = mkdtempSync(join(tmpdir(), 'sandpaper-lifecycle-prose-'));
+  t.after(() => rmSync(target, { recursive: true, force: true }));
+  write(target, 'package.json', JSON.stringify({ name: '@fixture/lifecycle-prose' }));
+  quietInstall(target, { integrations: ['codex'], defaultProvider: 'codex', hooksEnabled: false });
+  const lines = [];
+  const log = console.log;
+  console.log = (...args) => lines.push(args.join(' '));
+  try {
+    setup.upgrade(target, PACKAGE);
+    setup.rebuild(target, PACKAGE);
+  } finally {
+    console.log = log;
+  }
+
+  const cover = readFileSync(join(target, 'brain/index.html'), 'utf8');
+  assert.doesNotMatch(cover, /Claude|\/sandpaper:init/);
+  assert.match(cover, /agent|Sandpaper workflow/i);
+  assert.doesNotMatch(lines.join('\n'), /in Claude Code|\/sandpaper:init/);
+});
+
 function populatedBrain(t) {
   const target = mkdtempSync(join(tmpdir(), 'sandpaper-inspect-'));
   t.after(() => rmSync(target, { recursive: true, force: true }));
