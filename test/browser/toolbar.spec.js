@@ -559,6 +559,11 @@ test('Codex usage shows only a finite owned total token count and clears on the 
   await expect(usage).toHaveAttribute('role', 'status');
   await expect(usage).toHaveAttribute('aria-label', 'Provider usage');
   await expect(usage).toHaveAttribute('aria-live', 'polite');
+  for (const invalidTotal of [-1, Number.NaN, Number.POSITIVE_INFINITY, '1500', null, undefined]) {
+    codexRunner.emit({ type: 'usage', totalTokens: invalidTotal }, call);
+    await expect(usage).toHaveText('1,500 tokens');
+    await expect(usage).toBeVisible();
+  }
   codexRunner.complete(call);
   await expect(page.locator('#sp-label')).toContainText('Codex');
 
@@ -604,6 +609,37 @@ test('Claude usage accepts only a finite nonnegative owned cost and never adopts
   await page.reload();
   await expect(page.locator('#sp-cost')).toBeHidden();
   await expect(page.locator('#sp-cost')).toHaveText('');
+});
+
+test('invalid owned Claude usage cannot erase a prior truthful terminal cost', async ({ page }) => {
+  await page.addInitScript(() => {
+    class FakeEventSource {
+      constructor() { window.__sandpaperFakeEvents = this; }
+      close() {}
+    }
+    window.EventSource = FakeEventSource;
+  });
+  await page.reload();
+  const call = await submit(page, 'Retain truthful Claude usage');
+  await expect(page.locator('.sp-turn[data-turn]')).toHaveCount(1);
+  const turnId = await page.locator('.sp-turn').getAttribute('data-turn');
+  runner.complete(call);
+
+  const emitStatus = (cost) => page.evaluate(({ id, value }) => {
+    window.__sandpaperFakeEvents.onmessage({
+      data: JSON.stringify({
+        type: 'status', turnId: id, provider: 'claude', page: '/hostile.html',
+        state: 'done', label: 'done', done: true, changed: false, undoable: false, cost: value,
+      }),
+    });
+  }, { id: turnId, value: cost });
+  await emitStatus(0.25);
+  await expect(page.locator('#sp-cost')).toHaveText('$0.2500');
+  for (const invalidCost of [-1, Number.NaN, Number.POSITIVE_INFINITY, '0.5', null, undefined]) {
+    await emitStatus(invalidCost);
+    await expect(page.locator('#sp-cost')).toHaveText('$0.2500');
+    await expect(page.locator('#sp-cost')).toBeVisible();
+  }
 });
 
 test('provider-owned completion and error copy name the accepted provider without hiding server detail', async ({ page }) => {
@@ -669,6 +705,70 @@ test('Codex target-only sparse paths do not show an external-change warning', as
   await page.locator('.sp-card-head').click();
   await expect(page.locator('.sp-change-path')).toHaveCount(2);
   await expect(page.locator('.sp-safety-warning')).toHaveCount(0);
+});
+
+test('Codex edit frames never fall through to Claude cards when paths are absent or malformed', async ({ page }) => {
+  await chooseProvider(page, 'codex');
+  const call = await submit(page, 'Reject malformed edit detail', codexRunner);
+  for (const paths of [undefined, { path: 'hostile.html', kind: 'update' }, [null, {}, { path: '', kind: 'update' }]]) {
+    codexRunner.emit({
+      type: 'edit', tool: 'Codex', paths,
+      file: 'forged.html', added: 900, removed: 800,
+      cids: ['row-a'], hunks: [{ oldText: 'forged old', newText: 'forged new' }],
+    }, call);
+  }
+  codexRunner.complete(call);
+
+  await expect(page.locator('.sp-card')).toHaveCount(0);
+  await expect(page.locator('.sp-change-path, .sp-hunkfile, .sp-add, .sp-diff-del')).toHaveCount(0);
+  await expect(page.locator('#sp-thread')).not.toContainText(/forged|\+900|800/);
+  await expect(page.locator('[data-cid="row-a"]')).not.toHaveClass(/sp-flash/);
+  await expect(page.locator('.sp-turnmeta .sp-tag')).toHaveText('Replied');
+});
+
+test('Codex sparse rows and inspection budgets are aggregate per turn and survive rehydrate', async ({ page }) => {
+  await chooseProvider(page, 'codex');
+  const call = await submit(page, 'Bound aggregate Codex paths', codexRunner);
+  for (let index = 0; index < 29; index += 1) {
+    codexRunner.emit({
+      type: 'edit', tool: 'Codex', file: 'hostile.html',
+      paths: [{ path: 'hostile.html', kind: `update-${index}` }],
+    }, call);
+  }
+  codexRunner.emit({
+    type: 'edit', tool: 'Codex', file: 'hostile.html',
+    paths: [{ path: 'external-after-display-cap.html', kind: 'create' }],
+  }, call);
+  codexRunner.complete(call);
+
+  const card = page.locator('.sp-card');
+  await card.locator('.sp-card-head').click();
+  await expect(card.locator('.sp-change-path')).toHaveCount(24);
+  await expect(card.locator('.sp-change-kind').last()).toHaveText('update-23');
+  await expect(card).not.toContainText('update-24');
+  await expect(card.locator('.sp-safety-warning')).toHaveCount(1);
+  await expect(card.locator('.sp-safety-warning')).toContainText(/cannot verify or undo/i);
+
+  const turnId = await page.locator('.sp-turn').getAttribute('data-turn');
+  await page.addInitScript(() => {
+    class FakeEventSource {
+      constructor() { window.__sandpaperFakeEvents = this; }
+      close() {}
+    }
+    window.EventSource = FakeEventSource;
+  });
+  await page.reload();
+  await page.evaluate((id) => {
+    window.__sandpaperFakeEvents.onmessage({
+      data: JSON.stringify({
+        type: 'edit', turnId: id, provider: 'codex', page: '/hostile.html',
+        paths: [{ path: 'hostile.html', kind: 'after-rehydrate' }],
+      }),
+    });
+  }, turnId);
+  await expect(page.locator('.sp-change-path')).toHaveCount(24);
+  await expect(page.locator('.sp-card')).not.toContainText('after-rehydrate');
+  await expect(page.locator('.sp-safety-warning')).toHaveCount(1);
 });
 
 test('Sling and first-run guidance are provider-neutral and expose dual command forms', async ({ page, context }) => {
@@ -1248,6 +1348,12 @@ test('New session clears exactly the selected provider/page transcript after exa
 
   await expect(page.locator('#sp-provider-menu')).toBeHidden();
   await expect(page.locator('#sp-provider-button')).toBeFocused();
+  await expect(page.locator('#sp-chip')).toBeVisible();
+  await expect(page.locator('#sp-chip')).toHaveAttribute('role', 'status');
+  await expect(page.locator('#sp-chip')).toHaveAttribute('aria-label', 'Sandpaper status');
+  await expect(page.locator('#sp-chip')).toHaveAttribute('aria-live', 'polite');
+  await expect(page.locator('#sp-label')).toHaveText('Claude Code session reset for this page.');
+  await expect(page.locator('#sp-provider-guidance')).toBeHidden();
   await expect(page.locator('#sp-thread .sp-turn')).toHaveCount(0);
   expect(requestBody).toEqual({ page: '/hostile.html', provider: 'claude' });
   expect(await page.evaluate((key) => sessionStorage.getItem(key), claudeKey)).toBeNull();

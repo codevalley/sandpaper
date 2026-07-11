@@ -186,7 +186,7 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
   function selectedProviderState() { return selectedProvider ? providersById[selectedProvider] || null : null; }
   function finiteNonnegative(value) { return typeof value === 'number' && Number.isFinite(value) && value >= 0; }
   function usageLabel(frame, providerId) {
-    if (!frame || frame.provider !== providerId) return '';
+    if (!frame || frame.provider !== providerId) return null;
     if (providerId === 'claude' && frame.type === 'status' &&
         (frame.state === 'done' || frame.state === 'error' || frame.done) && finiteNonnegative(frame.cost)) {
       return '$' + frame.cost.toFixed(4);
@@ -194,13 +194,15 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
     if (providerId === 'codex' && frame.type === 'usage' && finiteNonnegative(frame.totalTokens)) {
       return frame.totalTokens.toLocaleString() + ' tokens';
     }
-    return '';
+    return null;
   }
   function clearUsage() { cost.textContent = ''; cost.hidden = true; }
   function renderUsage(frame, providerId) {
     var text = usageLabel(frame, providerId);
+    if (text == null) return false;
     cost.textContent = text;
-    cost.hidden = !text;
+    cost.hidden = false;
+    return true;
   }
   function providerRepairGuidance(provider) {
     if (!provider) return 'Choose an available provider to start.';
@@ -432,7 +434,9 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
       clearTranscript();
       lastChangedCids = [];
       syncProviderPresentation({ selectionChanged: true });
-      showProviderGuidance(selected.label + ' session reset for this page.');
+      label.textContent = selected.label + ' session reset for this page.';
+      led.style.background = COLORS.done;
+      chip.style.color = COLORS.done;
       closeProviderMenu(true);
     }).catch(function (error) {
       resetPending = false;
@@ -587,6 +591,7 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
     return { id: turnId, box: box, proseEl: prose, thinkEl: thinkBody, thinkWrap: think, metaEl: meta,
              editCount: 0, cardEl: null, cardBody: null, cardTitle: null, textBuf: '', thinkBuf: '', raf: 0,
              changedCids: [], draft: userText, scope: null, provider: acceptedProvider,
+             displayedPathCount: 0, inspectedPathCount: 0,
              finalized: false, errorShown: false };
   }
 
@@ -673,6 +678,10 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
     rec.cardEl.appendChild(head); rec.cardEl.appendChild(rec.cardBody);
     rec.box.querySelector('.sp-asst').appendChild(rec.cardEl);
   }
+  function syncSparsePathState(rec) {
+    rec.box.setAttribute('data-sp-path-count', String(rec.displayedPathCount));
+    rec.box.setAttribute('data-sp-path-inspected', String(rec.inspectedPathCount));
+  }
   function boundedChangeText(value, limit) {
     if (typeof value !== 'string' || !value || !value.trim()) return null;
     var bounded = value.slice(0, limit);
@@ -694,26 +703,35 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
   }
   function addSparseEdit(rec, frame) {
     var reported = Array.isArray(frame.paths) ? frame.paths : [];
-    var paths = [], selectedPaths = selectedDocumentPaths(), external = false;
-    reported.slice(0, MAX_CHANGE_PATH_INSPECTION).forEach(function (entry) {
+    var selectedPaths = selectedDocumentPaths(), external = false, validCount = 0, rows = [];
+    var inspectionRemaining = Math.max(0, MAX_CHANGE_PATH_INSPECTION - rec.inspectedPathCount);
+    var inspectCount = Math.min(reported.length, inspectionRemaining);
+    var inspectionOverflow = reported.length > inspectCount;
+    reported.slice(0, inspectCount).forEach(function (entry) {
+      rec.inspectedPathCount += 1;
       if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return false;
       var path = boundedChangeText(entry.path, MAX_CHANGE_PATH_LENGTH);
       var kind = boundedChangeText(entry.kind, MAX_CHANGE_KIND_LENGTH);
       if (!path || !kind) return false;
-      if (paths.length < MAX_CHANGE_PATHS) paths.push({ path: path, kind: kind });
+      validCount += 1;
+      if (rec.displayedPathCount < MAX_CHANGE_PATHS) {
+        rows.push({ path: path, kind: kind });
+        rec.displayedPathCount += 1;
+      }
       if (selectedPaths.indexOf(normalizedReportedPath(path)) < 0) external = true;
     });
-    if (!paths.length) return false;
+    syncSparsePathState(rec);
+    if (!validCount && !inspectionOverflow) return false;
     rec.editCount += 1;
     ensureEditCard(rec);
     rec.cardTitle.textContent = '✦ reported file changes';
-    paths.forEach(function (change) {
+    rows.forEach(function (change) {
       var row = el('div', 'sp-change-path-row');
       row.appendChild(el('span', 'sp-change-path', change.path));
       row.appendChild(el('span', 'sp-change-kind', change.kind));
       rec.cardBody.appendChild(row);
     });
-    if ((external || reported.length > MAX_CHANGE_PATH_INSPECTION) && !rec.cardBody.querySelector('.sp-safety-warning')) {
+    if ((external || inspectionOverflow) && !rec.cardBody.querySelector('.sp-safety-warning')) {
       var warning = el('div', 'sp-safety-warning', external
         ? 'External change reported: Sandpaper cannot verify or undo that change.'
         : 'Additional changes were reported: Sandpaper cannot verify or undo changes outside the selected document.');
@@ -725,7 +743,7 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
     return true;
   }
   function addEdit(rec, f) {
-    if (rec.provider === 'codex' && Array.isArray(f.paths)) {
+    if (rec.provider === 'codex') {
       addSparseEdit(rec, f);
       return;
     }
@@ -838,18 +856,28 @@ import { createSandpaperClient } from '/__sandpaper/sp-client.js';
     panel.classList.add('sp-has-thread');
     acceptedTurns.forEach(function (accepted) {
       var box = accepted.box, parts = accepted.parts;
+      var actualDisplayedPathCount = box.querySelectorAll('.sp-change-path').length;
+      var storedDisplayed = Number(box.getAttribute('data-sp-path-count'));
+      var displayedPathCount = Number.isSafeInteger(storedDisplayed) && storedDisplayed === actualDisplayedPathCount &&
+        storedDisplayed >= 0 && storedDisplayed <= MAX_CHANGE_PATHS
+        ? storedDisplayed : Math.min(MAX_CHANGE_PATHS, actualDisplayedPathCount);
+      var storedInspected = Number(box.getAttribute('data-sp-path-inspected'));
+      var inspectedPathCount = Number.isSafeInteger(storedInspected) && storedInspected >= displayedPathCount &&
+        storedInspected <= MAX_CHANGE_PATH_INSPECTION ? storedInspected : MAX_CHANGE_PATH_INSPECTION;
       turns[parts.id] = {
         id: parts.id, box: box,
         proseEl: parts.prose,
         thinkEl: parts.thinkBody,
         thinkWrap: parts.think,
         metaEl: parts.meta,
-        editCount: box.querySelectorAll('.sp-hunkfile').length,
+        editCount: box.querySelectorAll('.sp-hunkfile').length || (parts.card ? 1 : 0),
         cardEl: parts.card,
         cardBody: parts.cardBody,
         cardTitle: parts.cardTitle,
         textBuf: '', thinkBuf: '', raf: 0, changedCids: [], draft: null, scope: null,
         provider: parts.provider,
+        displayedPathCount: displayedPathCount,
+        inspectedPathCount: inspectedPathCount,
         finalized: !!(!parts.meta.hidden && parts.meta.querySelector('.sp-tag')),
         errorShown: !!box.querySelector('.sp-err'),
       };
