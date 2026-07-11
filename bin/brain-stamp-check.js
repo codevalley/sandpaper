@@ -45,8 +45,8 @@ try {
 const isProject = (f) => /\.(js|css|html|md|json|ya?ml)$/.test(f)
   && f !== '.sandpaper' && !f.startsWith('.sandpaper/')
   && f !== 'node_modules' && !f.startsWith('node_modules/') && !f.includes('/node_modules/');
+const brainTouched = changed.some((f) => f.startsWith('brain/'));          // any safe brain path is a stamp
 const proj = changed.filter(isProject);
-const brainTouched = proj.some((f) => f.startsWith('brain/'));            // guard #2: stamped → won't fire
 const nonBrain = proj.filter((f) => !f.startsWith('brain/') && f !== 'CLAUDE.md' && f !== 'AGENTS.md');
 
 if (nonBrain.length && !brainTouched) {

@@ -41,6 +41,14 @@ function exactMatcher(group, matcher) {
     : group.matcher === matcher;
 }
 
+function exactOwnedGroup(group, matcher, command, timeout) {
+  if (!exactMatcher(group, matcher) || group.hooks.length !== 1
+    || !exactHandler(group.hooks[0], command, timeout)) return false;
+  const expectedKeys = matcher === undefined ? ['hooks'] : ['hooks', 'matcher'];
+  return Object.keys(group).length === expectedKeys.length
+    && expectedKeys.every((key) => Object.hasOwn(group, key));
+}
+
 function validateEvent(config, event) {
   if (!Object.hasOwn(config.hooks, event)) return null;
   const groups = config.hooks[event];
@@ -68,23 +76,16 @@ function updateEvent(config, [event, matcher, command, timeout], enabled) {
   let changed = false;
   const next = [];
   for (const group of current) {
-    if (!exactMatcher(group, matcher)) {
+    if (!exactOwnedGroup(group, matcher, command, timeout)) {
       next.push(group);
       continue;
     }
-    const hooks = [];
-    for (const hook of group.hooks) {
-      if (!exactHandler(hook, command, timeout)) {
-        hooks.push(hook);
-      } else if (enabled && !retained) {
-        hooks.push(hook);
-        retained = true;
-      } else {
-        changed = true;
-      }
+    if (enabled && !retained) {
+      next.push(group);
+      retained = true;
+    } else {
+      changed = true;
     }
-    if (hooks.length) next.push(hooks.length === group.hooks.length ? group : { ...group, hooks });
-    else changed = true;
   }
   if (enabled && !retained) {
     next.push({

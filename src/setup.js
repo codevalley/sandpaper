@@ -211,6 +211,7 @@ function scaffoldBrain(target, pkg, options, {
   updateExistingManifest = false,
   manifestPlan = null,
   skipManifestWrite = false,
+  reportManifest = true,
 } = {}) {
   const brain = join(target, 'brain'), project = projectName(target), date = today();
   const setupOptions = normalizeSetupOptions(options);
@@ -236,13 +237,16 @@ function scaffoldBrain(target, pkg, options, {
   const source = repoSource(target);
   const nSkel = writeSkeleton(brain, project, date, source);
   row('multi-page shell', nSkel ? 'cover · 3 lenses · 3 books' : 'already present', nSkel ? 'nav wired · ready to fill' : '');
-  row('manifest', '.sandpaper/manifest.json', hadMan ? 'kept · id counters' : 'ids · prefixes · port');
+  if (reportManifest) {
+    row('manifest', '.sandpaper/manifest.json', hadMan ? 'kept · id counters' : 'ids · prefixes · port');
+  }
   if (source) {
     ensureSourceMeta(brain, source);
     row('source meta', source.base.replace('https://', '').replace('/blob/HEAD/', ''), 'out-links survive any deploy');
   } else {
     row('source meta', 'none yet', 'no git remote — re-run after `git remote add`');
   }
+  return { hadManifest: hadMan };
 }
 
 export function installSkill(target, pkg, opts = {}, dependencies = {}) {
@@ -258,17 +262,23 @@ export function installSkill(target, pkg, opts = {}, dependencies = {}) {
   try {
     banner();
     console.log(`  ${clay('▸')} installing into  ${bold(projectName(target))}\n`);
+    // Scaffold first; integration surfaces and manifest selection commit together only after this succeeds.
+    section('BRAIN');
+    const scaffold = scaffoldBrain(target, pkg, options, {
+      manifestPlan,
+      skipManifestWrite: true,
+      reportManifest: false,
+    });
+    dependencies.beforeIntegrationCommit?.();
+    installation.commit();
+    console.log('');
     section('SKILL');
     if (installation.claude) row('13 slash commands', '.claude/commands/sandpaper/', '/sandpaper:<name>');
     else row('Claude integration', '.claude/commands/sandpaper/', 'not selected');
     if (installation.codex) row('Codex skill', '.agents/skills/sandpaper/', '$sandpaper <action>');
     else row('Codex integration', '.agents/skills/sandpaper/', 'not selected');
-    // Scaffold first; integration surfaces and manifest selection commit together only after this succeeds.
     section('BRAIN');
-    scaffoldBrain(target, pkg, options, { manifestPlan, skipManifestWrite: true });
-    dependencies.beforeIntegrationCommit?.();
-    installation.commit();
-    console.log('');
+    row('manifest', '.sandpaper/manifest.json', scaffold.hadManifest ? 'kept · id counters' : 'ids · prefixes · port');
     section('HOOKS');
     row('2 shared scripts', '.sandpaper/hooks/', 'copied · provider neutral');
     if (!options.hooksEnabled) {

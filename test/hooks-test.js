@@ -88,8 +88,7 @@ test('Codex merge preserves order and unrelated bytes semantically while dedupin
   assert.equal(after.prose, before.prose);
   assert.deepEqual(after.hooks.Unknown, before.hooks.Unknown);
   assert.deepEqual(after.hooks.Stop[0], before.hooks.Stop[0]);
-  assert.deepEqual(after.hooks.Stop[1].hooks, [similar[0], exactHandler(STAMP, 20), { type: 'command', command: 'node middle.js' }]);
-  assert.deepEqual(after.hooks.Stop[2].hooks, similar.slice(1));
+  assert.deepEqual(after.hooks.Stop, [...before.hooks.Stop, { hooks: [exactHandler(STAMP, 20)] }]);
   assert.deepEqual(after.hooks.SessionStart.at(-1), {
     matcher: 'startup|resume|clear|compact', hooks: [exactHandler(INJECT, 10)],
   });
@@ -112,8 +111,52 @@ test('disabled merge removes exact owned handlers but preserves mixed groups and
   assert.deepEqual(mergeClaudeHooks(root, { enabled: false }), { ok: true, changed: true });
   const after = JSON.parse(readFileSync(config(root, 'claude'), 'utf8'));
   assert.deepEqual(after.env, { KEEP: 'yes' });
-  assert.deepEqual(after.hooks.SessionStart, [{ matcher: '*', hooks: [user] }]);
+  assert.deepEqual(after.hooks.SessionStart, [{ matcher: '*', hooks: [exactHandler(INJECT, 10), user] }]);
   assert.deepEqual(after.hooks.Stop, [{ matcher: '*', hooks: [{ ...exactHandler(STAMP, 20), statusMessage: 'user field' }] }]);
+});
+
+test('group metadata makes Claude and Codex groups user-owned across enable, dedupe, and disable', (t) => {
+  for (const provider of ['claude', 'codex']) {
+    const root = fixture(t, `sandpaper-${provider}-group-owner-`);
+    const isClaude = provider === 'claude';
+    const sessionMatcher = isClaude ? '*' : 'startup|resume|clear|compact';
+    const stopMatcher = isClaude ? { matcher: '*' } : {};
+    const userSession = {
+      matcher: sessionMatcher,
+      note: 'user metadata',
+      hooks: [exactHandler(INJECT, 10)],
+    };
+    const userStop = {
+      ...stopMatcher,
+      description: 'user-owned group',
+      hooks: [exactHandler(STAMP, 20)],
+    };
+    const ownedSession = { matcher: sessionMatcher, hooks: [exactHandler(INJECT, 10)] };
+    const ownedStop = { ...stopMatcher, hooks: [exactHandler(STAMP, 20)] };
+    write(root, provider === 'claude' ? '.claude/settings.json' : '.codex/hooks.json', JSON.stringify({
+      hooks: {
+        SessionStart: [userSession, ownedSession, ownedSession],
+        Stop: [userStop, ownedStop, ownedStop],
+      },
+    }));
+
+    const merge = provider === 'claude' ? mergeClaudeHooks : mergeCodexHooks;
+    assert.equal(merge(root, { enabled: true }).ok, true);
+    const enabled = JSON.parse(readFileSync(config(root, provider), 'utf8'));
+    assert.deepEqual(enabled.hooks.SessionStart, [userSession, ownedSession]);
+    assert.deepEqual(enabled.hooks.Stop, [userStop, ownedStop]);
+
+    assert.equal(merge(root, { enabled: false }).ok, true);
+    const disabled = JSON.parse(readFileSync(config(root, provider), 'utf8'));
+    assert.deepEqual(disabled.hooks.SessionStart, [userSession]);
+    assert.deepEqual(disabled.hooks.Stop, [userStop]);
+
+    const userOnly = fixture(t, `sandpaper-${provider}-group-user-only-`);
+    const original = `  ${JSON.stringify({ hooks: { SessionStart: [userSession], Stop: [userStop] } })}`;
+    write(userOnly, provider === 'claude' ? '.claude/settings.json' : '.codex/hooks.json', original);
+    assert.deepEqual(merge(userOnly, { enabled: false }), { ok: true, changed: false });
+    assert.equal(readFileSync(config(userOnly, provider), 'utf8'), original);
+  }
 });
 
 test('no-op merge preserves bytes and mode while changed output is deterministic with one trailing newline', {

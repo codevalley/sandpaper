@@ -144,6 +144,15 @@ test('Stop redacts sensitive-looking path names from its bounded summary', (t) =
   assert.doesNotMatch(output.reason, /private-api-token-secret/);
 });
 
+test('Stop treats every safe brain path as a stamp regardless of file extension', (t) => {
+  for (const brainPath of ['brain/diagram.png', 'brain/context.txt']) {
+    const root = fixture(t);
+    write(root, 'src/app.js', 'changed\n');
+    write(root, brainPath, 'brain changed\n');
+    assert.equal(run(STAMP, root, '{}').stdout, '', brainPath);
+  }
+});
+
 test('hook scripts contain no Claude-only routing or prose', () => {
   const source = readFileSync(INJECT, 'utf8') + readFileSync(STAMP, 'utf8');
   assert.doesNotMatch(source, /fresh `claude`|Claude Code|Claude session|CLAUDE\.md\s*(?:→|->)|\/sandpaper:/i);

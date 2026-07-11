@@ -180,6 +180,40 @@ test('install output states the Codex project and per-command trust boundary', (
   assert.match(output, /each command hook.*reviewed.*trusted/i);
   assert.match(output, /startup review|\/hooks/i);
   assert.doesNotMatch(output, /Codex hooks (?:are )?active/i);
+  assert.match(output, /✓\s+13 slash commands/);
+  assert.match(output, /✓\s+Codex skill/);
+  assert.match(output, /✓\s+manifest/);
+  assert.match(output, /✓\s+Claude hook config/);
+  assert.match(output, /✓\s+Codex hook config/);
+});
+
+test('rolled-back installation output never claims transaction-owned surfaces succeeded', (t) => {
+  const target = mkdtempSync(join(tmpdir(), 'sandpaper-install-output-rollback-'));
+  t.after(() => rmSync(target, { recursive: true, force: true }));
+  write(target, 'package.json', JSON.stringify({ name: '@fixture/output-rollback' }));
+  const lines = [];
+  const log = console.log;
+  console.log = (...args) => lines.push(args.join(' '));
+  try {
+    assert.throws(() => setup.installSkill(target, PACKAGE, undefined, {
+      integrationHooks: {
+        afterInstall({ label }) {
+          if (label === 'codex-hooks') throw new Error('injected output rollback');
+        },
+      },
+    }), /Could not commit Sandpaper integration transaction/);
+  } finally {
+    console.log = log;
+  }
+
+  const output = lines.join('\n');
+  assert.doesNotMatch(output, /✓\s+13 slash commands/);
+  assert.doesNotMatch(output, /✓\s+Codex skill/);
+  assert.doesNotMatch(output, /✓\s+manifest/);
+  assert.doesNotMatch(output, /✓\s+Claude hook config/);
+  assert.doesNotMatch(output, /✓\s+Codex hook config/);
+  assert.match(output, /✓\s+design system/);
+  assert.match(output, /✓\s+multi-page shell/);
 });
 
 test('invalid second-provider config aborts before either config or Task 3 surfaces change', (t) => {
