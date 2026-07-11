@@ -206,6 +206,7 @@ test('brain stamp records one qualified release candidate while leaving publicat
     '335 unit', '101 Chromium', '58 files', '129,521 packed bytes', '486,114 unpacked bytes',
     'Claude 2/2', 'Codex 2/2', 'npm run verify-publish', 'npm pack --dry-run --json',
   ]) assert.match(evidence, new RegExp(exact.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.match(evidence, /post-reset[^<]{0,100}(?:without resume|fresh opaque scope)/i);
   assert.match(evidence, /tag[^.<]{0,80}push[^.<]{0,80}publish[^.<]{0,80}(?:not run|remain pending)/i);
   assert.doesNotMatch(evidence, /resumeId|session[_ -]?id|token|credential/i);
 });

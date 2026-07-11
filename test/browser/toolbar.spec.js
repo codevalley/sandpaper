@@ -51,10 +51,12 @@ async function transcriptKey(page, provider, pathname = '/hostile.html') {
 
 async function createProviderHistories(page) {
   const claudeCall = await submit(page, 'Claude history');
+  runner.session('claude-before-reset', claudeCall);
   runner.complete(claudeCall);
   await expect(page.locator('.sp-turnmeta .sp-tag')).toHaveText('Replied');
   await chooseProvider(page, 'codex');
   const codexCall = await submit(page, 'Codex history', codexRunner);
+  codexRunner.session('codex-continuity', codexCall);
   codexRunner.complete(codexCall);
   await expect(page.locator('.sp-turnmeta .sp-tag')).toHaveText('Replied');
   return {
@@ -1357,8 +1359,22 @@ test('New session clears exactly the selected provider/page transcript after exa
   await expect(page.locator('#sp-thread .sp-turn')).toHaveCount(0);
   expect(requestBody).toEqual({ page: '/hostile.html', provider: 'claude' });
   expect(await page.evaluate((key) => sessionStorage.getItem(key), claudeKey)).toBeNull();
-  expect(await page.evaluate((key) => sessionStorage.getItem(key), codexKey)).toContain('Codex history');
-  expect(await page.evaluate((key) => sessionStorage.getItem(key), otherKey)).toBe('<div>other page history</div>');
+  const codexHistory = await page.evaluate((key) => sessionStorage.getItem(key), codexKey);
+  const otherHistory = await page.evaluate((key) => sessionStorage.getItem(key), otherKey);
+  expect(codexHistory).toContain('Codex history');
+  expect(otherHistory).toBe('<div>other page history</div>');
+
+  const freshCall = await submit(page, 'Claude fresh after reset');
+  expect(runner.calls[freshCall].resumeId).toBeNull();
+  runner.session('claude-after-reset', freshCall);
+  runner.complete(freshCall);
+  await expect(page.locator('.sp-turnmeta .sp-tag')).toHaveText('Replied');
+  await expect(page.locator('#sp-thread')).toContainText('Claude fresh after reset');
+  await expect(page.locator('#sp-thread')).not.toContainText('Claude history');
+  expect(providerServices.sessionValues.get('/hostile.html\0claude')).toBe('claude-after-reset');
+  expect(providerServices.sessionValues.get('/hostile.html\0codex')).toBe('codex-continuity');
+  expect(await page.evaluate((key) => sessionStorage.getItem(key), codexKey)).toBe(codexHistory);
+  expect(await page.evaluate((key) => sessionStorage.getItem(key), otherKey)).toBe(otherHistory);
 
   await page.locator('#sp-provider-button').press('ArrowDown');
   await expect(page.locator('[data-provider="claude"]')).toBeFocused();

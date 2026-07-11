@@ -425,6 +425,18 @@ test('session reset clears only one mutable page/provider and rejects active tur
   assert.equal(providerServices.sessionValues.get('/\0claude'), 'root-claude');
   assert.equal(providerServices.sessionValues.get('/other.html\0codex'), 'other-codex');
 
+  const fresh = await requestJson(url, '/__sandpaper/turn', {
+    body: { page: '/', provider: 'codex', prompt: 'fresh after reset' },
+  });
+  assert.equal(fresh.status, 202);
+  assert.equal(providerServices.runners.codex.calls.length, 1, 'a fresh Codex turn must follow reset');
+  assert.equal(providerServices.runners.codex.calls[0].resumeId, null);
+  providerServices.runners.codex.session('fresh-root-codex');
+  providerServices.runners.codex.complete();
+  assert.equal(providerServices.sessionValues.get('/\0codex'), 'fresh-root-codex');
+  assert.equal(providerServices.sessionValues.get('/\0claude'), 'root-claude');
+  assert.equal(providerServices.sessionValues.get('/other.html\0codex'), 'other-codex');
+
   const invalidPage = await requestJson(url, '/__sandpaper/session/reset', {
     body: { page: '/missing.html', provider: 'codex' },
   });
