@@ -194,7 +194,6 @@ export function runClaudeTurn({ pageFile, prompt, resumeId, onSession, onFrame }
   emit({ type: 'status', state: 'init', label: 'starting…' });
 
   let buf = '';
-  let errored = false;
 
   const processLine = (raw) => {
     const line = raw.trim();
@@ -227,11 +226,10 @@ export function runClaudeTurn({ pageFile, prompt, resumeId, onSession, onFrame }
   let stderr = '';
   child.stderr.on('data', (d) => { stderr += d.toString(); });
   child.on('error', (err) => {
-    errored = true;
     emit({ type: 'status', state: 'error', label: 'claude not found — is it installed?', detail: err.message });
   });
   child.on('close', (code) => {
-    if (terminalEmitted || errored) return;
+    if (terminalEmitted) return;
     if (code && code !== 0) {
       emit({ type: 'status', state: 'error', label: `claude exited (${code})`, detail: stderr.slice(0, 300) });
     } else {

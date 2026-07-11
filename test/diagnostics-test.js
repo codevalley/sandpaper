@@ -21,18 +21,39 @@ test('Claude diagnosis distinguishes a missing binary from a failed version prob
     unavailableCode: 'incompatible',
   });
 
+  const calls = [];
   const healthy = diagnoseClaude((command, args) => {
-    assert.equal(command, 'claude');
-    assert.deepEqual(args, ['--version']);
-    return result(0, '2.1.0\n');
+    calls.push([command, args]);
+    if (args.join(' ') === '--version') return result(0, '2.1.0\n');
+    return result(0, JSON.stringify({
+      loggedIn: true, authMethod: 'claude.ai', subscriptionType: 'max',
+      email: 'secret@example.test', orgId: 'secret-org',
+    }));
   });
+  assert.deepEqual(calls, [
+    ['claude', ['--version']],
+    ['claude', ['auth', 'status', '--json']],
+  ]);
   assert.deepEqual(healthy, {
     available: true,
     compatible: true,
-    authMethod: 'unknown',
+    authMethod: 'subscription',
     version: '2.1.0',
     unavailableCode: null,
   });
+  assert.doesNotMatch(JSON.stringify(healthy), /secret@example|secret-org|max/);
+
+  const unauthenticated = diagnoseClaude((_command, args) => args[0] === '--version'
+    ? result(0, '2.1.0\n')
+    : result(1, JSON.stringify({ loggedIn: false, email: 'secret@example.test' })));
+  assert.deepEqual(unauthenticated, {
+    available: false,
+    compatible: true,
+    authMethod: null,
+    version: '2.1.0',
+    unavailableCode: 'unauthenticated',
+  });
+  assert.doesNotMatch(JSON.stringify(unauthenticated), /secret@example/);
 });
 
 test('Codex diagnosis checks controlled capabilities and saved login without exposing output', () => {

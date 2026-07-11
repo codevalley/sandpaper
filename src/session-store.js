@@ -11,6 +11,7 @@ const exactLegacy = (value) => validObject(value)
   && !!value.sessionId;
 const portable = (value) => value.split(sep).join('/');
 const validState = (value) => {
+  if (Object.hasOwn(value, 'sessionId')) return false;
   if (!validObject(value.pages)) return false;
   for (const [page, providers] of Object.entries(value.pages)) {
     if (!validPage(page) || !validObject(providers)) return false;

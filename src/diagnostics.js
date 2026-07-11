@@ -45,10 +45,38 @@ export function diagnoseClaude(runCommand = defaultRunCommand) {
       unavailableCode: 'incompatible',
     };
   }
+  const auth = runProbe(runCommand, 'claude', ['auth', 'status', '--json']);
+  let status;
+  try { status = JSON.parse(auth.stdout); }
+  catch { status = null; }
+  const structured = status && typeof status === 'object' && !Array.isArray(status)
+    && typeof status.loggedIn === 'boolean';
+  if (!structured) {
+    return {
+      available: false,
+      compatible: false,
+      authMethod: null,
+      version: version.stdout.trim(),
+      unavailableCode: 'incompatible',
+    };
+  }
+  if (auth.status !== 0 || !status.loggedIn) {
+    return {
+      available: false,
+      compatible: true,
+      authMethod: null,
+      version: version.stdout.trim(),
+      unavailableCode: 'unauthenticated',
+    };
+  }
+  const method = String(status.authMethod || '');
+  const authMethod = /claude\.ai|subscription/i.test(method) || status.subscriptionType
+    ? 'subscription'
+    : /api/i.test(method) ? 'api-key' : 'unknown';
   return {
     available: true,
     compatible: true,
-    authMethod: 'unknown',
+    authMethod,
     version: version.stdout.trim(),
     unavailableCode: null,
   };

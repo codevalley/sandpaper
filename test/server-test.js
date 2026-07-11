@@ -853,6 +853,28 @@ test('Claude contains a transient frame callback failure', () => {
   assert.equal(terminals.length, 1);
 });
 
+test('Claude retries terminal delivery on close after a transient child-error callback failure', () => {
+  const child = fakeChild();
+  const frames = [];
+  let rejectFirstError = true;
+  runClaudeTurn({
+    pageFile: '/tmp/project/page.html', prompt: 'prompt', resumeId: null, onSession() {},
+    onFrame(frame) {
+      if (frame.state === 'error' && rejectFirstError) {
+        rejectFirstError = false;
+        throw new Error('terminal consumer failed once');
+      }
+      frames.push(frame);
+    },
+  }, { spawn: () => child, onClaudePlan: () => false });
+  child.emit('error', new Error('child failed'));
+  child.emit('close', 1);
+  const terminals = frames.filter((frame) => frame.type === 'status'
+    && (frame.done || frame.state === 'done' || frame.state === 'error'));
+  assert.equal(terminals.length, 1);
+  assert.equal(terminals[0].state, 'error');
+});
+
 test('Claude removes the API key only when subscription auth is active', (t) => {
   const originalApiKey = process.env.ANTHROPIC_API_KEY;
   process.env.ANTHROPIC_API_KEY = 'api-secret';

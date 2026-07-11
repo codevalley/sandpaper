@@ -92,6 +92,7 @@ test('unknown session schemas fail closed without changing their bytes', (t) => 
   const cases = [
     ['future version', { version: 3, pages: {} }, true],
     ['future version with legacy id', { version: 3, sessionId: 'do-not-migrate' }, true],
+    ['v2 mixed with legacy id', { version: 2, pages: {}, sessionId: 'do-not-migrate' }, false],
     ['unknown object', { sessionId: 'legacy', extra: true }, false],
     ['array', ['legacy'], false],
   ];
