@@ -125,8 +125,11 @@ export function ensureTrustedParents(root, target, {
   }
 }
 
-function identitySnapshot(root, fs, pathApi) {
-  const entries = new Map();
+export function identityTree(root, { fs: overrides, pathApi = nodePath } = {}) {
+  const fs = runtimeFs(overrides);
+  const rootStats = lstatIfPresent(root, fs);
+  if (!rootStats) throw new Error('Sandpaper owned artifact is missing');
+  const entries = new Map([['', statIdentity(rootStats)]]);
   const walk = (directory, prefix = '') => {
     for (const name of fs.readdirSync(directory).sort()) {
       const path = pathApi.join(directory, name);
@@ -136,11 +139,11 @@ function identitySnapshot(root, fs, pathApi) {
       if (stats.isDirectory()) walk(path, relative);
     }
   };
-  walk(root);
+  if (rootStats.isDirectory()) walk(root);
   return entries;
 }
 
-function sameSnapshot(left, right) {
+export function sameIdentityTree(left, right) {
   if (left.size !== right.size) return false;
   for (const [path, expected] of left) {
     const actual = right.get(path);
@@ -149,52 +152,130 @@ function sameSnapshot(left, right) {
   return true;
 }
 
+function transactionContents(transaction, fs, pathApi) {
+  const snapshot = identityTree(transaction, { fs, pathApi });
+  snapshot.delete('');
+  return snapshot;
+}
+
+function transactionAt(path, transactionIdentity, fs) {
+  const current = path ? lstatIfPresent(path, fs) : null;
+  return Boolean(current?.isDirectory() && sameStatIdentity(current, transactionIdentity));
+}
+
+function locateTransaction(transaction, quarantinedTransaction, quarantineRoot, transactionIdentity, fs, pathApi) {
+  for (const candidate of [quarantinedTransaction, transaction]) {
+    if (transactionAt(candidate, transactionIdentity, fs)) return candidate;
+  }
+  for (const directory of [quarantineRoot, pathApi.dirname(transaction)]) {
+    const root = directory ? lstatIfPresent(directory, fs) : null;
+    if (!root?.isDirectory()) continue;
+    try {
+      for (const name of fs.readdirSync(directory).sort()) {
+        const candidate = pathApi.join(directory, name);
+        if (transactionAt(candidate, transactionIdentity, fs)) return candidate;
+      }
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
+function recoveryForPhase(transaction, quarantinedTransaction, quarantineRoot, transactionIdentity, fs, pathApi) {
+  const located = locateTransaction(
+    transaction,
+    quarantinedTransaction,
+    quarantineRoot,
+    transactionIdentity,
+    fs,
+    pathApi,
+  );
+  if (located) return new SandpaperRecoveryError(located);
+  if (quarantineRoot && lstatIfPresent(quarantineRoot, fs)?.isDirectory()) {
+    try {
+      if (fs.readdirSync(quarantineRoot).length) return new SandpaperRecoveryError(quarantineRoot);
+    } catch { /* fall through to a bounded non-recovery error */ }
+  }
+  throw new Error('Sandpaper transaction recovery location is ambiguous');
+}
+
 export function quarantineCleanup(transaction, transactionIdentity, {
   fs: overrides,
   pathApi = nodePath,
   hooks = {},
+  expectedContents = new Map(),
 } = {}) {
   const fs = runtimeFs(overrides);
   const current = lstatIfPresent(transaction, fs);
   if (!sameStatIdentity(current, transactionIdentity) || !current?.isDirectory()) {
-    throw new SandpaperRecoveryError(transaction);
+    throw recoveryForPhase(transaction, null, null, transactionIdentity, fs, pathApi);
   }
-  let expected;
-  try { expected = identitySnapshot(transaction, fs, pathApi); }
-  catch { throw new SandpaperRecoveryError(transaction); }
+  try {
+    if (!sameIdentityTree(transactionContents(transaction, fs, pathApi), expectedContents)) {
+      throw new SandpaperRecoveryError(transaction);
+    }
+  } catch (error) {
+    if (error instanceof SandpaperRecoveryError) throw error;
+    throw recoveryForPhase(transaction, null, null, transactionIdentity, fs, pathApi);
+  }
 
-  const quarantineRoot = fs.mkdtempSync(pathApi.join(pathApi.dirname(transaction), '.sandpaper-quarantine-'));
-  const quarantineIdentity = statIdentity(fs.lstatSync(quarantineRoot));
+  let quarantineRoot;
+  try {
+    quarantineRoot = fs.mkdtempSync(pathApi.join(pathApi.dirname(transaction), '.sandpaper-quarantine-'));
+  } catch {
+    throw recoveryForPhase(transaction, null, null, transactionIdentity, fs, pathApi);
+  }
+  let quarantineIdentity;
+  try { quarantineIdentity = statIdentity(fs.lstatSync(quarantineRoot)); }
+  catch { throw recoveryForPhase(transaction, null, quarantineRoot, transactionIdentity, fs, pathApi); }
   const quarantinedTransaction = pathApi.join(quarantineRoot, 'transaction');
   try {
     hooks.beforeQuarantineRename?.({ transaction, quarantineRoot, quarantinedTransaction });
     const beforeMove = lstatIfPresent(transaction, fs);
-    if (!sameStatIdentity(beforeMove, transactionIdentity)) throw new SandpaperRecoveryError(quarantineRoot);
-    const beforeSnapshot = identitySnapshot(transaction, fs, pathApi);
-    if (!sameSnapshot(beforeSnapshot, expected)) throw new SandpaperRecoveryError(quarantineRoot);
+    if (!sameStatIdentity(beforeMove, transactionIdentity)) {
+      throw recoveryForPhase(transaction, quarantinedTransaction, quarantineRoot, transactionIdentity, fs, pathApi);
+    }
+    if (!sameIdentityTree(transactionContents(transaction, fs, pathApi), expectedContents)) {
+      throw recoveryForPhase(transaction, quarantinedTransaction, quarantineRoot, transactionIdentity, fs, pathApi);
+    }
     fs.renameSync(transaction, quarantinedTransaction);
     const moved = lstatIfPresent(quarantinedTransaction, fs);
-    if (!sameStatIdentity(moved, transactionIdentity)) throw new SandpaperRecoveryError(quarantineRoot);
-    if (!sameSnapshot(identitySnapshot(quarantinedTransaction, fs, pathApi), expected)) {
-      throw new SandpaperRecoveryError(quarantineRoot);
+    if (!sameStatIdentity(moved, transactionIdentity)) {
+      throw recoveryForPhase(transaction, quarantinedTransaction, quarantineRoot, transactionIdentity, fs, pathApi);
+    }
+    if (!sameIdentityTree(transactionContents(quarantinedTransaction, fs, pathApi), expectedContents)) {
+      throw recoveryForPhase(transaction, quarantinedTransaction, quarantineRoot, transactionIdentity, fs, pathApi);
     }
     hooks.beforeRecursiveCleanup?.({ quarantineRoot, quarantinedTransaction });
     const finalMoved = lstatIfPresent(quarantinedTransaction, fs);
-    if (!sameStatIdentity(finalMoved, transactionIdentity)) throw new SandpaperRecoveryError(quarantineRoot);
-    if (!sameSnapshot(identitySnapshot(quarantinedTransaction, fs, pathApi), expected)) {
-      throw new SandpaperRecoveryError(quarantineRoot);
+    if (!sameStatIdentity(finalMoved, transactionIdentity)) {
+      throw recoveryForPhase(transaction, quarantinedTransaction, quarantineRoot, transactionIdentity, fs, pathApi);
     }
-    fs.rmSync(quarantinedTransaction, { recursive: true, force: true });
-    if (lstatIfPresent(quarantinedTransaction, fs)) throw new SandpaperRecoveryError(quarantineRoot);
+    if (!sameIdentityTree(transactionContents(quarantinedTransaction, fs, pathApi), expectedContents)) {
+      throw recoveryForPhase(transaction, quarantinedTransaction, quarantineRoot, transactionIdentity, fs, pathApi);
+    }
     if (!sameStatIdentity(lstatIfPresent(quarantineRoot, fs), quarantineIdentity)) {
-      throw new SandpaperRecoveryError(quarantineRoot);
+      throw recoveryForPhase(transaction, quarantinedTransaction, quarantineRoot, transactionIdentity, fs, pathApi);
     }
-    fs.rmdirSync(quarantineRoot);
-    return true;
   } catch (error) {
     if (error instanceof SandpaperRecoveryError) throw error;
-    throw new SandpaperRecoveryError(quarantineRoot);
+    throw recoveryForPhase(transaction, quarantinedTransaction, quarantineRoot, transactionIdentity, fs, pathApi);
   }
+
+  // Node 18 has no portable directory-fd recursive removal. Keep this final gap hook-free:
+  // the unpredictable quarantine path and immutable identity tree were revalidated immediately above.
+  try {
+    fs.rmSync(quarantinedTransaction, { recursive: true, force: true });
+  } catch {
+    throw recoveryForPhase(transaction, quarantinedTransaction, quarantineRoot, transactionIdentity, fs, pathApi);
+  }
+  try {
+    fs.rmdirSync(quarantineRoot);
+  } catch {
+    throw new Error('Could not remove empty Sandpaper quarantine');
+  }
+  return true;
 }
 
 function invalidMarkers() {
@@ -377,6 +458,7 @@ function applyPlan(file, plan, trustedRoot, { fs: overrides, pathApi = nodePath,
   const staged = plan.next === null ? null : pathApi.join(transaction, 'next');
   const backup = pathApi.join(transaction, 'backup');
   const failed = pathApi.join(transaction, 'failed');
+  const owned = new Map();
   let stageIdentity = null;
   let backupMoved = false;
   try {
@@ -384,10 +466,14 @@ function applyPlan(file, plan, trustedRoot, { fs: overrides, pathApi = nodePath,
       const flags = fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY | (fs.constants.O_NOFOLLOW || 0);
       const descriptor = fs.openSync(staged, flags, plan.mode);
       try {
+        stageIdentity = statIdentity(fs.fstatSync(descriptor));
+        owned.set(pathApi.basename(staged), stageIdentity);
         fs.writeFileSync(descriptor, plan.next);
         fs.fchmodSync(descriptor, plan.mode);
       } finally { fs.closeSync(descriptor); }
-      stageIdentity = statIdentity(fs.lstatSync(staged));
+      if (!sameStatIdentity(fs.lstatSync(staged), stageIdentity)) {
+        throw new Error('Sandpaper managed stage identity mismatch');
+      }
     }
     if (!currentMatchesPlan(file, plan, trustedRoot, fs, pathApi)) {
       throw new Error('Sandpaper managed file changed during update');
@@ -400,6 +486,7 @@ function applyPlan(file, plan, trustedRoot, { fs: overrides, pathApi = nodePath,
       fs.renameSync(file, backup);
       backupMoved = true;
       if (!sameStatIdentity(lstatIfPresent(backup, fs), plan.identity)) throw new Error('Sandpaper managed backup identity mismatch');
+      owned.set(pathApi.basename(backup), plan.identity);
       hooks.afterBackup?.({ file, transaction, backup });
     }
     if (staged) {
@@ -417,6 +504,7 @@ function applyPlan(file, plan, trustedRoot, { fs: overrides, pathApi = nodePath,
     if (stageIdentity && sameStatIdentity(current, stageIdentity)) {
       try {
         fs.renameSync(file, failed);
+        owned.set(pathApi.basename(failed), stageIdentity);
         if (!sameStatIdentity(lstatIfPresent(failed, fs), stageIdentity)) recoveryRequired = true;
       } catch { recoveryRequired = true; }
     } else if (current && !(plan.exists && sameStatIdentity(current, plan.identity))) {
@@ -426,6 +514,7 @@ function applyPlan(file, plan, trustedRoot, { fs: overrides, pathApi = nodePath,
       if (!lstatIfPresent(file, fs)) {
         try {
           fs.renameSync(backup, file);
+          owned.delete(pathApi.basename(backup));
           if (!sameStatIdentity(lstatIfPresent(file, fs), plan.identity)) recoveryRequired = true;
         } catch { recoveryRequired = true; }
       } else if (!sameStatIdentity(lstatIfPresent(file, fs), plan.identity)) {
@@ -433,11 +522,11 @@ function applyPlan(file, plan, trustedRoot, { fs: overrides, pathApi = nodePath,
       }
     }
     if (recoveryRequired) throw new SandpaperRecoveryError(transaction);
-    quarantineCleanup(transaction, transactionIdentity, { fs, pathApi, hooks });
+    quarantineCleanup(transaction, transactionIdentity, { fs, pathApi, hooks, expectedContents: owned });
     if (error?.message === 'Sandpaper managed file changed during update') throw error;
     throw new Error('Could not update Sandpaper managed file');
   }
-  quarantineCleanup(transaction, transactionIdentity, { fs, pathApi, hooks });
+  quarantineCleanup(transaction, transactionIdentity, { fs, pathApi, hooks, expectedContents: owned });
   return { ok: true, changed: true, action: plan.action };
 }
 

@@ -3,9 +3,11 @@ import * as nodePath from 'node:path';
 
 import {
   ensureTrustedParents,
+  identityTree,
   inspectTrustedPath,
   planManagedBlock,
   quarantineCleanup,
+  sameIdentityTree,
   SandpaperRecoveryError,
 } from './managed-files.js';
 
@@ -121,7 +123,13 @@ function scanTree(path, pathClass, fs, pathApi) {
     }
   };
   walk(path, '');
-  return { snapshot, identity: identity(root) };
+  const identities = identityTree(path, { fs, pathApi });
+  const expectedRoot = identity(root);
+  const actualRoot = identities.get('');
+  if (!actualRoot || actualRoot.dev !== expectedRoot.dev || actualRoot.ino !== expectedRoot.ino || actualRoot.type !== expectedRoot.type) {
+    throw new Error(`Sandpaper ${pathClass} changed during preflight`);
+  }
+  return { snapshot, identity: identity(root), identities };
 }
 
 function cloneSnapshot(snapshot) {
@@ -159,13 +167,14 @@ function addSnapshot(target, source, prefix, pathApi) {
   }
 }
 
-function writeExclusiveFile(path, file, fs) {
+function writeExclusiveFile(path, file, fs, onCreate = () => {}) {
   const flags = fs.constants.O_CREAT
     | fs.constants.O_EXCL
     | fs.constants.O_WRONLY
     | (fs.constants.O_NOFOLLOW || 0);
   const descriptor = fs.openSync(path, flags, file.mode);
   try {
+    onCreate(path, fs.fstatSync(descriptor));
     fs.writeFileSync(descriptor, file.bytes);
     fs.fchmodSync(descriptor, file.mode);
   } finally {
@@ -173,8 +182,9 @@ function writeExclusiveFile(path, file, fs) {
   }
 }
 
-function materializeSnapshot(path, snapshot, fs, pathApi) {
+function materializeSnapshot(path, snapshot, fs, pathApi, onCreate = () => {}) {
   fs.mkdirSync(path, { mode: snapshot.rootMode });
+  onCreate(path, fs.lstatSync(path));
   fs.chmodSync(path, snapshot.rootMode);
   const directories = [...snapshot.directories].sort(([left], [right]) => {
     const depth = relativeParts(left, pathApi).length - relativeParts(right, pathApi).length;
@@ -183,11 +193,54 @@ function materializeSnapshot(path, snapshot, fs, pathApi) {
   for (const [relative, mode] of directories) {
     const directory = pathApi.join(path, relative);
     fs.mkdirSync(directory, { mode });
+    onCreate(directory, fs.lstatSync(directory));
     fs.chmodSync(directory, mode);
   }
   for (const [relative, file] of [...snapshot.files].sort(([left], [right]) => left.localeCompare(right))) {
-    writeExclusiveFile(pathApi.join(path, relative), file, fs);
+    writeExclusiveFile(pathApi.join(path, relative), file, fs, onCreate);
   }
+}
+
+function relativeTransactionPath(transaction, path, pathApi) {
+  const relative = pathApi.relative(transaction, path);
+  if (!relative || pathApi.isAbsolute(relative) || relative === '..' || relative.startsWith(`..${pathApi.sep}`)) {
+    throw new Error('Sandpaper transaction ownership path is invalid');
+  }
+  return relative;
+}
+
+function ownCreatedPath(owned, transaction, path, stats, pathApi) {
+  owned.set(relativeTransactionPath(transaction, path, pathApi), identity(stats));
+}
+
+function addOwnedArtifact(owned, transaction, artifact, identities, pathApi) {
+  const prefix = relativeTransactionPath(transaction, artifact, pathApi);
+  for (const [relative, artifactIdentity] of identities) {
+    owned.set(relative ? pathApi.join(prefix, relative) : prefix, artifactIdentity);
+  }
+}
+
+function removeOwnedArtifact(owned, transaction, artifact, pathApi) {
+  const prefix = relativeTransactionPath(transaction, artifact, pathApi);
+  for (const path of [...owned.keys()]) {
+    if (path === prefix || path.startsWith(`${prefix}${pathApi.sep}`)) owned.delete(path);
+  }
+}
+
+function ownedArtifactContents(owned, transaction, artifact, pathApi) {
+  const prefix = relativeTransactionPath(transaction, artifact, pathApi);
+  const contents = new Map();
+  for (const [path, artifactIdentity] of owned) {
+    if (path === prefix) contents.set('', artifactIdentity);
+    else if (path.startsWith(`${prefix}${pathApi.sep}`)) {
+      contents.set(path.slice(prefix.length + pathApi.sep.length), artifactIdentity);
+    }
+  }
+  return contents;
+}
+
+function fileIdentityTree(fileIdentity) {
+  return fileIdentity ? new Map([['', fileIdentity]]) : new Map();
 }
 
 function removeCreatedParents(created, fs) {
@@ -198,7 +251,7 @@ function removeCreatedParents(created, fs) {
   }
 }
 
-function validateCurrent(operation, fs) {
+function validateCurrent(operation, fs, pathApi) {
   const current = lstatIfPresent(operation.destination, fs);
   if (!sameIdentity(current, operation.expectedIdentity)) {
     throw new Error('Sandpaper transaction path changed before commit');
@@ -208,10 +261,13 @@ function validateCurrent(operation, fs) {
     const bytes = readRegularFile(operation.destination, 'managed file', fs).bytes;
     if (!bytes.equals(operation.expectedBytes)) throw new Error('Sandpaper transaction file changed before commit');
   }
+  if (current && !sameIdentityTree(identityTree(operation.destination, { fs, pathApi }), operation.expectedContents)) {
+    throw new Error('Sandpaper transaction contents changed before commit');
+  }
 }
 
 function rollbackTransaction(state) {
-  const { fs, pathApi, transaction, transactionIdentity, operations, created, hooks } = state;
+  const { fs, pathApi, transaction, transactionIdentity, operations, created, hooks, owned } = state;
   let recoveryRequired = false;
 
   for (const operation of [...operations].reverse()) {
@@ -226,6 +282,8 @@ function rollbackTransaction(state) {
       const failed = pathApi.join(transaction, `failed-${operation.index}`);
       try {
         fs.renameSync(operation.destination, failed);
+        removeOwnedArtifact(owned, transaction, operation.staged, pathApi);
+        addOwnedArtifact(owned, transaction, failed, operation.stageContents, pathApi);
         const moved = lstatIfPresent(failed, fs);
         if (!sameIdentity(moved, operation.installedIdentity || operation.stageIdentity)) recoveryRequired = true;
       } catch {
@@ -241,6 +299,7 @@ function rollbackTransaction(state) {
       } else if (!lstatIfPresent(operation.destination, fs)) {
         try {
           fs.renameSync(operation.backup, operation.destination);
+          removeOwnedArtifact(owned, transaction, operation.backup, pathApi);
           if (!sameIdentity(lstatIfPresent(operation.destination, fs), operation.expectedIdentity)) recoveryRequired = true;
         } catch {
           recoveryRequired = true;
@@ -253,14 +312,14 @@ function rollbackTransaction(state) {
     }
   }
 
-  if (recoveryRequired) return false;
-  try {
-    quarantineCleanup(transaction, transactionIdentity, { fs, pathApi, hooks });
-    removeCreatedParents(created, fs);
-    return true;
-  } catch {
-    return false;
-  }
+  if (recoveryRequired) throw new SandpaperRecoveryError(transaction);
+  quarantineCleanup(transaction, transactionIdentity, {
+    fs,
+    pathApi,
+    hooks,
+    expectedContents: owned,
+  });
+  removeCreatedParents(created, fs);
 }
 
 function prepareTransaction({
@@ -291,32 +350,46 @@ function prepareTransaction({
   let transaction;
   let transactionIdentity;
   const prepared = [];
+  const owned = new Map();
   try {
     transaction = fs.mkdtempSync(pathApi.join(transactionParent, prefix));
     transactionIdentity = identity(assertDirectory(transaction, 'transaction', fs));
+    const onCreate = (path, stats) => ownCreatedPath(owned, transaction, path, stats, pathApi);
     for (const [index, operation] of operations.entries()) {
       if (!operation.changed) continue;
       const safeLabel = operation.label.replace(/[^a-z0-9-]/gi, '-');
       const staged = operation.desired === null ? null : pathApi.join(transaction, `next-${safeLabel}`);
       hooks.beforeStage?.(operation);
-      if (operation.snapshot) materializeSnapshot(staged, operation.snapshot, fs, pathApi);
-      else if (operation.file) writeExclusiveFile(staged, operation.file, fs);
+      if (operation.snapshot) materializeSnapshot(staged, operation.snapshot, fs, pathApi, onCreate);
+      else if (operation.file) writeExclusiveFile(staged, operation.file, fs, onCreate);
       const stageIdentity = staged ? identity(lstatIfPresent(staged, fs)) : null;
       if (staged && (!stageIdentity || stageIdentity.type !== operation.kind)) {
         throw new Error('Sandpaper staged artifact identity mismatch');
+      }
+      const stageContents = staged ? ownedArtifactContents(owned, transaction, staged, pathApi) : new Map();
+      if (staged && !sameIdentityTree(identityTree(staged, { fs, pathApi }), stageContents)) {
+        throw new Error('Sandpaper staged artifact contents mismatch');
       }
       prepared.push({
         ...operation,
         index,
         staged,
         stageIdentity,
+        stageContents,
         backup: pathApi.join(transaction, operations.length === 1 ? 'previous' : `previous-${index}`),
         installedIdentity: null,
       });
     }
   } catch {
     if (transaction && transactionIdentity) {
-      try { quarantineCleanup(transaction, transactionIdentity, { fs, pathApi, hooks }); }
+      try {
+        quarantineCleanup(transaction, transactionIdentity, {
+          fs,
+          pathApi,
+          hooks,
+          expectedContents: owned,
+        });
+      }
       catch (error) { if (error instanceof SandpaperRecoveryError) throw error; }
     }
     removeCreatedParents(created, fs);
@@ -324,7 +397,7 @@ function prepareTransaction({
   }
 
   let settled = false;
-  const state = { fs, pathApi, transaction, transactionIdentity, operations: prepared, created, hooks };
+  const state = { fs, pathApi, transaction, transactionIdentity, operations: prepared, created, hooks, owned };
   return {
     recoveryPath: transaction,
     commit() {
@@ -343,15 +416,20 @@ function prepareTransaction({
             pathClass: 'destination path',
             finalType: 'directory',
           });
-          validateCurrent(operation, fs);
+          validateCurrent(operation, fs, pathApi);
           if (operation.expectedIdentity) {
             fs.renameSync(operation.destination, operation.backup);
+            addOwnedArtifact(owned, transaction, operation.backup, operation.expectedContents, pathApi);
             if (!sameIdentity(lstatIfPresent(operation.backup, fs), operation.expectedIdentity)) {
               throw new Error('Sandpaper backup identity mismatch');
+            }
+            if (!sameIdentityTree(identityTree(operation.backup, { fs, pathApi }), operation.expectedContents)) {
+              throw new Error('Sandpaper backup contents mismatch');
             }
           }
           if (operation.staged) {
             fs.renameSync(operation.staged, operation.destination);
+            removeOwnedArtifact(owned, transaction, operation.staged, pathApi);
             const installed = lstatIfPresent(operation.destination, fs);
             if (!sameIdentity(installed, operation.stageIdentity)) throw new Error('Sandpaper installed identity mismatch');
             operation.installedIdentity = identity(installed);
@@ -371,17 +449,27 @@ function prepareTransaction({
         }
       } catch {
         settled = true;
-        if (!rollbackTransaction(state)) throw new SandpaperRecoveryError(transaction);
+        rollbackTransaction(state);
         throw new Error(`Could not commit Sandpaper ${errorClass}`);
       }
       settled = true;
-      quarantineCleanup(transaction, transactionIdentity, { fs, pathApi, hooks });
+      quarantineCleanup(transaction, transactionIdentity, {
+        fs,
+        pathApi,
+        hooks,
+        expectedContents: owned,
+      });
       return true;
     },
     abort() {
       if (settled) return;
       settled = true;
-      quarantineCleanup(transaction, transactionIdentity, { fs, pathApi, hooks });
+      quarantineCleanup(transaction, transactionIdentity, {
+        fs,
+        pathApi,
+        hooks,
+        expectedContents: owned,
+      });
       removeCreatedParents(created, fs);
     },
   };
@@ -417,6 +505,7 @@ export function copyTree(source, destination, {
     desired,
     changed: true,
     expectedIdentity: destinationRead?.identity || null,
+    expectedContents: destinationRead?.identities || new Map(),
     expectedBytes: null,
   };
   const transaction = prepareTransaction({
@@ -470,6 +559,7 @@ function validateIntegrations(options = {}) {
 
 function fileOperation({ label, destination, plan, fs }) {
   const inspected = lstatIfPresent(destination, fs);
+  const expectedIdentity = identity(inspected);
   return {
     label,
     destination,
@@ -478,7 +568,8 @@ function fileOperation({ label, destination, plan, fs }) {
     file: plan.next === null ? null : { bytes: Buffer.from(plan.next), mode: plan.mode },
     desired: plan.next,
     changed: plan.changed,
-    expectedIdentity: identity(inspected),
+    expectedIdentity,
+    expectedContents: fileIdentityTree(expectedIdentity),
     expectedBytes: Buffer.from(plan.source),
   };
 }
@@ -511,9 +602,12 @@ export function prepareInstallIntegrations(target, packageRoot, options = {}, {
     const namespace = pathApi.join(target, definition.namespace);
     const namespaceInspection = inspectTrustedPath(target, namespace, { fs, pathApi, pathClass: 'destination path' });
     let namespaceIdentity = null;
+    let namespaceContents = new Map();
     if (namespaceInspection.exists) {
       if (!namespaceInspection.stats.isDirectory()) unsafe('destination namespace', typeOf(namespaceInspection.stats));
-      namespaceIdentity = scanTree(namespace, 'destination namespace', fs, pathApi).identity;
+      const namespaceRead = scanTree(namespace, 'destination namespace', fs, pathApi);
+      namespaceIdentity = namespaceRead.identity;
+      namespaceContents = namespaceRead.identities;
     }
     operations.push({
       label: `${provider}-namespace`,
@@ -524,6 +618,7 @@ export function prepareInstallIntegrations(target, packageRoot, options = {}, {
       desired: selected ? snapshots[provider] : null,
       changed: selected || Boolean(namespaceIdentity),
       expectedIdentity: namespaceIdentity,
+      expectedContents: namespaceContents,
       expectedBytes: null,
     });
 
@@ -553,6 +648,7 @@ export function prepareInstallIntegrations(target, packageRoot, options = {}, {
       desired,
       changed: !source.equals(desired) || manifestSource?.mode !== desiredMode,
       expectedIdentity: identity(manifestInspection.stats),
+      expectedContents: fileIdentityTree(identity(manifestInspection.stats)),
       expectedBytes: source,
     });
   }

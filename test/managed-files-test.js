@@ -16,7 +16,7 @@ import {
 } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
-import { dirname, join, win32 } from 'node:path';
+import { join, win32 } from 'node:path';
 
 import { copyTree } from '../src/integrations.js';
 import * as managed from '../src/managed-files.js';
@@ -529,6 +529,7 @@ test('transaction cleanup retains data swapped at quarantine rename', (t) => {
   }));
 
   assert.equal(error.code, 'SANDPAPER_RECOVERY_REQUIRED');
+  assert.equal(error.recoveryPath, savedOriginal);
   assert.equal(readFileSync(join(savedOriginal, 'previous', 'old.md'), 'utf8'), 'old\n');
   assert.equal(readFileSync(join(swappedTransaction, 'user.md'), 'utf8'), 'user swap bytes\n');
 });
@@ -562,7 +563,98 @@ test('transaction cleanup retains data swapped immediately before recursive quar
   assert.equal(error.code, 'SANDPAPER_RECOVERY_REQUIRED');
   assert.equal(readFileSync(join(savedOriginal, 'previous', 'old.md'), 'utf8'), 'old\n');
   assert.equal(readFileSync(join(swappedPath, 'user.md'), 'utf8'), 'late user swap\n');
-  assert.equal(error.recoveryPath, dirname(savedOriginal));
+  assert.equal(error.recoveryPath, savedOriginal);
+});
+
+test('standalone cleanup rejects user data injected before its cleanup ownership baseline', (t) => {
+  const root = fixture(t, 'sandpaper-managed-owned-baseline-');
+  const file = join(root, 'AGENTS.md');
+  writeFileSync(file, 'original user bytes\n');
+  let transaction;
+
+  const error = thrown(() => upsertManagedBlock(file, {
+    ...MARKERS,
+    content: 'managed',
+    trustedRoot: root,
+  }, {
+    hooks: {
+      afterBackup(event) {
+        transaction = event.transaction;
+        writeFileSync(join(transaction, 'unowned-user.md'), 'must survive\n');
+      },
+    },
+  }));
+
+  assert.equal(error.code, 'SANDPAPER_RECOVERY_REQUIRED');
+  assert.equal(error.recoveryPath, transaction);
+  assert.equal(readFileSync(join(error.recoveryPath, 'unowned-user.md'), 'utf8'), 'must survive\n');
+  assert.equal(readFileSync(join(error.recoveryPath, 'backup'), 'utf8'), 'original user bytes\n');
+});
+
+test('standalone quarantine rename failure reports the retained original transaction', (t) => {
+  const root = fixture(t, 'sandpaper-managed-quarantine-rename-');
+  const file = join(root, 'AGENTS.md');
+  writeFileSync(file, 'original user bytes\n');
+
+  const error = thrown(() => upsertManagedBlock(file, {
+    ...MARKERS,
+    content: 'managed',
+    trustedRoot: root,
+  }, {
+    fs: {
+      renameSync(from, to) {
+        if (to.includes('.sandpaper-quarantine-') && to.endsWith('transaction')) {
+          throw Object.assign(new Error('injected quarantine rename failure'), { code: 'EIO' });
+        }
+        return renameSync(from, to);
+      },
+    },
+  }));
+
+  assert.equal(error.code, 'SANDPAPER_RECOVERY_REQUIRED');
+  assert.equal(existsSync(error.recoveryPath), true);
+  assert.equal(readFileSync(join(error.recoveryPath, 'backup'), 'utf8'), 'original user bytes\n');
+});
+
+test('standalone post-move cleanup failure reports the quarantined transaction itself', (t) => {
+  const root = fixture(t, 'sandpaper-managed-quarantine-post-move-');
+  const file = join(root, 'AGENTS.md');
+  writeFileSync(file, 'original user bytes\n');
+
+  const error = thrown(() => upsertManagedBlock(file, {
+    ...MARKERS,
+    content: 'managed',
+    trustedRoot: root,
+  }, {
+    hooks: {
+      beforeRecursiveCleanup() { throw new Error('injected post-move failure'); },
+    },
+  }));
+
+  assert.equal(error.code, 'SANDPAPER_RECOVERY_REQUIRED');
+  assert.equal(existsSync(error.recoveryPath), true);
+  assert.equal(readFileSync(join(error.recoveryPath, 'backup'), 'utf8'), 'original user bytes\n');
+});
+
+test('standalone rollback propagates its quarantined recovery transaction', (t) => {
+  const root = fixture(t, 'sandpaper-managed-rollback-quarantine-');
+  const file = join(root, 'AGENTS.md');
+  writeFileSync(file, 'original user bytes\n');
+
+  const error = thrown(() => upsertManagedBlock(file, {
+    ...MARKERS,
+    content: 'managed',
+    trustedRoot: root,
+  }, {
+    hooks: {
+      afterBackup() { throw new Error('injected commit failure'); },
+      beforeRecursiveCleanup() { throw new Error('injected rollback cleanup failure'); },
+    },
+  }));
+
+  assert.equal(error.code, 'SANDPAPER_RECOVERY_REQUIRED');
+  assert.equal(readFileSync(file, 'utf8'), 'original user bytes\n');
+  assert.equal(existsSync(join(error.recoveryPath, 'next')), true);
 });
 
 test('standalone managed upsert never overwrites a concurrent destination after backup', (t) => {

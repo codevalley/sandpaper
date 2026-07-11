@@ -468,6 +468,107 @@ test('multi-surface restore failure retains the only namespace backup for recove
   assert.equal(existsSync(join(target, '.claude/commands/sandpaper')), false);
 });
 
+test('multi-surface cleanup rejects data injected before its cleanup ownership baseline', (t) => {
+  const target = mkdtempSync(join(tmpdir(), 'sandpaper-multi-owned-baseline-'));
+  t.after(() => rmSync(target, { recursive: true, force: true }));
+  write(target, '.claude/commands/sandpaper/old.md', 'old namespace\n');
+  let transaction;
+
+  const error = thrown(() => installIntegrations(
+    target,
+    PACKAGE,
+    { integrations: ['claude', 'codex'] },
+    {
+      hooks: {
+        afterInstall() {
+          if (transaction) return;
+          transaction = join(target, readdirSync(target).find((name) => name.startsWith('.sandpaper-integrations-')));
+          writeFileSync(join(transaction, 'unowned-user.md'), 'must survive\n');
+        },
+      },
+    },
+  ));
+
+  assert.equal(error.code, 'SANDPAPER_RECOVERY_REQUIRED');
+  assert.equal(error.recoveryPath, transaction);
+  assert.equal(readFileSync(join(error.recoveryPath, 'unowned-user.md'), 'utf8'), 'must survive\n');
+  assert.equal(readFileSync(join(error.recoveryPath, 'previous-0', 'old.md'), 'utf8'), 'old namespace\n');
+});
+
+test('multi-surface quarantine rename failure reports the retained original transaction', (t) => {
+  const target = mkdtempSync(join(tmpdir(), 'sandpaper-multi-quarantine-rename-'));
+  t.after(() => rmSync(target, { recursive: true, force: true }));
+  write(target, '.claude/commands/sandpaper/old.md', 'old namespace\n');
+
+  const error = thrown(() => installIntegrations(
+    target,
+    PACKAGE,
+    { integrations: ['claude', 'codex'] },
+    {
+      fs: {
+        renameSync(from, to) {
+          if (to.includes('.sandpaper-quarantine-') && to.endsWith('transaction')) {
+            throw Object.assign(new Error('injected quarantine rename failure'), { code: 'EIO' });
+          }
+          return renameSync(from, to);
+        },
+      },
+    },
+  ));
+
+  assert.equal(error.code, 'SANDPAPER_RECOVERY_REQUIRED');
+  assert.equal(existsSync(error.recoveryPath), true);
+  assert.equal(readFileSync(join(error.recoveryPath, 'previous-0', 'old.md'), 'utf8'), 'old namespace\n');
+});
+
+test('multi-surface post-move cleanup failure reports the quarantined transaction itself', (t) => {
+  const target = mkdtempSync(join(tmpdir(), 'sandpaper-multi-quarantine-post-move-'));
+  t.after(() => rmSync(target, { recursive: true, force: true }));
+  write(target, '.claude/commands/sandpaper/old.md', 'old namespace\n');
+
+  const error = thrown(() => installIntegrations(
+    target,
+    PACKAGE,
+    { integrations: ['claude', 'codex'] },
+    {
+      hooks: {
+        beforeRecursiveCleanup() { throw new Error('injected post-move failure'); },
+      },
+    },
+  ));
+
+  assert.equal(error.code, 'SANDPAPER_RECOVERY_REQUIRED');
+  assert.equal(existsSync(error.recoveryPath), true);
+  assert.equal(readFileSync(join(error.recoveryPath, 'previous-0', 'old.md'), 'utf8'), 'old namespace\n');
+});
+
+test('multi-surface rollback propagates its quarantined recovery transaction', (t) => {
+  const target = mkdtempSync(join(tmpdir(), 'sandpaper-multi-rollback-quarantine-'));
+  t.after(() => rmSync(target, { recursive: true, force: true }));
+  write(target, '.claude/commands/sandpaper/old.md', 'old namespace\n');
+
+  const error = thrown(() => installIntegrations(
+    target,
+    PACKAGE,
+    { integrations: ['claude', 'codex'] },
+    {
+      hooks: {
+        afterInstall(operation) {
+          if (operation.label === 'claude-namespace') throw new Error('injected commit failure');
+        },
+        beforeRecursiveCleanup() { throw new Error('injected rollback cleanup failure'); },
+      },
+    },
+  ));
+
+  assert.equal(error.code, 'SANDPAPER_RECOVERY_REQUIRED');
+  assert.equal(readFileSync(join(target, '.claude/commands/sandpaper/old.md'), 'utf8'), 'old namespace\n');
+  assert.deepEqual(
+    readFileSync(join(error.recoveryPath, 'failed-0', 'help.md')),
+    readFileSync(join(PACKAGE, 'skill/sandpaper/commands/help.md')),
+  );
+});
+
 test('fresh install keeps manifest and integration intent absent when later setup work fails', (t) => {
   const target = mkdtempSync(join(tmpdir(), 'sandpaper-fresh-atomic-'));
   t.after(() => rmSync(target, { recursive: true, force: true }));
