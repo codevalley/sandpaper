@@ -6,7 +6,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFi
 import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
 import { createSandpaperServer } from '../src/server.js';
-import { runTurn } from '../src/claude.js';
+import { runClaudeTurn } from '../src/claude.js';
 import { createFakeRunner, makeRepo, openEvents, requestJson } from './helpers/server-fixture.js';
 
 const IDS = [
@@ -617,21 +617,48 @@ test('listen close owns pending EADDRINUSE retry and prevents reopen', async (t)
   assert.equal(reopened, false);
 });
 
-test('turn runner close after result stays terminal, while close without result emits one error', async (t) => {
-  assert.equal(runTurn.length, 4, 'runTurn needs a controllable fourth dependency argument');
-
+test('Claude resumes the supplied session, reports init, and emits one terminal frame', () => {
   const withResult = fakeChild();
+  let invocation;
+  const sessions = [];
   const resultFrames = [];
-  runTurn(join(t.mock?.name || '/tmp', 'page.html'), 'prompt', (frame) => resultFrames.push(frame), {
-    spawn: () => withResult,
+  runClaudeTurn({
+    pageFile: '/tmp/page.html',
+    prompt: 'prompt',
+    resumeId: 'claude-session',
+    onSession: (sessionId) => sessions.push(sessionId),
+    onFrame: (frame) => resultFrames.push(frame),
+  }, {
+    spawn: (...args) => {
+      invocation = args;
+      return withResult;
+    },
   });
+  assert.deepEqual(
+    invocation[1].slice(-2),
+    ['--resume', 'claude-session'],
+  );
+  withResult.stdout.write(`${JSON.stringify({ type: 'system', subtype: 'init', session_id: 'new-session' })}\n`);
   withResult.stdout.end(`${JSON.stringify({ type: 'result', subtype: 'success', result: 'ok' })}\n`);
   withResult.emit('close', 0);
-  assert.deepEqual(resultFrames.filter((frame) => frame.type === 'status').map((frame) => frame.state), ['init', 'done']);
+  assert.deepEqual(sessions, ['new-session']);
+  assert.equal(resultFrames.filter((frame) => frame.type === 'status' && frame.done).length, 1);
+  assert.deepEqual(
+    resultFrames.filter((frame) => frame.type === 'status').map((frame) => frame.state),
+    ['init', 'init', 'done'],
+  );
+});
 
+test('Claude close without result emits one error terminal', () => {
   const withoutResult = fakeChild();
   const missingFrames = [];
-  runTurn('/tmp/page.html', 'prompt', (frame) => missingFrames.push(frame), { spawn: () => withoutResult });
+  runClaudeTurn({
+    pageFile: '/tmp/page.html',
+    prompt: 'prompt',
+    resumeId: null,
+    onSession() {},
+    onFrame: (frame) => missingFrames.push(frame),
+  }, { spawn: () => withoutResult });
   withoutResult.stdout.end();
   withoutResult.emit('close', 0);
   assert.deepEqual(missingFrames.filter((frame) => frame.state === 'error').length, 1);

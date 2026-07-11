@@ -1,10 +1,10 @@
 // claude.js — the bridge to Claude Code.
 // Spawns `claude -p` in stream-json mode against the document's folder, maps the
-// event stream to a small set of UI status states, and persists the session id so
-// every turn resumes the same conversation (context survives across turns).
+// event stream to a small set of UI status states, and reports native session ids
+// to the server so it can persist provider-scoped resume state.
 import { spawn } from 'node:child_process';
 import { dirname, basename, join } from 'node:path';
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 
 // Appended per turn instead of a repo-wide CLAUDE.md, so the contract is scoped to
@@ -117,21 +117,6 @@ export function mapEvents(ev, docName) {
   return [];
 }
 
-// ---- session persistence ----
-
-function sessionPath(docDir) { return join(docDir, '.sandpaper', 'session.json'); }
-
-function loadSession(docDir) {
-  try { return JSON.parse(readFileSync(sessionPath(docDir), 'utf8')).sessionId || null; }
-  catch { return null; }
-}
-
-function saveSession(docDir, id) {
-  const dir = join(docDir, '.sandpaper');
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  writeFileSync(sessionPath(docDir), JSON.stringify({ sessionId: id }, null, 2));
-}
-
 // ---- environment hygiene (mirrors amux _on_claude_plan / _claude_oneshot env scrub) ----
 
 // True if the user is signed into a Claude subscription (Pro/Max) rather than API billing.
@@ -153,13 +138,12 @@ function childEnv() {
 
 // ---- the turn ----
 
-// Run one refinement turn. `onStatus({state,label,detail?,done?})` is called as the
-// stream advances. Returns the child process (or null if spawn failed synchronously).
-export function runTurn(docPath, prompt, onStatus, deps) {
-  const docDir = dirname(docPath);
-  const docName = basename(docPath);
-  const prior = loadSession(docDir);
-  const spawnProcess = deps?.spawn || spawn;
+// Run one refinement turn. Returns the child process (or null if spawn failed
+// synchronously); session persistence and lifecycle enrichment stay with the server.
+export function runClaudeTurn({ pageFile, prompt, resumeId, onSession, onFrame }, deps = {}) {
+  const docDir = dirname(pageFile);
+  const docName = basename(pageFile);
+  const spawnProcess = deps.spawn || spawn;
 
   const args = [
     '-p', prompt,
@@ -168,7 +152,7 @@ export function runTurn(docPath, prompt, onStatus, deps) {
     '--allowedTools', SESSION_TOOLS.join(','),
     '--append-system-prompt', CONTRACT,
   ];
-  if (prior) args.push('--resume', prior);
+  if (resumeId) args.push('--resume', resumeId);
 
   let child;
   try {
@@ -177,7 +161,7 @@ export function runTurn(docPath, prompt, onStatus, deps) {
     // stdin 'ignore' so a non-interactive `-p` run can never block waiting on input.
     child = spawnProcess('claude', args, { cwd: docDir, env: childEnv(), stdio: ['ignore', 'pipe', 'pipe'] });
   } catch (err) {
-    onStatus({ type: 'status', state: 'error', label: 'Could not start claude', detail: err.message });
+    onFrame({ type: 'status', state: 'error', label: 'Could not start claude', detail: err.message });
     return null;
   }
 
@@ -187,7 +171,7 @@ export function runTurn(docPath, prompt, onStatus, deps) {
     if (frame.type === 'status' && (frame.done || frame.state === 'done' || frame.state === 'error')) {
       terminalEmitted = true;
     }
-    onStatus(frame);
+    onFrame(frame);
   };
 
   emit({ type: 'status', state: 'init', label: 'starting…' });
@@ -201,7 +185,7 @@ export function runTurn(docPath, prompt, onStatus, deps) {
     let ev;
     try { ev = JSON.parse(line); } catch { return; } // ignore non-JSON noise
     const id = getSessionId(ev);
-    if (id) saveSession(docDir, id);
+    if (id) onSession(id);
     for (const frame of mapEvents(ev, docName)) emit(frame);
   };
 
@@ -233,4 +217,9 @@ export function runTurn(docPath, prompt, onStatus, deps) {
   });
 
   return child;
+}
+
+// Compatibility for the Claude-only server path until provider composition is wired.
+export function runTurn(pageFile, prompt, onFrame, deps) {
+  return runClaudeTurn({ pageFile, prompt, resumeId: null, onSession() {}, onFrame }, deps);
 }
