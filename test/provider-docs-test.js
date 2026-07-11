@@ -117,10 +117,10 @@ test('engineering spec records the exact provider protocol and ownership model',
   const schemas = elementById('engg-spec.html', 'div', 'frame-schemas');
   for (const exact of [
     "{type:'lifecycle',busy,turnId,provider,page}",
-    "{type:'status',state,label,turnId,provider,page,phase,changed?,undoable?,cost?}",
+    "{type:'status',state,label,detail?,done?,cost?,usage?,turnId,provider,page,phase,changed?,undoable?}",
     "{type:'assistant_delta',kind,text,turnId,provider,page,phase}",
-    "{type:'edit',provider:'claude',turnId,page,phase,file?,added?,removed?,hunks?:[{oldText,newText}],cids?:[]}",
-    "{type:'edit',provider:'codex',turnId,page,phase,file,paths:[{path,kind}]}",
+    "{type:'edit',provider:'claude',turnId,page,phase,tool,file,hunks:[{oldText,newText}],added,removed,cids}",
+    "{type:'edit',provider:'codex',turnId,page,phase,tool,file,paths:[{path,kind}]}",
     "{type:'usage',provider:'codex',turnId,page,phase,inputTokens?,cachedInputTokens?,outputTokens?,totalTokens?}",
     "{type:'status',state:'idle',label:'idle'}",
   ]) assert.match(schemas, new RegExp(exact.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
@@ -128,6 +128,7 @@ test('engineering spec records the exact provider protocol and ownership model',
   assert.doesNotMatch(schemas, /type:'lifecycle'[^\n]*phase/);
   assert.match(schemas, /Claude[^<\n]{0,100}cost[^<\n]{0,100}supplied terminal/i);
   assert.match(schemas, /Codex[^<\n]{0,100}no fabricated hunks/i);
+  assert.match(schemas, /raw adapter fields[^.<]{0,160}server-enriched[^.<]{0,160}provider[^.<]{0,80}turnId[^.<]{0,80}page[^.<]{0,80}phase/i);
 });
 
 test('cover has one truthful current board while preserving board 0011 as dated evidence', () => {

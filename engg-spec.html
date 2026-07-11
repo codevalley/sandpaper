@@ -277,16 +277,18 @@
         <div id="frame-schemas" data-cid="frame-schemas">
           <h3>Exact normalized frame shapes</h3>
           <pre class="code">lifecycle        {type:'lifecycle',busy,turnId,provider,page}
-status           {type:'status',state,label,turnId,provider,page,phase,changed?,undoable?,cost?}
+status           {type:'status',state,label,detail?,done?,cost?,usage?,turnId,provider,page,phase,changed?,undoable?}
 assistant        {type:'assistant_delta',kind,text,turnId,provider,page,phase}
-Claude edit      {type:'edit',provider:'claude',turnId,page,phase,file?,added?,removed?,hunks?:[{oldText,newText}],cids?:[]}
-Codex edit       {type:'edit',provider:'codex',turnId,page,phase,file,paths:[{path,kind}]}
+Claude edit      {type:'edit',provider:'claude',turnId,page,phase,tool,file,hunks:[{oldText,newText}],added,removed,cids}
+Codex edit       {type:'edit',provider:'codex',turnId,page,phase,tool,file,paths:[{path,kind}]}
 Codex usage      {type:'usage',provider:'codex',turnId,page,phase,inputTokens?,cachedInputTokens?,outputTokens?,totalTokens?}
 providerless idle {type:'status',state:'idle',label:'idle'}</pre>
           <p>Lifecycle frames never carry <code>phase</code>. Before a page has an accepted/current turn, SSE
-            may replay the providerless idle status shown above; it is not a provider turn. Optional terminal
+            may replay the providerless idle status shown above; it is not a provider turn. Raw adapter fields
+            are server-enriched with provider, turnId, page, and phase.
+            Optional status detail/done/cost/usage fields remain provider-event dependent; terminal
             <code>changed</code> and <code>undoable</code> come from server bytes/snapshots. Claude cost is supplied terminal data only.
-            Claude edit file/count/hunk/CID details stay optional to consumers.
+            A normalized Claude edit always carries tool, file, hunks, added/removed counts, and CIDs.
             Codex edit paths carry only reported path/kind pairs with no fabricated hunks; token fields are
             optional and <code>totalTokens</code> appears only when the adapter has finite input and output counts.</p>
         </div>
