@@ -206,15 +206,15 @@
   <header class="hero" id="hero" data-cid="hero">
     <div class="specstrip" data-cid="specstrip">
       <span>Sandpaper</span><span class="sep">·</span>
-      <span>v0.2.1</span><span class="sep">·</span>
+      <span>v0.3.0 contract</span><span class="sep">·</span>
       <span>Product Contract</span><span class="sep">·</span>
       <span>2026-07-10</span><span class="sep">·</span>
-      <span class="green">Claude surface · stabilized</span>
+      <span class="green">Claude + Codex · first-class</span>
     </div>
     <h1 class="wordmark" data-cid="wordmark">Sand<span class="a">paper</span></h1>
     <p class="tagline" data-cid="tagline">// Sand the rough draft into a finished spec.</p>
     <p class="lead" data-cid="hero-what">
-      The rich HTML documents Claude Code builds for you become a surface you can shape by talking to it.
+      The rich HTML documents Claude Code or Codex builds for you become a surface you can shape by talking to it.
       You chose HTML over flat markdown because it <em>shows</em> the idea — diagrams, tables, mockups.
       Sandpaper closes the gap: instead of reading <em>here</em> and re-describing changes <em>over there</em>
       in a terminal, you smooth it out in place — leaving the canonical spec your build rests on.
@@ -227,9 +227,11 @@
     <div class="callout" data-cid="meta-note">
       <div class="eyebrow">Read this as a demo</div>
       <p>
-        This page is a Sandpaper document. Serve it locally and the current Claude-only toolbar can scope
-        a Sand turn to <em>this sentence</em>; Hands can edit, move, delete, and undo directly. Screenshot
-        paste, branching, durable regenerated anchors, and first-class Codex execution remain planned.
+        This page is a Sandpaper document. Serve it locally and choose Claude Code or Codex to scope a
+        Sand turn to <em>this sentence</em>; Hands can edit, move, delete, and undo directly. Both providers
+        use one brain and one workflow set: <code>/sandpaper:&lt;action&gt;</code> in Claude Code or
+        <code>$sandpaper &lt;action&gt;</code> in Codex. Screenshot paste, branching, and durable regenerated
+        anchors remain planned.
       </p>
     </div>
   </header>
@@ -278,7 +280,7 @@
         <div class="eyebrow">Architecture</div>
         <h2>How it works</h2>
         <p class="lead">One idea carries the whole design: <strong>the document on disk is the single
-          source of truth</strong> — and both you and Claude simply read and write that same file.</p>
+          source of truth</strong> — and you, Claude Code, and Codex read and write that same file.</p>
 
         <div class="diagram" data-cid="diagram">
           <div class="nodes">
@@ -286,35 +288,36 @@
             <div class="arrow">→</div>
             <div class="node"><div class="nm">Local Bridge</div><div class="sub">~200 lines of Node<br>SSE · localhost</div></div>
             <div class="arrow">→</div>
-            <div class="node"><div class="nm">Claude Code</div><div class="sub">claude -p --resume<br>edits the file</div></div>
+            <div class="node"><div class="nm">Selected provider</div><div class="sub">Claude Code or Codex<br>edits the file</div></div>
           </div>
           <div class="foundation" data-cid="foundation">▤ &nbsp;spec.html — the one file all three read &amp; write · single source of truth · yours forever</div>
-          <div class="loopback">↻ &nbsp;Claude writes spec.html → file watcher live-reloads the Document — the loop closes ↻</div>
+          <div class="loopback">↻ &nbsp;provider writes spec.html → server hashes bytes → watcher live-reloads the Document ↻</div>
         </div>
 
         <p style="margin-top:22px">
-          The bridge spawns <code>claude -p --resume &lt;id&gt; --output-format stream-json</code> from the
-          document’s folder and reads its events line by line. Claude edits the HTML with its Edit/Write
-          tools; the watcher refreshes the page. Your direct edits — drag, delete, reorder — write to that
+          The bridge invokes either <code>claude -p --resume</code> or controlled <code>codex exec resume</code>
+          from the document’s folder and normalizes its event stream. The provider edits the HTML; the
+          watcher refreshes the page. Your direct edits — drag, delete, reorder — write to that
           <em>same</em> file with no AI call at all: instant, free, exact.
         </p>
         <p>
           <strong>Because the document is the source of truth — not the chat — context survives everything.</strong>
-          If a session drops, a fresh Claude reconstructs the full picture by reading the file (and a short
-          decisions log Sandpaper keeps beside it). The conversation is an accelerator, not a dependency.
+          If a session drops, a fresh agent reconstructs the full picture by reading the file and shared
+          brain. Page/provider-scoped resumable sessions accelerate work, but provider sessions are not
+          canonical project memory.
           And the same file is what your developers open next — Sandpaper doesn’t need to be running for the
           spec to be real.
         </p>
         <p>
           Today the supported editing surface is HTML served from a file or repository directory. The
-          current UI and runner execute Claude Code only. The server's injected runner contract is
-          provider-neutral internally so first-class Codex support can land in <code>v0.3.0</code> without
-          rewriting lifecycle, snapshots, or reload behavior.
+          toolbar gives both providers first-class explicit selection with no silent fallback and no hidden
+          context handoff. A tab-local selection can supersede the launch choice; only <b>Make default</b>
+          writes the local manifest.
         </p>
       </div>
       <aside class="side" data-cid="side-how">
-        <b>Verified:</b> <code>claude -p</code> still draws from your Claude plan (support.claude.com
-        #15036540 — the June-15 change is paused). Keep the brain swappable as insurance.
+        Codex reuses saved <code>codex login</code> authentication in a controlled embedded runtime; interactive
+        <code>$sandpaper</code> continues in the user's normal Codex environment.
       </aside>
     </div>
   </section>
@@ -333,7 +336,7 @@
           </div></div>
           <div class="card"><div class="gl">❝</div><div>
             <h3>Conversation · shipped</h3>
-            <p>Claude's streamed reply, thinking, and edit summaries stay on the page across the current tab's turn history.</p>
+            <p>The selected provider's streamed reply, thinking, and edit summaries stay in its project/page/provider-scoped browser transcript.</p>
           </div></div>
           <div class="card"><div class="gl">⟳</div><div>
             <h3>One-click refine · planned</h3>
@@ -366,9 +369,10 @@
       <div class="num">04</div>
       <div class="col">
         <div class="eyebrow">Legibility</div>
-        <h2>Claude’s status, on the page</h2>
+        <h2>The selected provider’s status, on the page</h2>
         <p class="lead">Sandpaper turns an invisible terminal process into a calm, trustworthy presence — a
-          chip that always says what Claude is doing, and what it’s costing.</p>
+          chip that always identifies the provider and what it is doing. Claude shows supplied cost only;
+          Codex shows supplied total tokens only. Neither is estimated or converted.</p>
 
         <div class="rail" data-cid="status-rail">
           <span class="chip pulse" id="statusChip" style="color:var(--mute)">
@@ -385,12 +389,12 @@
             <span class="tl" data-st="done"><span class="d"></span>done</span>
             <span class="tl" data-st="idle"><span class="d"></span>idle</span>
           </div>
-          <div class="hint">↑ live preview — seven states, all derived from the one stream Claude already emits</div>
+          <div class="hint">↑ live preview — normalized provider frames, one server-owned global lifecycle</div>
         </div>
 
         <p style="margin-top:22px">
-          <strong>stream-json supplies normalized frames; the server supplies truth.</strong>
-          <code>message_start</code> and <code>tool_use</code> drive Thinking and Editing, while the server
+          <strong>Provider streams supply normalized frames; the server supplies truth.</strong>
+          Provider events drive Thinking and Editing, while the server
           hashes the page before and after the runner finishes. Changed bytes produce <em>Saved</em> and an
           undo affordance; reply-only or no-op turns produce <em>Replied</em>. Waiting remains reserved.
         </p>
@@ -422,13 +426,13 @@
           <div class="spec-row">
             <div class="lbl">Hypothesis</div>
             <p>If people can read the rich document and change it <em>in place</em> — pointing, editing, and
-              talking to it while Claude rewrites the file as the single source of truth and shows its live
+              talking to it while the explicitly selected provider rewrites the file as the single source of truth and shows its live
               status — then design collaboration collapses from a terminal monologue into a fast, non-linear
               conversation on the page, and the artifact stays canonical enough to drive what gets built.</p>
           </div>
           <div class="spec-row">
             <div class="lbl">Experience</div>
-            <p>You open the spec Claude made — diagrams, tables, a mockup. You hover; a section highlights.
+            <p>You open the spec your agent made — diagrams, tables, a mockup. You hover; a section highlights.
               You click, say “make this a three-column comparison and warm the intro,” and hit enter. The
               chip flips to Thinking, then “Editing spec.html,” the page updates in place, and the chip
               settles on Saved with Undo only when bytes changed, otherwise Replied. Hands edits, moves,
@@ -443,6 +447,7 @@
               <li>A direct-manipulation gesture (reorder, delete a block, edit text) is written to the file immediately, with no AI call and no flicker.</li>
               <li class="edge">Planned: paste a screenshot and let Claude reference it as real visual context.</li>
               <li>The status chip reflects server-confirmed thinking, editing, error, Saved, or Replied state and always recovers after rejection.</li>
+              <li>Claude Code and Codex are explicit toolbar choices; switching transfers no transcript or hidden context and never silently falls back.</li>
               <li>The finished document is valid, shareable HTML that opens and reads correctly even with Sandpaper not running.</li>
               <li class="edge">Edge: malformed, network, authentication, runner, or conflict failures leave the composer usable and show the real error.</li>
               <li class="edge">Planned: if Claude regenerates the document, open annotations re-anchor or report that they could not.</li>
@@ -472,7 +477,7 @@
         <h2>Roadmap — thin spine first</h2>
         <div class="road" data-cid="road">
           <div class="phase committed"><div><div class="pk">P0</div><span class="here">shipped</span></div>
-            <div><h3>The spine</h3><p>Bridge spawns Claude in stream-json, parses the seven states, renders the live status chip. Point-and-say refine on one HTML document, live update. One working loop, zero terminal.</p></div></div>
+            <div><h3>The spine</h3><p>The bridge normalizes Claude Code and Codex streams, renders provider-tagged status, and keeps point-and-say refine on one HTML document. One working loop, zero terminal.</p></div></div>
           <div class="phase committed"><div class="pk">P1</div>
             <div><h3>Hands shipped; screenshot open</h3><p>Direct rich-text, sibling move/delete, and undo write straight to the file and roll back exactly on rejection. Paste-a-screenshot remains planned.</p></div></div>
           <div class="phase"><div class="pk">P2</div>
@@ -484,8 +489,9 @@
         </div>
       </div>
       <aside class="side" data-cid="side-road">
-        Current execution is Claude-only. First-class Codex is sequenced for <code>v0.3.0</code>; screenshot,
-        anchoring, branching, and the long-lived watch session remain planned rather than implied current.
+        Dual-provider execution, scoped resume/transcripts/reset, and explicit provider selection ship in
+        the <code>v0.3.0</code> contract. Screenshot, anchoring, branching, and a long-lived watch session
+        remain planned rather than implied current.
       </aside>
     </div>
   </section>
@@ -498,18 +504,18 @@
         <div class="eyebrow">Honesty</div>
         <h2>Open questions &amp; risks</h2>
         <ul class="risks" data-cid="risks">
-          <li><span class="tag">Continuity</span><span class="body good"><b>Largely dissolved.</b> One document = one folder = one session, and the file itself is the durable memory — so <code>--resume</code> is an accelerator, not a dependency. A fresh session rebuilds context from the file.</span></li>
+          <li><span class="tag">Continuity</span><span class="body good"><b>Largely dissolved.</b> The file and brain are durable memory; each page/provider resume ID and browser transcript stays separate. New session clears only that scope after server success.</span></li>
           <li><span class="tag">Anchoring</span><span class="body">Keeping annotations attached when Claude regenerates the HTML. <b>Mitigation:</b> a CLAUDE.md contract to never strip <code>data-cid</code>, plus text/selector fallback.</span></li>
           <li><span class="tag">Latency</span><span class="body">~1–2s cold start per semantic turn. <b>Mitigation:</b> optimistic local edits feel instant; a P4 watch session removes the cold start.</span></li>
-          <li><span class="tag">Security</span><span class="body">The bridge runs Claude with file-write on localhost. <b>Mitigation:</b> loopback bind, per-process token, same-origin checks, shared path policy, body caps, and file-only Claude tools.</span></li>
+          <li><span class="tag">Security</span><span class="body">Provider processes have directory-level write access on localhost, not OS-level single-file isolation. <b>Mitigation:</b> loopback bind, per-process token, same-origin checks, body caps, controlled Codex flags, server byte/hash authority, and best-effort external-path warnings. External changes cannot be verified or undone by Sandpaper.</span></li>
           <li><span class="tag">Scope</span><span class="body">This is a refinement loop for documents, not an IDE or a Figma. The discipline is knowing where Sandpaper stops.</span></li>
           <li><span class="tag">Billing</span><span class="body">Subscription reuse holds today (verified), but the paused change could return. <b>Mitigation:</b> keep the brain swappable.</span></li>
           <li><span class="tag">Subtractive</span><span class="body">The name leans toward “smooth / remove,” but the tool also <em>adds</em> richness. <b>Mitigation:</b> keep one-click expand/branch first-class so Sandpaper earns the generative half, not just polish.</span></li>
         </ul>
       </div>
       <aside class="side" data-cid="side-risks">
-        The crux — can a page drive your Claude session and get updated HTML back, on your subscription —
-        is <b>verified feasible</b>. The rest is product craft.
+        Claude Code and Codex can both drive the page. Provider selection is explicit, unavailable states are
+        actionable, and there is no silent fallback.
       </aside>
     </div>
   </section>

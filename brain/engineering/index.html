@@ -36,23 +36,23 @@
 
   <header class="lens-hero lens--engineering" data-cid="lens-eng" data-lens="engineering">
     <div class="eyebrow">Engineering · how it's built</div>
-    <h1>The lifecycle, the runner, the anchoring</h1>
-    <p>How Sandpaper works under the glass: the authenticated server-owned lifecycle, the current Claude runner, the brain truth contract, and the open anchoring problem. The current UI is Claude-only; only the internal runner seam is provider-neutral, with Codex planned for <code>v0.3.0</code>.</p>
+    <h1>The lifecycle, the providers, the anchoring</h1>
+    <p>How Sandpaper works under the glass: one authenticated server-owned global lifecycle, an internal static registry with Claude Code and Codex adapters, the brain truth contract, and the open anchoring problem.</p>
   </header>
 
   <section class="zone">
     <div class="eyebrow">01 · The invariant</div>
     <h2>The file on disk is the document</h2>
-    <p>One rule governs everything else: the HTML <strong>file on disk is the document</strong>. The server serves it verbatim, Claude edits it with its own tools, the watcher reloads it — and the page always reflects exactly what is on disk, never a step ahead. No server-side document model, no HTML assembled from stdout, no diff-and-patch dance. <a class="ref" href="../../engg-spec.html#invariant">engg →</a></p>
-    <p>Because both you (typing in an editor) and Claude (an <code>Edit</code> call) mutate the <em>same</em> bytes, the two sides converge on one artifact instead of drifting. It is also why memory is cheap: a fresh session rebuilds its whole context by reading the file, so the session id is an accelerator, not a dependency. <a class="ref" href="../decisions.html#d-ssot">decision →</a> · <a class="ref" href="../learnings.html#l-amux">the file is the memory →</a></p>
+    <p>One rule governs everything else: the HTML <strong>file on disk is the document</strong>. The server serves it verbatim, the selected provider edits it, the watcher reloads it — and the page always reflects exactly what is on disk, never a step ahead. No server-side document model and no HTML assembled from stdout. <a class="ref" href="../../engg-spec.html#invariant">engg →</a></p>
+    <p>You, Claude Code, and Codex converge on one artifact and one durable brain. Page/provider resume IDs and project/page/provider browser transcripts are accelerators, not authority; switching performs no hidden handoff. <a class="ref" href="../decisions.html#d-ssot">disk decision →</a> · <a class="ref" href="../decisions.html#d-first-class-providers">provider decision →</a></p>
     <p class="muted">Everything below is downstream of this one invariant — the bridge, the contract, and the Hands all exist to keep disk authoritative.</p>
   </section>
 
   <section class="zone">
     <div class="eyebrow">02 · The bridge</div>
-    <h2>A dumb pipe over <code>claude -p</code></h2>
-    <p>The server owns the lifecycle, snapshots, hashes, locks, reload routing, and terminal truth. Its injected runner seam consumes normalized frames; production currently supplies the Claude runner, which drives <code>claude -p --output-format stream-json</code> with file-only tools and a scoped editing contract. This seam is provider-neutral internally, but no Codex runner or provider selector exists in the current UI. <a class="ref" href="../../engg-spec.html#s-bridge">engg §03 →</a> · <a class="ref" href="../decisions.html#d-claude-p">why claude -p →</a></p>
-    <p>It is the <em>same</em> Claude as the interactive tool — only its output is a structured event stream. <code>mapEvents()</code> normalizes status, reply, thinking, and edit frames; the server enriches them with turn/page/phase and real changed/undoable truth before SSE delivery. <a class="ref" href="../../engg-spec.html#evtmap">event map →</a></p>
+    <h2>A dumb pipe over two first-party adapters</h2>
+    <p>The server owns lifecycle, snapshots, hashes, locks, reload routing, and terminal truth. The static registry dispatches <code>claude -p</code> or controlled <code>codex exec</code>; each adapter normalizes native events without owning turn IDs or Saved/Replied. Provider validation happens before reservation, unavailable choices fail explicitly, and there is no silent fallback. <a class="ref" href="../../engg-spec.html#s-bridge">engg §03 →</a></p>
+    <p>Server frames carry validated provider, turn, page, and phase identity. Claude shows supplied cost; Codex shows supplied total tokens. The toolbar keeps provider histories separate, lets a tab select explicitly or Make default, and resets only one page/provider after server success. <a class="ref" href="../../engg-spec.html#s-protocol">protocol →</a></p>
     <p>Two gotchas here are load-bearing. <strong>Scrub the child env before spawning:</strong> an exported <code>ANTHROPIC_API_KEY</code> silently bills the API even on a plan, so the runner drops it and nested-Claude markers. And <strong>the watcher fires loose:</strong> a null filename must count as a possible match; after debounce the server routes reloads by page and initiating client instead of suppressing them globally. <a class="ref" href="../learnings.html#l-env-scrub">env scrub →</a> · <a class="ref" href="../learnings.html#l-fswatch">null fname →</a></p>
   </section>
 
@@ -69,13 +69,13 @@
     <h2>Direct manipulation, no model in the loop</h2>
     <p>Not every edit needs Claude. The <strong>Hands</strong> ship direct rich-text edits, sibling moves, deletion, and one-level direct undo, each serialized to the file with no AI call. Optimistic DOM changes roll back exactly when the server rejects the write. Keyboard/touch structural editing remains <code>t-0024</code>. <a class="ref" href="../project/index.html#i-hands">the plan →</a> · <a class="ref" href="../../engg-spec.html#s-next">engg §09 →</a></p>
     <p>The same byte-preserving edit layer powers direct writes, while server-owned pre-turn snapshots power AI undo only after a real disk change. Reply-only and no-op turns say <em>Replied</em> and expose no false undo. <a class="ref" href="../decisions.html#q-undo">resolved undo question →</a></p>
-    <p class="muted">This is the third writer on one file — your keystrokes, Claude's tools, and the page's own edits all targeting a single source of truth.</p>
+    <p class="muted">This is another writer on one file — your keystrokes, the selected provider's tools, and the page's own edits all targeting a single source of truth.</p>
   </section>
 
   <section class="zone">
     <div class="eyebrow">05 · Components &amp; the open problem</div>
     <h2>A handful of files, and the anchor that has to survive</h2>
-    <p>The whole bridge is a handful of files with one direction of dependency — <code>cli → server → claude</code> at its core, plus the on-page toolbar — and zero runtime dependencies (Node ≥18 built-ins, ESM, nothing to <code>npm install</code>). Roles and live build status live on the component map; the authoritative status stays in the engg spec. <a class="ref" href="../map.html">component map →</a> · <a class="ref" href="../wiki/architecture.html">how the pieces fit →</a></p>
+    <p>The bridge keeps one direction of dependency — <code>cli → server → registry → adapters</code>, plus the on-page toolbar — and zero runtime dependencies (Node ≥18 built-ins, ESM). Roles and live build status live on the component map; authoritative status stays in the engineering spec. <a class="ref" href="../map.html">component map →</a> · <a class="ref" href="../wiki/architecture.html">how the pieces fit →</a></p>
     <p>The one genuinely <strong>open</strong> engineering problem is anchoring. <code>data-cid</code> is both the brain's link target and the unit of scoping, so when Claude regenerates a document wholesale and drops the cids, every open annotation and brain link dangles. The plan: a <code>CLAUDE.md</code> contract that forbids stripping cids, backed by a text-snippet / selector fallback. Until that lands, durable anchoring is the gating risk for P2. <a class="ref" href="../decisions.html#q-anchoring">open question →</a> · <a class="ref" href="../../sandpaper.html#s-risks">risks §07 →</a></p>
   </section>
 

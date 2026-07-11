@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Sandpaper — your repo can explain itself</title>
-<meta name="description" content="Sandpaper puts a small website inside your repo — the plan, the decisions, the history — and your Claude Code agent stamps it fresh after every working session. Plain static HTML. Open source, zero dependencies." />
+<meta name="description" content="Sandpaper puts a small website inside your repo — the plan, the decisions, the history — and Claude Code or Codex stamps it fresh after every working session. Plain static HTML. Open source, zero dependencies." />
 <link rel="canonical" href="https://sandpaper.sh/" />
 <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
 <meta name="theme-color" content="#0E2C50" />
@@ -12,7 +12,7 @@
 <meta property="og:url" content="https://sandpaper.sh/" />
 <meta property="og:site_name" content="Sandpaper" />
 <meta property="og:title" content="Sandpaper — your repo can explain itself" />
-<meta property="og:description" content="The website your repo keeps about itself. A living brain, stamped by your Claude Code agent after every session." />
+<meta property="og:description" content="The website your repo keeps about itself. One living brain for Claude Code and Codex." />
 <meta property="og:image" content="https://sandpaper.sh/og.png?v=2" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
@@ -42,10 +42,10 @@
 
   <div class="hero-grid">
     <div class="hero-copy">
-      <p class="eyebrow">for repos built with Claude Code · open source</p>
+      <p class="eyebrow">for repos built with Claude Code or Codex · open source</p>
       <h1>Your repo can<br/>explain itself.</h1>
       <p class="sub">Sandpaper puts a small website <em>inside</em> your repo — the plan, the
-        decisions, the history — and your Claude&nbsp;Code agent stamps it fresh after every
+        decisions, the history — and your Claude&nbsp;Code or Codex agent stamps it fresh after every
         working session. That site is the brain: plain static HTML, publish it anywhere.</p>
       <div class="cta-row">
         <button class="install" type="button" data-copy="npx @nynb/sandpaper install-skill">
@@ -56,7 +56,7 @@
       </div>
       <div class="cta-row cta-row--links">
         <a class="btn-ghost" href="https://brain.sandpaper.sh">Read the live brain →</a>
-        <span class="meta-line">then <code>/sandpaper:init</code> inside Claude Code — once, 15–30 min</span>
+        <span class="meta-line"><code>/sandpaper:init</code> in Claude Code · <code>$sandpaper init</code> in Codex</span>
       </div>
     </div>
 
@@ -146,17 +146,17 @@
   <section class="band band--tint" id="loop">
     <div class="wrap">
       <p class="grit">P240 <span>· first pass</span></p>
-      <h2>Two commands, then it runs itself.</h2>
+      <h2>One brain, either agent.</h2>
       <ol class="steps">
         <li>
           <span class="step-n">1</span>
           <h3>Install</h3>
-          <p><code>npx @nynb/sandpaper install-skill</code> adds 13 slash commands, two hooks, and a <code>brain/</code> folder of small static HTML pages.</p>
+          <p><code>npx @nynb/sandpaper install-skill</code> installs both Claude Code and Codex integrations by default, their hooks, and a <code>brain/</code> folder of small static HTML pages. Use <code>--integration claude</code> or <code>--integration codex</code> for an explicit solo install.</p>
         </li>
         <li>
           <span class="step-n">2</span>
           <h3>Init</h3>
-          <p><code>/sandpaper:init</code> reads the repo, asks a few questions, and writes the first edition. Once — 15–30 minutes.</p>
+          <p><code>/sandpaper:init</code> in Claude Code or <code>$sandpaper init</code> in Codex reads the repo and writes the same first edition. All actions share one canonical workflow set: <code>/sandpaper:&lt;action&gt;</code> or <code>$sandpaper &lt;action&gt;</code>.</p>
         </li>
         <li>
           <span class="step-n">3</span>
@@ -231,6 +231,16 @@
           <p>Too big for a tweak? Sling it: a terminal-ready instruction, copied and ready to paste into your next session.</p>
         </div>
       </div>
+      <p class="band-lede">Claude Code and Codex are both first-class toolbar providers. The local manifest
+        supplies the default, a CLI flag can override only that launch, and each tab keeps a tab-local
+        selection; <strong>Make default</strong> is explicit. There is no silent fallback, and switching
+        performs no hidden context handoff. Each provider resumes only its own page-scoped session and
+        project/page/provider-scoped transcript; New session clears that scope only after server success.</p>
+      <p class="aside-note">Provider processes have directory-level write access. The server hashes the selected
+        document's actual bytes for Saved/Replied and Undo truth. External reported paths are best-effort
+        detection only: Sandpaper cannot verify or undo them. Codex reuses saved <code>codex login</code>
+        authentication in its controlled embedded runtime. Claude shows supplied cost; Codex shows supplied
+        total tokens; neither measure is estimated or converted.</p>
       <p class="aside-note">The toolbar exists only when served locally. A published brain is read-only, by design.</p>
     </div>
   </section>
@@ -276,12 +286,13 @@
           <span class="install-cmd">npx @nynb/sandpaper install-skill</span>
           <span class="install-copy" aria-hidden="true">copy</span>
         </button>
-        <p class="install-note">then, inside Claude Code: <code>/sandpaper:init</code> — and
+        <p class="install-note">then use <code>/sandpaper:init</code> in Claude Code or <code>$sandpaper init</code> in Codex — and
           <code>npx @nynb/sandpaper open</code> to view.
           No account needed — <code>npx github:codevalley/sandpaper install-skill</code> works too.</p>
       </div>
 
       <p class="contrib">Want to help? It's plain HTML and zero-dependency Node — read
+        <a href="https://github.com/codevalley/sandpaper/blob/main/AGENTS.md">AGENTS.md</a> or
         <a href="https://github.com/codevalley/sandpaper/blob/main/CLAUDE.md">CLAUDE.md</a>,
         open an <a href="https://github.com/codevalley/sandpaper/issues">issue</a>, or send a PR.</p>
     </div>

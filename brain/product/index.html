@@ -37,7 +37,7 @@
   <header class="lens-hero lens--product" data-cid="lens-prod" data-lens="product">
     <div class="eyebrow">Product · what &amp; why</div>
     <h1>What we're building, and why it earns its place</h1>
-    <p>Sandpaper turns a Claude-generated HTML draft into a surface you refine <em>in place</em> — point, say, or edit directly, no terminal round-trip. The pitch, the interaction modes, and the product calls live in the records below; this page routes you in.</p>
+    <p>Sandpaper turns a Claude Code- or Codex-generated HTML draft into a surface you refine <em>in place</em> — point, say, or edit directly, no terminal round-trip. The pitch, interaction modes, and product calls live in the records below; this page routes you in.</p>
   </header>
 
   <!-- ===== PRODUCT LENS PROSE (project#t-0004) — the reading home. real prose, but link-never-copy: every claim traces to a canonical doc/record. ===== -->
@@ -46,15 +46,15 @@
     <div class="eyebrow">Why it exists · the bet</div>
     <h2 class="h">The medium got richer; the loop didn't</h2>
     <p>Claude Code writes your specs as rich HTML — diagrams, tables, mockups — because HTML <em>shows</em> the idea instead of merely describing it. But to change one line you alt-tab to the terminal and re-describe the thing you were just looking at. Claude regenerates a whole new document; you re-read it, find the next thing, alt-tab again. Linear, lossy, one thread. The friction was never the editing — it's the <strong>surface mismatch</strong>. <a class="ref" href="../wiki/overview.html">the loop, side by side →</a></p>
-    <p><strong>The bet:</strong> if you can read the rich document and change it <em>in place</em> — while Claude rewrites the file as the single source of truth and shows its live status — then design collaboration collapses from a terminal monologue into a fast, non-linear conversation on the page, and the artifact stays canonical enough to drive what gets built. It runs on the Claude subscription you already pay for — <code>claude -p</code> still draws from the plan, verified. <a class="ref" href="../../sandpaper.html#s-loop">spec §01 →</a> &nbsp; <a class="ref" href="../decisions.html#d-claude-p">why claude -p →</a></p>
+    <p><strong>The bet:</strong> if you can read the rich document and change it <em>in place</em> — while an explicitly selected provider rewrites the file as the single source of truth and shows its live status — then design collaboration collapses from a terminal monologue into a fast, non-linear conversation on the page, and the artifact stays canonical enough to drive what gets built. Claude Code and Codex share the same durable brain while keeping provider context separate. <a class="ref" href="../../sandpaper.html#s-loop">spec §01 →</a> &nbsp; <a class="ref" href="../decisions.html#d-first-class-providers">provider decision →</a></p>
     <p class="muted">The June-15 billing change that could split the credit pool is paused, not gone — so the brain is kept swappable as insurance. <a class="ref" href="../decisions.html#q-billing">the billing watch →</a></p>
   </section>
 
   <section class="zone">
     <div class="eyebrow">What it is</div>
     <h2 class="h">Refine the rendered page, in place</h2>
-    <p>Sandpaper is a local tool that turns a Claude-generated HTML document into a surface you refine <em>in the browser</em>. The current <code>v0.2.1</code> surface runs Claude Code only: a small zero-dependency Node bridge drives <code>claude -p</code> in stream-json; when Claude edits the file, a watcher live-reloads the page, and a calm status chip says what is happening. First-class Codex support is planned for <code>v0.3.0</code>; only the server's internal runner seam is provider-neutral today. <a class="ref" href="../engineering/index.html">how it's built →</a> &nbsp; <a class="ref" href="../../sandpaper.html#s-status">the status chip §04 →</a></p>
-    <p>One invariant carries the whole design: <strong>the document on disk is the single source of truth.</strong> Both you (direct edits) and Claude (Edit/Write) mutate the <em>same</em> file; the page reflects disk, never ahead of it. That rules out a server-side document model, HTML-from-stdout, and diffing — the bridge stays a dumb pipe, never screen-scraping a terminal. And the file you finish with is valid, shareable HTML that opens correctly with Sandpaper <em>not</em> running — the spec your team builds from. <a class="ref" href="../decisions.html#d-ssot">the SSOT call →</a> &nbsp; <a class="ref" href="../map.html">the component map →</a> &nbsp; <a class="ref" href="../learnings.html#l-amux">why not scrape →</a></p>
+    <p>Sandpaper is a local tool that turns an HTML document into a surface you refine <em>in the browser</em>. Claude Code and Codex are first-class toolbar providers: tab-local selection, explicit Make default, no silent fallback, separate page/provider sessions and transcripts, and no hidden context handoff. <a class="ref" href="../engineering/index.html">how it's built →</a> &nbsp; <a class="ref" href="../../sandpaper.html#s-status">the status chip §04 →</a></p>
+    <p>One invariant carries the whole design: <strong>the document on disk is the single source of truth.</strong> You, Claude Code, and Codex mutate the <em>same</em> file; the page reflects disk, never ahead of it. The server hashes actual selected-document bytes for Saved/Replied and Undo truth. Provider-reported external writes are only best-effort warnings and cannot be verified or undone by Sandpaper. <a class="ref" href="../decisions.html#d-ssot">the SSOT call →</a> &nbsp; <a class="ref" href="../map.html">the component map →</a></p>
   </section>
 
   <section class="zone">
@@ -63,7 +63,7 @@
     <p>Every scoped interaction starts the same way: enter Pick, then click an element, and Sandpaper resolves its nearest <code>data-cid</code> or a selector/snippet fallback. With the target scoped, there are three ways in.</p>
     <table class="tbl">
       <tr><th>Way in</th><th>What it does</th><th>Edits via</th></tr>
-      <tr><td class="m">Sand</td><td>Scoped AI edit — select a block and describe the change. Claude edits the file; the page live-reloads with a truthful Saved or Replied outcome.</td><td class="m">Claude</td></tr>
+      <tr><td class="m">Sand</td><td>Scoped AI edit — select a block and describe the change. The selected Claude Code or Codex adapter edits the file; the page live-reloads with a truthful Saved or Replied outcome.</td><td class="m">selected provider</td></tr>
       <tr><td class="m">✎ Hands</td><td>Direct manipulation — edit text, move a sibling block, delete it, or undo. Written straight to the file: no AI call.</td><td class="m">you</td></tr>
       <tr><td class="m">⇥ Sling</td><td>Copies a terminal-ready instruction for cross-cutting / multi-file work — you hand it across to the terminal that's already good at it.</td><td class="m">terminal</td></tr>
     </table>
@@ -73,7 +73,7 @@
   <section class="zone">
     <div class="eyebrow">Path · where it's going</div>
     <h2 class="h">Thin spine first, then the hard modes</h2>
-    <p>The roadmap climbs a thin spine before it widens. <strong>P0</strong> — the Claude round-trip, live status, and scoped edits — is shipped. The direct-manipulation half of <strong>P1</strong> is shipped too; screenshot paste remains planned. Durable <code>data-cid</code> anchoring, branch &amp; compare, a long-lived session, and first-class Codex support remain later work. The rungs are canonical in the spec; the live state of each is the project board. <a class="ref" href="../../sandpaper.html#s-road">roadmap §06 →</a> &nbsp; <a class="ref" href="../project/index.html#i-skeleton">the plan board →</a></p>
+    <p>The roadmap climbs a thin spine before it widens. The dual-provider round-trip, live status, scoped edits, and direct manipulation are shipped. Release qualification for <code>v0.3.0</code> is next; screenshot paste, durable <code>data-cid</code> anchoring, branch &amp; compare, and a long-lived provider process remain later work. <a class="ref" href="../../sandpaper.html#s-road">roadmap §06 →</a> &nbsp; <a class="ref" href="../project/index.html#i-providers">the provider plan →</a></p>
     <p class="muted">The one rung that's also a blocker: keeping annotations attached when Claude regenerates the whole HTML. Tracked as an open question and a named spec risk. <a class="ref" href="../decisions.html#q-anchoring">the anchoring question →</a> &nbsp; <a class="ref" href="../../sandpaper.html#s-risks">risks §07 →</a></p>
   </section>
 

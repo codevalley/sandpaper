@@ -89,7 +89,7 @@
   "scripts": {
     "start": "node bin/cli.js help",
     "check:syntax": "node bin/syntax-check.js",
-    "test:unit": "node --test test/cli-test.js test/client-test.js test/codex-test.js test/diagnostics-test.js test/hook-script-test.js test/hooks-test.js test/managed-files-test.js test/manifest-test.js test/package-contract-test.js test/path-policy-test.js test/provider-registry-test.js test/server-test.js test/session-store-test.js test/setup-test.js test/workflow-contract-test.js && node test/parse-test.js && node test/markdown-test.js && node test/edit-test.js",
+    "test:unit": "node --test test/cli-test.js test/client-test.js test/codex-test.js test/diagnostics-test.js test/hook-script-test.js test/hooks-test.js test/managed-files-test.js test/manifest-test.js test/package-contract-test.js test/path-policy-test.js test/provider-docs-test.js test/provider-registry-test.js test/server-test.js test/session-store-test.js test/setup-test.js test/workflow-contract-test.js && node test/parse-test.js && node test/markdown-test.js && node test/edit-test.js",
     "test:browser": "playwright test --project=chromium",
     "test:package": "node --test test/package-smoke-test.js",
     "test": "npm run test:unit",

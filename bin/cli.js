@@ -65,7 +65,8 @@ const usageText = `
                     --integration codex --provider codex
 
   Hooks require project trust and per-command review at startup or through /hooks.
-  The current toolbar still dispatches Claude turns; Codex toolbar routing is the remaining v0.3.0 wave.
+  Toolbar: tab-local provider selection · Make default · page/provider New session.
+  Claude Code and Codex run explicitly with no silent fallback or hidden context handoff.
 `;
 
 function defaultDependencies() {

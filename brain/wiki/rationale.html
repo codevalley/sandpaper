@@ -44,17 +44,17 @@
 
   <section class="zone col">
     <h2 class="h">The document on disk is the single source of truth</h2>
-    <p>Both you and Claude read and write the <em>same file</em>; the page reflects disk, never ahead of it. This rules out a server-side document model, HTML assembled from stdout, and any diff-and-patch dance — and it's why a fresh session can rebuild context just by reading the file. <a class="ref" href="../decisions.html#d-ssot">ledger →</a></p>
+    <p>You, Claude Code, and Codex read and write the <em>same file</em>; the page reflects disk, never ahead of it. Provider sessions and browser transcripts remain separate convenience context; the repository and shared brain carry durable truth. <a class="ref" href="../decisions.html#d-ssot">disk ledger →</a> · <a class="ref" href="../decisions.html#d-first-class-providers">provider ledger →</a></p>
   </section>
 
   <section class="zone col">
     <h2 class="h">The bridge is a dumb pipe</h2>
-    <p>Claude edits the file with its own tools; the server hashes before and after, owns lifecycle/snapshots, and reloads from disk. It never assembles HTML from model stdout. The runner boundary accepts normalized frames, but the current production runner and UI are explicitly Claude-only; Codex is planned for <code>v0.3.0</code>. <a class="ref" href="../decisions.html#d-dumb-pipe">ledger →</a></p>
+    <p>The explicitly selected provider edits the file with its own tools; the server hashes before and after, owns one global lifecycle and snapshots, and reloads from disk. It never assembles HTML from model stdout. Both first-party adapters emit normalized provider-tagged frames with no silent fallback or hidden context handoff. <a class="ref" href="../decisions.html#d-dumb-pipe">ledger →</a></p>
   </section>
 
   <section class="zone col">
     <h2 class="h">Zero runtime dependencies · local-only</h2>
-    <p>Node ≥18 built-ins, ESM, and zero runtime dependencies keep the local bridge small. The server binds to loopback, injects a per-process token, validates same-origin mutation requests, applies one shared repository path policy, and restricts Claude to file tools. <a class="ref" href="../decisions.html#d-zero-deps">ledger →</a></p>
+    <p>Node ≥18 built-ins, ESM, and zero runtime dependencies keep the local bridge small. The server binds to loopback, injects a per-process token, validates same-origin mutation requests, and applies one shared repository path policy. Claude receives file tools; controlled Codex disables network and optional integrations but retains directory-level write ability and saved auth access. <a class="ref" href="../decisions.html#d-zero-deps">ledger →</a></p>
   </section>
 
   <section class="zone col">

@@ -47,23 +47,23 @@
   <section class="band" style="border-top:0;padding-top:0">
     <article class="entry entry--component" data-kind="component" id="c-cli" data-cid="c-cli" data-status="verified" data-date="2026-06-29" data-ref="../engg-spec.html#s-build" data-tags="cli entry">
       <div class="entry-head"><span class="entry-id">⌥</span><h3>bin/cli.js — CLI entry</h3><span class="badge verified">verified</span></div>
-      <p>Validates the arg, resolves the doc, reads the port, starts the server, logs the URL. <a class="ref" href="../engg-spec.html#s-build">engg →</a></p>
+      <p>Resolves the doc, local default and launch override, starts the loopback server, and reports the URL. <a class="ref" href="../engg-spec.html#s-build">engg →</a></p>
     </article>
     <article class="entry entry--component" data-kind="component" id="c-server" data-cid="c-server" data-status="verified" data-date="2026-07-10" data-ref="../src/server.js" data-tags="server http sse auth lifecycle snapshots reload watch">
       <div class="entry-head"><span class="entry-id">⌥</span><h3>src/server.js — HTTP · SSE · file-watch · toolbar inject</h3><span class="badge verified">verified</span></div>
-      <p>Owns authenticated requests, one turn lifecycle, byte-truth snapshots and undo, and page/client-scoped reloads. <a class="ref" href="../src/server.js">source →</a></p>
+      <p>Owns authenticated requests, one global provider-tagged turn lifecycle, byte-truth snapshots and undo, and page/client-scoped reloads. <a class="ref" href="../src/server.js">source →</a></p>
     </article>
     <article class="entry entry--component" data-kind="component" id="c-path-policy" data-cid="c-path-policy" data-status="verified" data-date="2026-07-10" data-ref="../src/path-policy.js" data-tags="security paths repository symlink secrets doctor">
       <div class="entry-head"><span class="entry-id">⌥</span><h3>src/path-policy.js — shared repository serve · mutation boundary</h3><span class="badge verified">verified</span></div>
       <p>Classifies repository-relative paths and rechecks canonical aliases after realpath resolution. <a class="ref" href="../src/path-policy.js">source →</a></p>
     </article>
-    <article class="entry entry--component" data-kind="component" id="c-claude" data-cid="c-claude" data-status="verified" data-date="2026-07-10" data-ref="../engg-spec.html#s-bridge" data-tags="claude bridge stream-json">
-      <div class="entry-head"><span class="entry-id">⌥</span><h3>src/claude.js — the Claude runner</h3><span class="badge verified">verified</span></div>
-      <p>Spawns <code>claude -p</code>, maps stream-json → typed frames (status / assistant_delta / edit), persists the session id. <a class="ref" href="../engg-spec.html#s-bridge">engg →</a></p>
+    <article class="entry entry--component" data-kind="component" id="c-claude" data-cid="c-claude" data-status="verified" data-date="2026-07-12" data-ref="../engg-spec.html#s-bridge" data-tags="providers claude codex registry diagnostics sessions stream-json">
+      <div class="entry-head"><span class="entry-id">⌥</span><h3>provider registry + Claude Code and Codex adapters</h3><span class="badge verified">verified</span></div>
+      <p>The internal static registry validates availability and dispatches <code>claude -p</code> or controlled <code>codex exec</code>; adapters normalize frames while the versioned store scopes resume IDs by page/provider. <a class="ref" href="../engg-spec.html#s-bridge">engg →</a></p>
     </article>
-    <article class="entry entry--component" data-kind="component" id="c-toolbar" data-cid="c-toolbar" data-status="verified" data-date="2026-07-10" data-ref="./decisions.html#d-browser-contract" data-tags="toolbar browser client conversation scope transactions rollback accessibility">
+    <article class="entry entry--component" data-kind="component" id="c-toolbar" data-cid="c-toolbar" data-status="verified" data-date="2026-07-12" data-ref="./decisions.html#d-browser-contract" data-tags="toolbar browser providers transcripts sessions usage client conversation scope transactions rollback accessibility">
       <div class="entry-head"><span class="entry-id">⌥</span><h3>public/sp-client.js + toolbar.js + .css — the on-page surface</h3><span class="badge verified">verified</span></div>
-      <p>Centralizes authenticated transport, truthful completion and undo, serialized Hands transactions, exact rollback, scoped styling, and baseline accessibility. <a class="ref" href="../public/toolbar.js">source →</a></p>
+      <p>Centralizes authenticated transport, explicit provider selection/default/reset, separate transcripts, sparse usage, truthful completion/undo, serialized Hands transactions, exact rollback, and accessibility. <a class="ref" href="../public/toolbar.js">source →</a></p>
     </article>
     <article class="entry entry--component" data-kind="component" id="c-test" data-cid="c-test" data-status="verified" data-date="2026-07-10" data-ref="./decisions.html#d-layered-test-architecture" data-tags="test node integration playwright chromium fake runner browser">
       <div class="entry-head"><span class="entry-id">⌥</span><h3>test/ — Node integration + Chromium browser suites</h3><span class="badge verified">verified</span></div>
@@ -77,11 +77,11 @@
     </div>
     <div class="entry entry--glossary" data-kind="glossary" id="g-stream-json" data-cid="g-stream-json" data-term="stream-json" data-ref="../engg-spec.html#evtmap" data-tags="protocol">
       <div class="g-term"><code>stream-json</code></div>
-      <p class="g-def">Claude's headless NDJSON event stream; each event maps to a chip status, a streamed reply, or an edit summary. <a class="ref" href="../engg-spec.html#evtmap">event map →</a></p>
+      <p class="g-def">A provider's headless NDJSON event stream; each adapter maps native events to provider-tagged status, reply, edit, usage, warning, and terminal frames. <a class="ref" href="../engg-spec.html#evtmap">event map →</a></p>
     </div>
     <div class="entry entry--glossary" data-kind="glossary" id="g-bridge" data-cid="g-bridge" data-term="the bridge" data-ref="../engg-spec.html#s-bridge" data-tags="architecture">
       <div class="g-term">the bridge</div>
-      <p class="g-def">The local server that spawns <code>claude -p</code> and lets the page act on the doc — a dumb pipe. <a class="ref" href="../engg-spec.html#s-bridge">engg →</a></p>
+      <p class="g-def">The local server that dispatches the selected Claude Code or Codex adapter and lets the page act on the doc — a dumb pipe with server-owned byte truth. <a class="ref" href="../engg-spec.html#s-bridge">engg →</a></p>
     </div>
     <div class="entry entry--glossary" data-kind="glossary" id="g-mouth-eyes" data-cid="g-mouth-eyes" data-term="mouth / eyes / hands" data-ref="decisions.html#d-pivot" data-tags="strategy model">
       <div class="g-term">mouth · eyes · hands</div>

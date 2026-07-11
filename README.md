@@ -34,7 +34,7 @@ Open it in a browser:
 npx @nynb/sandpaper open
 ```
 
-Dual installation is the default. Constrained environments can install one integration,
+Both Claude Code and Codex integrations install by default. Constrained environments can install one integration,
 and hook configuration can be disabled explicitly:
 
 ```bash
@@ -56,16 +56,15 @@ serve command it overrides only that launch. Both forms accept only `claude` or 
   workflow documents and update the same brain.
 - **The canvas** — a whiteboard on the cover for explanations worth keeping. It retains
   the current board and a bounded stack of earlier boards.
-- **The refine toolbar** — a local overlay for scoped AI edits, direct edit/move/delete,
-  Undo, and terminal-ready Sling instructions. The document bytes on disk remain the
-  source of truth and the browser reloads from them.
+- **The refine toolbar** — a local overlay where Claude Code and Codex are both first-class
+  providers for scoped AI edits, alongside direct edit/move/delete, Undo, and terminal-ready
+  Sling instructions. The document bytes on disk remain the source of truth and the browser
+  reloads from them.
 
-Sandpaper now installs and diagnoses Claude Code and Codex as first-class agent
-integrations. The current toolbar still dispatches turns through Claude; the provider
-selector, controlled embedded Codex execution, provider-scoped toolbar histories/reset,
-and provider-specific usage presentation are the remaining **v0.3.0 Toolbar Wave**. The
-CLI accepts provider choices now without implying that current toolbar turns consume that
-routing.
+The local manifest chooses the default provider. An explicit CLI `--provider` is a
+launch-only override, and the toolbar's tab-local selection supersedes it for that browser
+tab. `Make default` is the only toolbar action that updates the manifest. A provider must
+be deliberately selected and ready: there is no silent fallback to the other provider.
 
 ## CLI plumbing
 
@@ -104,15 +103,17 @@ actions are identical:
 | `release` | Draft, confirm, gate, version, tag, and push a release through the shared workflow. |
 | `help` | Show workflow help. |
 
-Interactive `$sandpaper` commands run inside the user's normal Codex environment. That
-is distinct from the controlled embedded Codex toolbar runtime planned for the Toolbar
-Wave.
+Interactive `$sandpaper` commands run inside the user's normal Codex environment. Toolbar
+turns instead use a controlled embedded Codex runtime: saved authentication is reused;
+API-key environment overrides, network access, web search, apps, multi-agent behavior,
+user configuration, and repository rules are disabled. This narrows the runtime but is
+not an OS sandbox and does not remove access to Codex's own state directory.
 
 ## Authentication, hooks, and trust
 
-Codex uses the authentication already established by `codex login`, whether that is a
-ChatGPT login or an intentionally configured API key. Sandpaper does not read credential
-files or print identities, tokens, raw authentication output, or secret material.
+Codex uses saved authentication already established by `codex login`, whether that is a
+ChatGPT login or an intentionally configured API key. Sandpaper does not prompt for an API key,
+read credential files, or print identities, tokens, raw authentication output, or secret material.
 `doctor` runs capability commands and reports only readiness, compatible version, and a
 coarse authentication method such as `chatgpt`, `api-key`, or `subscription`.
 
@@ -126,14 +127,24 @@ hook configuration. `upgrade` and `rebuild` preserve that disabled intent.
 ## Runtime safety boundary
 
 Sandpaper's toolbar process runs from the real document directory. This is
-project-directory access, not hard single-file or OS-level isolation: an agent process can
-write other project paths. Sandpaper tells the agent to target the selected document and
-derives Saved/Replied and Undo truth only from that document's actual bytes. It cannot
-verify or undo unrelated path changes and does not automatically revert them.
+directory-level write access, not hard single-file or OS-level isolation: each provider
+process can write other repository paths. Sandpaper tells it to target the selected
+document and derives Saved/Replied and Undo truth only from the actual selected-document
+bytes and server-owned hashes. Best-effort external-path detection uses provider reports;
+Sandpaper cannot verify or undo those changes, and never automatically
+reverts them.
 
-Toolbar Codex controls such as explicit no-fallback selection, network/integration
-disablement, separate browser histories, and provider-scoped reset are not documented as
-current behavior because they belong to the remaining Toolbar Wave.
+The server owns one global turn lifecycle and tags accepted turns and streamed frames with
+the validated provider. Provider switching is disabled while that lifecycle is busy.
+Resume IDs are page/provider-scoped resumable sessions; browser history uses
+project/page/provider-scoped browser transcripts. Returning to a provider resumes only its
+own context. There is no hidden context handoff on a switch and no transcript transfer.
+`New session` clears only the selected page/provider resume ID and its browser transcript,
+and the browser clears history only after server success.
+
+Usage remains sparse and provider-supplied: Claude displays cost only when supplied;
+Codex displays total tokens only when supplied. Sandpaper neither estimates nor converts
+one measure into the other.
 
 ## Publishing and release
 

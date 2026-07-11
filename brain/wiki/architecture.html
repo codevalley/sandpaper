@@ -51,27 +51,27 @@
     <div class="prose">
       <section id="invariant"><h2 class="h"><span class="pn">C.1</span> The invariant</h2>
         <div class="callout verdict"><div class="eyebrow">The one rule</div>
-          <p>The HTML <strong>file on disk is the document</strong>. The server serves it, Claude edits it with its own tools, direct operations splice it, and the watcher reloads it. Server hashes decide whether a turn really saved bytes; no stdout becomes document content. <a class="ref" href="../../engg-spec.html#invariant">engg →</a></p>
+          <p>The HTML <strong>file on disk is the document</strong>. The server serves it, the selected Claude Code or Codex adapter edits it, direct operations splice it, and the watcher reloads it. Server hashes decide whether a turn really saved bytes; no stdout becomes document content. <a class="ref" href="../../engg-spec.html#invariant">engg →</a></p>
         </div>
       </section>
 
       <section id="flow"><h2 class="h"><span class="pn">C.2</span> Data flow</h2>
         <div class="diagram">
-          <div class="row"><span class="node">browser · authenticated client</span><span class="ar">→ POST /turn →</span><span class="node">server lifecycle</span><span class="ar">→ runner →</span><span class="node">claude -p</span><span class="ar">→ Edit →</span><span class="node">doc on disk</span></div>
+          <div class="row"><span class="node">browser · authenticated client</span><span class="ar">→ POST /turn →</span><span class="node">global lifecycle</span><span class="ar">→ registry →</span><span class="node">Claude | Codex</span><span class="ar">→ write →</span><span class="node">doc on disk</span></div>
           <div class="foundation">hash + snapshot + fs.watch → page/client-scoped SSE → reload from disk</div>
         </div>
         <p>Outbound and inbound are separate paths over one local server. A turn writes the file; the watcher pushes the reload. Status rides the same SSE channel as a typed event stream. <a class="ref" href="../../engg-spec.html#s-arch">engg §02 →</a></p>
       </section>
 
       <section id="modules"><h2 class="h"><span class="pn">C.3</span> The modules</h2>
-        <p>Six runtime modules plus tests, one server-owned lifecycle, and zero runtime dependencies. The runner seam is provider-neutral internally; production and the current UI are Claude-only.</p>
+        <p>Provider registry, adapters, state stores, server, toolbar, and tests form one server-owned global lifecycle with zero runtime dependencies.</p>
         <table class="matrix">
           <tr><th>Module</th><th>State</th><th>Responsibility</th></tr>
           <tr><td class="nm">bin/cli.js</td><td class="st"><span class="sdot ok"></span>verified</td><td>Validate the arg, start the server, log the URL.</td></tr>
           <tr><td class="nm">src/server.js</td><td class="st"><span class="sdot ok"></span>verified</td><td>Authenticated API, lifecycle, hashes/snapshots, undo, SSE, watcher and scoped reload.</td></tr>
           <tr><td class="nm">src/path-policy.js</td><td class="st"><span class="sdot ok"></span>verified</td><td>Shared serve, mutation, and doctor repository boundary.</td></tr>
-          <tr><td class="nm">src/claude.js</td><td class="st"><span class="sdot ok"></span>verified</td><td>Current Claude runner: spawn <code>claude -p</code>, normalize frames, persist session.</td></tr>
-          <tr><td class="nm">public/sp-client.js + toolbar.*</td><td class="st"><span class="sdot ok"></span>verified</td><td>Authenticated transport, truthful status/undo, Sand, Hands, rollback and accessibility.</td></tr>
+          <tr><td class="nm">provider registry + adapters</td><td class="st"><span class="sdot ok"></span>verified</td><td>Diagnose and dispatch <code>claude -p</code> or controlled <code>codex exec</code>; normalize provider frames and scoped resume IDs.</td></tr>
+          <tr><td class="nm">public/sp-client.js + toolbar.*</td><td class="st"><span class="sdot ok"></span>verified</td><td>Authenticated transport, explicit provider selection/default/reset, separate transcripts, truthful status/undo, Sand, Hands, rollback and accessibility.</td></tr>
           <tr><td class="nm">test/</td><td class="st"><span class="sdot ok"></span>verified</td><td>Node integration and Chromium browser suites with a deterministic fake runner.</td></tr>
         </table>
         <p class="deeper"><a href="../map.html">Component map →</a> · authoritative build status → <a href="../../engg-spec.html#s-build">engg §06</a></p>
@@ -80,9 +80,9 @@
       <section id="turn"><h2 class="h"><span class="pn">C.4</span> Anatomy of one turn</h2>
         <ol class="flow" style="list-style:decimal;padding-left:20px">
           <li>Click <strong>⌖</strong>, click a section (it resolves the nearest <code>data-cid</code>), type a change.</li>
-          <li>The client POSTs authenticated JSON; the server reserves the turn before reading the body and snapshots the page.</li>
-          <li>The current Claude runner emits normalized stream frames; the server owns IDs, status, hashes and terminal state.</li>
-          <li>Claude's <code>Edit</code> writes the file; the server compares bytes and reports Saved/undo only for a real change.</li>
+          <li>The client POSTs authenticated JSON with an explicit provider; the server validates request, provider readiness and page before reservation, then snapshots.</li>
+          <li>The selected adapter emits normalized provider-tagged frames; the server owns IDs, status, hashes and terminal state.</li>
+          <li>The provider writes the file; the server compares bytes and reports Saved/undo only for a real selected-document change.</li>
           <li><code>fs.watch</code> routes page-scoped reloads, preserving only the initiating tab's confirmed optimistic direct edit.</li>
         </ol>
         <p class="deeper">Full 10-step sequence → <a href="../../engg-spec.html#turnseq">engg §04</a></p>
@@ -101,7 +101,7 @@
       </section>
 
       <section id="security"><h2 class="h"><span class="pn">C.6</span> Security</h2>
-        <p>A local-only tool, scoped tight: bound to <code>127.0.0.1</code>; per-process token plus same-origin/loopback checks on mutations and SSE; shared path policy denies secrets, runtime state, traversal, and escaping symlinks while allowing ordinary repo files and <code>.github</code>; Claude gets file tools only; request bodies are capped.</p>
+        <p>A local-only tool, scoped tight: bound to <code>127.0.0.1</code>; per-process token plus same-origin/loopback checks on mutations and SSE; shared path policy denies secrets, runtime state, traversal, and escaping symlinks; request bodies are capped. Provider processes still have directory-level write ability. Codex's controlled flags are not OS isolation, and external-path detection is best-effort only.</p>
         <p class="deeper">Threat model → <a href="../../engg-spec.html#s-security">engg §05</a> · why local-only → <a href="./rationale.html">§D rationale</a></p>
       </section>
     </div>

@@ -34,7 +34,7 @@
     <div class="eyebrow">Wiki · §B</div>
     <h1 style="font-size:32px;letter-spacing:-.02em;margin:6px 0 0">Product &amp; features</h1>
     <p style="font-family:var(--mono);font-size:12px;margin-top:8px"><a href="./overview.html">← §A Overview</a> · <strong>§B Product</strong> · <a href="./architecture.html">§C Architecture</a> · <a href="./rationale.html">§D Rationale →</a></p>
-    <p class="lead" style="max-width:40em;margin-top:12px;color:#2a2820">You open the spec Claude made, select a section, and describe the change. The current Claude-only toolbar shows truthful Thinking → Editing → Saved or Replied state; Hands can edit, move, delete, and undo without an AI call.</p>
+    <p class="lead" style="max-width:40em;margin-top:12px;color:#2a2820">You open the spec Claude Code or Codex made, select a section, and describe the change. The toolbar keeps explicit provider identity and truthful Thinking → Editing → Saved or Replied state; Hands can edit, move, delete, and undo without an AI call.</p>
   </section>
 
   <section class="zone">
@@ -52,8 +52,8 @@
   </section>
 
   <section class="zone">
-    <h2 class="h">Claude's status, on the page</h2>
-    <p>An invisible terminal process becomes a calm chip that always says what Claude is doing — derived from the stream-json events, not screen-scraping.</p>
+    <h2 class="h">Provider status, on the page</h2>
+    <p>An invisible provider process becomes a calm chip that identifies Claude Code or Codex and reports normalized events, not screen-scraping. Selection has no silent fallback or hidden handoff; each provider keeps its own scoped resume and transcript.</p>
     <table class="matrix">
       <tr><th>State</th><th>Means</th><th>Triggered by</th></tr>
       <tr><td class="st"><span class="sdot wip"></span>thinking</td><td>Composing the change.</td><td class="m">message_start</td></tr>

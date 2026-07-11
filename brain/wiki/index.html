@@ -34,15 +34,15 @@
     <div class="eyebrow">Wiki · start here</div>
     <h1 style="font-size:34px;letter-spacing:-.02em;margin:6px 0 0">What is Sandpaper?</h1>
     <p class="lead" style="font-size:19px;color:#2a2820;margin-top:12px;max-width:40em">
-      Sandpaper turns the rich HTML documents Claude Code makes for you into a <strong>living surface you
+      Sandpaper turns the rich HTML documents Claude Code or Codex makes for you into a <strong>living surface you
       refine by talking to the page</strong> — instead of reading the doc here and re-describing changes
       over there in a terminal, you change it in place, and it stays the canonical spec your build is based on.
     </p>
     <p class="col" style="color:#33302a">
-      <strong>The problem:</strong> the medium for thinking-with-Claude got richer (markdown → HTML with diagrams,
+      <strong>The problem:</strong> the medium for thinking with an agent got richer (markdown → HTML with diagrams,
       tables, mockups), but the loop didn't — you still steer it from another window.<br/>
-      <strong>The bet:</strong> read the rich document and change it <em>in place</em>, with Claude rewriting the
-      file as the single source of truth and showing live status.
+      <strong>The bet:</strong> read the rich document and change it <em>in place</em>, with the explicitly selected
+      Claude Code or Codex provider rewriting the file as the single source of truth and showing live status.
     </p>
   </section>
 
@@ -52,13 +52,13 @@
       <div class="row">
         <span class="node">Document · the page</span><span class="ar">⇄</span>
         <span class="node">Local bridge</span><span class="ar">⇄</span>
-        <span class="node">Claude Code</span>
+        <span class="node">Claude Code · Codex</span>
       </div>
       <div class="foundation">▤ the HTML file on disk — the single source of truth</div>
     </div>
     <p class="vitals" style="margin-top:14px">
       <span><span class="sdot ok"></span>Status: Green</span> · <span>Rung 1 — the spine</span> ·
-      <span>~200-line bridge</span> · <span>zero runtime deps</span> · <span>your Claude subscription</span>
+      <span>internal provider registry</span> · <span>zero runtime deps</span> · <span>saved provider auth</span>
     </p>
   </section>
 
@@ -66,9 +66,9 @@
     <div class="eyebrow">Read next</div>
     <div class="cards">
       <a class="card" href="./overview.html"><div class="k">§A · Overview</div><h3>Pitch &amp; why</h3><p>The problem, the bet, who it's for, where it stops.</p></a>
-      <a class="card" href="./product.html"><div class="k">§B · Product</div><h3>What it does</h3><p>The experience, the six modes, Claude's status on the page.</p></a>
+      <a class="card" href="./product.html"><div class="k">§B · Product</div><h3>What it does</h3><p>The experience, the modes, and provider status on the page.</p></a>
       <a class="card" href="./architecture.html"><div class="k">§C · Architecture</div><h3>How it's built</h3><p>The invariant, the data flow, the modules, one turn end-to-end.</p></a>
-      <a class="card" href="./rationale.html"><div class="k">§D · Rationale</div><h3>Why these choices</h3><p>claude -p over tmux, file-as-truth, the dumb pipe — narrated.</p></a>
+      <a class="card" href="./rationale.html"><div class="k">§D · Rationale</div><h3>Why these choices</h3><p>structured provider adapters, file-as-truth, the dumb pipe — narrated.</p></a>
     </div>
     <div class="deeper">Full pitch &amp; one-page spec → <a href="../../sandpaper.html">sandpaper.html</a> · Engineering spec → <a href="../../engg-spec.html">engg-spec.html</a></div>
   </section>

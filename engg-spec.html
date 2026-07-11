@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Sandpaper — Engineering Spec · v0.2.1 stabilization</title>
+<title>Sandpaper — Engineering Spec · v0.3.0 providers</title>
 <!-- A Sandpaper document. Block elements carry data-cid anchors so this spec can be refined in Sandpaper itself. -->
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -112,20 +112,19 @@
   <header class="hero" id="hero" data-cid="hero">
     <div class="specstrip" data-cid="specstrip">
       <span>Sandpaper</span><span class="sep">·</span><span>Engineering Spec</span><span class="sep">·</span>
-      <span>v0.2.1 stabilization</span><span class="sep">·</span><span>2026-07-10</span><span class="sep">·</span>
-      <span class="green">Runtime + browser + brain truth verified</span>
+      <span>v0.3.0 provider contract</span><span class="sep">·</span><span>2026-07-12</span><span class="sep">·</span>
+      <span class="green">Claude + Codex runtime and browser truth verified</span>
     </div>
     <h1 class="wordmark" data-cid="wordmark">Sand<span class="a">paper</span></h1>
-    <div class="subhead" data-cid="subhead">Engineering spec — the current Claude-only runtime.</div>
+    <div class="subhead" data-cid="subhead">Engineering spec — one truthful runtime for Claude Code and Codex.</div>
     <p class="lead" data-cid="lead">
-      A local zero-runtime-dependency Node.js bridge that lets you refine a Claude-generated HTML document in
-      the browser. The server owns authentication, lifecycle, snapshots, hashes, undo, and reload truth; Claude
-      remains the only production execution provider. The runner seam is provider-neutral internally so Codex
-      can arrive in <code>v0.3.0</code> without another server rewrite.
+      A local zero-runtime-dependency Node.js bridge that lets you refine an HTML document with Claude Code or
+      Codex in the browser. An internal static registry selects the adapter; the server owns authentication,
+      one server-owned global turn lifecycle, snapshots, hashes, undo, and reload truth.
     </p>
     <div class="callout" id="invariant" data-cid="invariant">
       <div class="eyebrow">The invariant</div>
-      <p>The HTML file on disk <strong>is</strong> the document. Claude and Hands mutate those bytes; the server
+      <p>The HTML file on disk <strong>is</strong> the document. Providers and Hands mutate those bytes; the server
         verifies before/after hashes and reloads from disk. Model stdout supplies frames, never document HTML.</p>
     </div>
   </header>
@@ -136,15 +135,17 @@
       <div class="num">01</div>
       <div class="col">
         <div class="eyebrow">Overview</div>
-        <h2>What ships in the stabilized runtime</h2>
+        <h2>What ships in the dual-provider runtime</h2>
         <p>Run <code>node bin/cli.js &lt;document.html|directory&gt;</code>. The server binds to
           <code>127.0.0.1</code>, injects the toolbar at response time, and keeps the file on disk authoritative.</p>
-        <p><strong>Current behavior.</strong> Sand runs scoped Claude turns; Hands edits rich text, moves or
+        <p><strong>Current behavior.</strong> Sand runs explicitly selected Claude Code or Codex turns; Hands edits rich text, moves or
           deletes sibling blocks, and provides one-level undo. The server reports <em>Saved</em> only after a
           real byte change and otherwise reports <em>Replied</em>. Every rejected optimistic edit restores the
           exact prior DOM.</p>
-        <p><strong>Honest scope.</strong> The production UI runs Claude Code only. Screenshot paste, branching,
-          durable regenerated-element anchoring, and first-class Codex execution are planned, not shipped.</p>
+        <p><strong>Entry points.</strong> Both integrations install by default and consume one workflow set and one
+          brain: <code>/sandpaper:&lt;action&gt;</code> in Claude Code and <code>$sandpaper &lt;action&gt;</code> in Codex.
+          Explicit solo installs remain supported. Screenshot paste, branching, and durable regenerated-element
+          anchoring remain planned.</p>
       </div>
       <aside class="side" data-cid="side-overview">
         Node ≥18 built-ins only at runtime. Playwright is development-only and excluded from the package files.
@@ -163,7 +164,7 @@
           <div class="row">
             <span class="box">browser · sp-client</span><span class="ar">→&nbsp;<span style="color:var(--mute);font-weight:400;font-size:10.5px;letter-spacing:.04em">authenticated JSON</span>&nbsp;→</span>
             <span class="box">server lifecycle</span><span class="ar">→&nbsp;<span style="color:var(--mute);font-weight:400;font-size:10.5px;letter-spacing:.04em">runner</span>&nbsp;→</span>
-            <span class="box">claude -p</span><span class="ar">→&nbsp;<span style="color:var(--mute);font-weight:400;font-size:10.5px;letter-spacing:.04em">file tools</span>&nbsp;→</span>
+            <span class="box">Claude | Codex adapter</span><span class="ar">→&nbsp;<span style="color:var(--mute);font-weight:400;font-size:10.5px;letter-spacing:.04em">directory writes</span>&nbsp;→</span>
             <span class="box" style="border-color:var(--clay);color:var(--clay);font-weight:600">doc on disk</span>
           </div>
           <div class="foundation">▤ &nbsp;snapshot + before/after hash + fs.watch → page/client-scoped SSE → reload from disk</div>
@@ -171,18 +172,20 @@
         </div>
         <table class="tbl" data-cid="modules">
           <tr><th class="m">module</th><th>responsibility</th></tr>
-          <tr><td class="m">bin/cli.js</td><td>Resolve the file or repository directory, choose a loopback port, and start the server.</td></tr>
+          <tr><td class="m">bin/cli.js</td><td>Resolve the file or repository directory, choose a loopback port, resolve the launch provider, and start the server.</td></tr>
           <tr><td class="m">src/path-policy.js</td><td>Shared repository allow/deny policy for static serving, mutations, and doctor references.</td></tr>
           <tr><td class="m">src/server.js</td><td>Authenticated HTTP/SSE boundary, lifecycle, snapshots, hashes, undo, watcher, and scoped reload routing.</td></tr>
-          <tr><td class="m">src/claude.js</td><td>The current production runner: spawn <code>claude -p</code>, normalize stream-json frames, and persist its session id.</td></tr>
+          <tr><td class="m">src/provider-registry.js</td><td>Validate static entries shaped <code>{id, label, diagnose, runTurn}</code>; expose only safe diagnostic fields.</td></tr>
+          <tr><td class="m">src/claude.js + src/codex.js</td><td>First-party adapters normalize native streams, report opaque resume IDs, and emit sparse provider usage.</td></tr>
+          <tr><td class="m">src/provider-preferences.js + src/session-store.js</td><td>Atomically store the manifest default and versioned page/provider resume IDs.</td></tr>
           <tr><td class="m">src/edit.js</td><td>Byte-preserving text, sibling-move, and delete operations keyed by <code>data-cid</code>.</td></tr>
           <tr><td class="m">public/sp-client.js + toolbar.*</td><td>Authenticated transport, Sand/Hands modes, optimistic transactions, exact rollback, live regions, focus, and reload handling.</td></tr>
           <tr><td class="m">test/*</td><td>Node integration and Chromium browser suites use the real server and a deterministic fake runner.</td></tr>
         </table>
       </div>
       <aside class="side" data-cid="side-arch">
-        The runner interface is provider-neutral. The current package still exposes only the Claude runner and
-        Claude-labelled UI; a provider chooser would be <code>v0.3.0</code> work.
+        Provider choice validates before reservation. There is no silent fallback, and switching transfers no
+        transcript or hidden context handoff.
       </aside>
     </div>
   </section>
@@ -193,17 +196,30 @@
       <div class="num">03</div>
       <div class="col">
         <div class="eyebrow">The bridge</div>
-        <h2>Claude is the current runner; the server owns truth</h2>
-        <p>Production injects <code>runTurn()</code> into the server-owned lifecycle. It is spawned with
-          <code>cwd = docDir</code> so Claude's directory-scoped resume lookup remains reliable:</p>
+        <h2>Two adapters; the server owns truth</h2>
+        <p>Production dispatches exactly one validated registry entry's <code>runTurn()</code> inside the
+          server lifecycle. Both children use <code>cwd = docDir</code>. Claude runs:</p>
         <pre class="code" data-cid="invocation">claude -p &lt;prompt&gt; \
   --output-format stream-json --verbose --include-partial-messages \
   --permission-mode acceptEdits \
   --allowedTools Read,Edit,Write,MultiEdit \
   --append-system-prompt &lt;CONTRACT&gt; \
   [--resume &lt;sessionId&gt;]</pre>
-        <p style="margin-top:14px">The Claude runner maps NDJSON into normalized status, assistant-delta, and
-          edit-summary frames. It does not assign turn IDs, decide Saved/Replied, expose undo, or schedule
+        <p>Codex reuses saved <code>codex login</code> authentication and runs a controlled embedded process:</p>
+        <pre class="code">codex --ask-for-approval never --sandbox workspace-write \
+  --config web_search="disabled" \
+  --config sandbox_workspace_write.network_access=false \
+  --config project_doc_max_bytes=0 \
+  --disable multi_agent --disable apps \
+  exec --ignore-user-config --ignore-rules --json [resume &lt;threadId&gt;] &lt;prompt&gt;</pre>
+        <p>The child environment removes <code>CODEX_API_KEY</code> and <code>OPENAI_API_KEY</code> overrides; it
+          does not copy credentials. Saved Codex auth and the provider's own state directory remain accessible.
+          These flags disable network, web search, apps, multi-agent behavior, user config, and repository rules,
+          but do not claim OS-level isolation.</p>
+        <p style="margin-top:14px">The adapters map NDJSON into normalized status, assistant-delta, edit, warning,
+          and usage frames. Claude edit frames can carry hunks and supplied cost; Codex edit frames carry
+          reported path/kind summaries and its completion can carry supplied total tokens. Neither value is
+          estimated or converted. Adapters do not assign turn IDs, decide Saved/Replied, expose undo, or schedule
           reloads; those are server decisions backed by actual bytes and snapshots.</p>
         <h3>Event → status mapping</h3>
         <table class="tbl" id="evtmap" data-cid="evtmap">
@@ -217,9 +233,9 @@
           <tr><td class="m">result · is_error / non-success</td><td class="m"><span class="dot" style="background:#B23A2E"></span>error</td><td>Turn failed</td></tr>
           <tr><td class="m">child 'error' / non-zero 'close'</td><td class="m"><span class="dot" style="background:#B23A2E"></span>error</td><td>claude not found / exited (n)</td></tr>
         </table>
-        <p style="margin-top:14px"><strong>Session.</strong> Claude's session id is stored under
-          <code>.sandpaper/session.json</code>, which the shared path policy never serves. Losing it does not lose
-          the artifact: the file remains the source of truth.</p>
+        <p style="margin-top:14px"><strong>Session.</strong> <code>.sandpaper/session.json</code> stores opaque IDs
+          by page and provider. A Claude ID can never reach Codex. Browser transcripts are separately keyed by
+          project/page/provider and are noncanonical convenience state; the shared brain is durable truth.</p>
       </div>
       <aside class="side" data-cid="side-bridge">
         The deterministic fake runner covers reply-only, changed, unchanged, delayed, malformed, and failed
@@ -234,24 +250,36 @@
       <div class="num">04</div>
       <div class="col">
         <div class="eyebrow">The page protocol</div>
-        <h2>Authenticated HTTP, replayable SSE, and serialized writes</h2>
+        <h2>Authenticated provider protocol, replayable SSE, and serialized writes</h2>
+        <p>Every served page receives bootstrap <code>{projectId, initialProvider, defaultProvider, providers[]}</code>.
+          Provider diagnostics expose only <code>available</code>, <code>compatible</code>, <code>authMethod</code>,
+          <code>version</code>, and <code>unavailableCode</code> beside ID and label.</p>
         <table class="tbl" data-cid="httpapi">
           <tr><th class="m">method · path</th><th>purpose</th></tr>
           <tr><td class="m">GET /&lt;page&gt;</td><td>Serve an allowed repository HTML file with a fresh process token injected into the toolbar bootstrap; never write that token to disk.</td></tr>
           <tr><td class="m">GET /__sandpaper/events</td><td>Authenticated SSE. Replays the current status, then page-scoped status/reload frames for the tab's client ID.</td></tr>
-          <tr><td class="m">POST /__sandpaper/turn</td><td>Reserve lifecycle before body read; validate authenticated JSON and scope; snapshot/hash; return <code>202 {turnId}</code> or a structured error.</td></tr>
+          <tr><td class="m">POST /__sandpaper/turn</td><td>Authenticate and validate <code>{prompt, page, provider}</code>, provider readiness, page, and global idle state before reservation; snapshot/hash; return <code>202 {ok:true, turnId, provider}</code> or a structured error.</td></tr>
+          <tr><td class="m">POST <code>/__sandpaper/provider-default</code></td><td>Accept <code>{provider}</code>; require a registered available provider and global idle state; atomically update the local manifest; return exactly <code>{ok:true, defaultProvider}</code>.</td></tr>
+          <tr><td class="m">POST <code>/__sandpaper/session/reset</code></td><td>Accept <code>{page, provider}</code>; require a registered provider, mutable canonical page, and global idle state; clear only that page/provider resume ID; return exactly <code>{ok:true, page, provider}</code>. Browser history clears only after this success.</td></tr>
           <tr><td class="m">POST /__sandpaper/write · /dom</td><td>Apply direct rich-text, sibling move, or delete operations with a direct-undo snapshot; reject conflicts with an active turn.</td></tr>
           <tr><td class="m">POST /__sandpaper/undo · /undo-direct</td><td>Restore an existing unconsumed snapshot only when no conflicting turn is active.</td></tr>
           <tr><td class="m">GET /__sandpaper/toolbar.{js,css}</td><td>Serve the overlay assets from the package's own <code>public/</code>.</td></tr>
           <tr><td class="m">GET /&lt;path&gt;</td><td>Serve only paths accepted by the shared lexical + canonical repository policy.</td></tr>
         </table>
+        <p>All POST routes require the process token (<code>X-Sandpaper-Token</code>), stable per-tab
+          <code>X-Sandpaper-Client</code>, loopback Host, same-origin evidence, JSON content type, and bounded
+          request body. Global busy requests fail with 409 turn_in_progress, including default and
+          reset requests from another page. Failures are structured <code>{ok:false,error:{code,message}}</code>.</p>
+        <p>Accepted output uses provider-tagged status, assistant_delta, edit, usage, and lifecycle frames.
+          Turn frames include server <code>turnId</code>, validated <code>provider</code>, canonical <code>page</code>,
+          and phase. Lifecycle is global; status/reload delivery remains page-aware.</p>
         <h3>Anatomy of one turn</h3>
         <ol class="flow" id="turnseq" data-cid="turnseq">
           <li>Pick optionally records a <code>data-cid</code>, selector, and text snippet; Sand and Hands remain mutually exclusive.</li>
-          <li>The client sends process token, stable per-tab client ID, same-origin JSON, prompt, page, and optional scope.</li>
-          <li>The server reserves <em>receiving</em> before body read, validates the request/page/scope, then snapshots and hashes the page.</li>
-          <li>The server enters <em>running</em> and invokes the current Claude runner; normalized frames stream over SSE.</li>
-          <li>Claude writes with file tools. The watcher records the page/client source and routes reloads without hiding other-tab changes.</li>
+          <li>The client sends process token, stable per-tab client ID, same-origin JSON, prompt, page, provider, and optional scope.</li>
+          <li>The server performs provider/page/request validation before reservation, then snapshots and hashes the page.</li>
+          <li>The server enters <em>running</em> and invokes the selected adapter; normalized provider-tagged frames stream over SSE.</li>
+          <li>The provider writes with directory-level write ability. The watcher records page/client source and routes reloads without hiding other-tab changes.</li>
           <li>A terminal runner frame triggers a new hash. Changed bytes plus a retained snapshot expose Saved/Undo; unchanged bytes expose Replied.</li>
           <li>Errors remain terminal and visible. The next accepted turn starts a new lifecycle; every client path restores usable UI after rejection.</li>
         </ol>
@@ -275,13 +303,16 @@
           <tr><td><strong>Loopback bind</strong></td><td>Server listens on <code>127.0.0.1</code> only — never <code>0.0.0.0</code>. Not exposed to the network.</td></tr>
           <tr><td><strong>Process token</strong></td><td>A cryptographically random in-memory token is injected at response time; mutation routes and SSE require it.</td></tr>
           <tr><td><strong>Browser origin</strong></td><td>Mutation requests require valid loopback Host, same-origin evidence, a client ID, and the expected JSON content type.</td></tr>
-          <tr><td><strong>Tool restriction</strong></td><td><code>--allowedTools Read,Edit,Write,MultiEdit</code> — no Bash, no web fetch, no MCP. Claude can't run shell or open connections during a turn.</td></tr>
+          <tr><td><strong>Provider restrictions</strong></td><td>Claude receives file-only tools. Controlled Codex disables network, web search, apps, multi-agent behavior, user config, and repository rules and strips API-key environment overrides.</td></tr>
           <tr><td><strong>Repository policy</strong></td><td>Allow ordinary files and <code>.github/**</code>; deny <code>.git</code>, <code>.sandpaper</code>, unknown hidden namespaces, env/credential/key material, traversal, null bytes, and escaping symlinks.</td></tr>
           <tr><td><strong>Mutation policy</strong></td><td>All hidden paths, invalid pages/CIDs/operations, conflicts, malformed JSON, and over-limit bodies fail with structured status/code/message JSON.</td></tr>
         </table>
         <p style="margin-top:14px"><strong>Boundary:</strong> this protects a single-user local process against
           cross-origin browser requests, DNS-rebinding-style access, accidental secret serving, and unsafe
-          repository links. It is not hosted multi-user authentication.</p>
+          repository links. It is not hosted multi-user authentication or an OS sandbox. Provider processes
+          receive directory-level write ability. Sandpaper's selected-document bytes and snapshot are the only
+          Saved/Replied/Undo authority. Provider-reported external paths are best-effort detection: Sandpaper
+          cannot verify or undo them and does not auto-revert concurrent work.</p>
       </div>
       <aside class="side" data-cid="side-security">
         <code>doctor</code> evaluates <code>href</code>, <code>src</code>, and <code>data-ref</code> with this same
@@ -296,7 +327,7 @@
       <div class="num">06</div>
       <div class="col">
         <div class="eyebrow">Build status</div>
-        <h2>Verified current state after the stabilization sweep</h2>
+        <h2>Verified current first-class provider state</h2>
         <p><span class="badge verified">verified</span> done + covered by a test &nbsp;·&nbsp;
            <span class="badge done">done</span> implemented &nbsp;·&nbsp;
            <span class="badge fixed">fixed</span> bug found in review &amp; patched this pass &nbsp;·&nbsp;
@@ -309,9 +340,9 @@
           <div class="bitem"><span class="badge verified">verified</span><div class="bd"><b>Byte truth</b> — hashes, bounded snapshots, consumed undo, and page/client-scoped reloads.</div></div>
         </div>
         <div class="bgroup" data-cid="b-bridge">
-          <h3>Claude runner</h3>
-          <div class="bitem"><span class="badge verified">verified</span><div class="bd"><b>Spawn + normalized frames</b> — stream parser, partial replies, edit cards, error/end handling, and session persistence.</div></div>
-          <div class="bitem"><span class="badge open">planned</span><div class="bd"><b>Codex runner/provider choice</b> — explicitly deferred to <code>v0.3.0</code>; no current UI claim.</div></div>
+          <h3>Claude Code + Codex runners</h3>
+          <div class="bitem"><span class="badge verified">verified</span><div class="bd"><b>Static registry + normalized frames</b> — diagnostics, explicit choice, no fallback, stream parsing, edit cards, sparse usage, error/end handling, and scoped session persistence.</div></div>
+          <div class="bitem"><span class="badge verified">verified</span><div class="bd"><b>Provider-aware toolbar</b> — unavailable guidance, tab selection, Make default, New session, separate transcripts, accessibility, and 320px behavior.</div></div>
         </div>
         <div class="bgroup" data-cid="b-toolbar">
           <h3>Browser + brain truth</h3>
@@ -320,8 +351,8 @@
         </div>
       </div>
       <aside class="side" data-cid="side-build">
-        Release verification still includes the packed-package/fresh-install gates and one disposable live
-        Claude edit. Automated CI never invokes a live provider.
+        Release verification includes exact packed-package/fresh-install gates and disposable live turns for
+        both providers. Automated CI never invokes a live provider.
       </aside>
     </div>
   </section>
@@ -364,14 +395,16 @@ npm test
 npx playwright test --project=chromium
 node bin/cli.js doctor</pre>
         <p style="margin-top:14px"><strong>Node coverage:</strong> repository path policy; HTTP auth and
-          structured errors; concurrency; current-state SSE; changed/unchanged/error outcomes; AI/direct undo;
+          structured errors; provider validation and diagnostics; global concurrency; current-state SSE;
+          changed/unchanged/error outcomes; AI/direct undo;
           write/move/delete; snapshot pruning; scoped reloads; parser/edit/client helpers; scaffold and doctor
           truth checks.</p>
         <p><strong>Chromium coverage:</strong> toolbar injection; Saved/Replied; rejection recovery; Sand/Hands;
           direct transactions and rollback; undo; two-tab reload; timeline/shortcuts; focus/ARIA/reduced motion;
-          host CSS isolation; brain derivation with atomic fetch failure fallback.</p>
-        <p><strong>Release-only live step:</strong> run one disposable Claude edit and record it before the human
-          confirms the <code>v0.2.1</code> tag. Codex is not invoked because no Codex runner ships yet.</p>
+          host CSS isolation; provider selection/default/reset/transcripts; usage and external-path warnings;
+          brain derivation with atomic fetch failure fallback.</p>
+        <p><strong>Release-only live step:</strong> run disposable Claude Code and Codex turns and record them
+          before the human confirms the <code>v0.3.0</code> tag.</p>
       </div>
       <aside class="side" data-cid="side-test">
         CI runs Node 18/20/22 and Chromium on Node 20. Playwright remains development-only; the published
@@ -386,13 +419,15 @@ node bin/cli.js doctor</pre>
       <div class="num">09</div>
       <div class="col">
         <div class="eyebrow">Next</div>
-        <h2>Finish the patch, then add providers deliberately</h2>
-        <p><strong><code>v0.2.1</code> closeout:</strong> run syntax, Node, Chromium, doctor, publish-pack, and
-          fresh-install gates; record one disposable live Claude edit; populate the changelog; let a human
-          confirm version and push.</p>
-        <p><strong><code>v0.3.0</code>:</strong> design and implement first-class Claude + Codex choice across
-          runners, install/hooks, toolbar identity, docs, tests, and release. The neutral server seam is ready;
-          the current product does not invent the missing Codex behavior.</p>
+        <h2>Qualify the provider release, then extend deliberately</h2>
+        <p><strong><code>v0.3.0</code> closeout:</strong> re-run syntax, Node, Chromium, doctor, exact package,
+          fresh-install, dual live-provider, and release checks; populate the changelog; let a human confirm
+          version, tag, push, and publish.</p>
+        <p><strong>Future provider plugins:</strong> the production path remains an internal static registry.
+          A versioned, trusted provider-plugin contract would require explicit installation and trust, API
+          compatibility negotiation, capability/diagnostic schema validation, process and environment policy,
+          normalized-frame conformance, package provenance, and failure isolation. That versioned, trusted
+          provider-plugin path is not shipped in <code>v0.3.0</code>.</p>
         <p style="color:var(--pine); font-family:var(--serif); font-style:italic; font-size:17px; margin-top:18px">
           This spec is a Sandpaper document. Open it in the tool and sand it.</p>
       </div>
@@ -404,7 +439,7 @@ node bin/cli.js doctor</pre>
   </section>
 
   <footer data-cid="footer">
-    Sandpaper · engineering spec · v0.2.1 stabilization · Claude-only current UI · 2026-07-10 · a Sandpaper document
+    Sandpaper · engineering spec · Claude Code + Codex provider runtime · 2026-07-12 · a Sandpaper document
   </footer>
 </div>
 <script>/* mirror data-cid -> id so #anchors from the project brain scroll here */(function(){document.querySelectorAll("[data-cid]").forEach(function(e){if(!e.id)e.id=e.getAttribute("data-cid");});if(location.hash){var t=document.getElementById(location.hash.slice(1));if(t)t.scrollIntoView();}})();</script>

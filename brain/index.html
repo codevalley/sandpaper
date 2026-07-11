@@ -12,14 +12,14 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wdth,wght@0,62..125,100..900;1,62..125,100..900&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="./assets/brain.css" />
-<!-- BRAIN:DIGEST — machine context for a fresh `claude`: read THIS first (~1KB) to rehydrate. -->
+<!-- BRAIN:DIGEST — machine context for a fresh agent: read THIS first (~1KB) to rehydrate. -->
 <script type="application/json" id="brain-state">
-{ "v":1, "project":"Sandpaper", "phase":"Phase 1 · first-class providers", "updated":"2026-07-11",
+{ "v":1, "project":"Sandpaper", "phase":"Phase 1 · first-class providers", "updated":"2026-07-12",
   "session":"S40",
-  "focus":{ "one":"Provider runtime and distribution are reviewed; the toolbar protocol is next.", "ref":"../docs/superpowers/plans/2026-07-11-v0.3.0-provider-toolbar-release.md" },
-  "worklog":[ {"date":"2026-07-11","one":"Completed and reviewed the dual-provider distribution wave.","cid":"w-0231"},
-              {"date":"2026-07-11","one":"Completed and reviewed the provider-neutral runtime foundation.","cid":"w-0230"},
-              {"date":"2026-07-11","one":"Locked dependency-ordered provider execution plans and began implementation.","cid":"w-0229"} ],
+  "focus":{ "one":"Release qualification for v0.3.0 is next.", "ref":"../docs/superpowers/plans/2026-07-11-v0.3.0-provider-toolbar-release.md" },
+  "worklog":[ {"date":"2026-07-12","one":"Completed and reviewed the first-class Claude and Codex toolbar and documentation.","cid":"w-0232"},
+              {"date":"2026-07-11","one":"Completed and reviewed the dual-provider distribution wave.","cid":"w-0231"},
+              {"date":"2026-07-11","one":"Completed and reviewed the provider-neutral runtime foundation.","cid":"w-0230"} ],
   "open":["decisions.html#q-anchoring","decisions.html#q-billing","decisions.html#q-privacy"],
   "docs":["../sandpaper.html","../engg-spec.html"] }
 </script>
@@ -34,7 +34,7 @@
       <div class="shell-state">
         <a href="./log.html">Edition 0.5</a>
         <a class="shell-health" href="../engg-spec.html#s-build" data-cid="health" data-status="green"><span class="dot"></span>Build · Green</a>
-        <a href="./log.html">stamped 07-11</a>
+        <a href="./log.html">stamped 07-12</a>
       </div>
     </div>
     <nav class="shell-rail" aria-label="Lenses">
@@ -51,7 +51,7 @@
   <header class="plate" data-cid="cover">
     <div class="pl-meta"><span class="now-tag">Now</span> the build stands at <a href="./project/index.html#i-providers">Phase 1 — first-class providers</a></div>
     <!-- BRAIN:NOW -->
-    <p class="now-line" id="now" data-cid="now" data-kind="now" data-status="active" data-date="2026-07-11" data-ref="../docs/superpowers/plans/2026-07-11-v0.3.0-provider-toolbar-release.md">Provider runtime and distribution are reviewed; the provider-aware toolbar protocol is next. <a class="ref" href="../docs/superpowers/plans/2026-07-11-v0.3.0-provider-toolbar-release.md">plan →</a></p>
+    <p class="now-line" id="now" data-cid="now" data-kind="now" data-status="active" data-date="2026-07-12" data-ref="../docs/superpowers/plans/2026-07-11-v0.3.0-provider-toolbar-release.md">Release qualification for <code>v0.3.0</code> is next. <a class="ref" href="../docs/superpowers/plans/2026-07-11-v0.3.0-provider-toolbar-release.md">release plan →</a></p>
     <!-- /BRAIN:NOW -->
   </header>
   <!-- /BRAIN:EDITION -->
@@ -264,6 +264,7 @@
   <section class="zone" data-cid="s-log">
     <div class="eyebrow">Latest <span id="brain-unseen" class="badge open" hidden></span></div>
     <ol class="timeline" data-cid="logfeed">
+      <li class="entry entry--worklog" data-kind="worklog" id="w-0232" data-cid="w-0232" data-status="active" data-date="2026-07-12" data-ref="../docs/superpowers/plans/2026-07-11-v0.3.0-provider-toolbar-release.md"><span class="log-when">07-12</span><span class="log-what">Completed and reviewed the first-class Claude and Codex toolbar and documentation.</span><span class="log-link"><a class="ref" href="../docs/superpowers/plans/2026-07-11-v0.3.0-provider-toolbar-release.md">toolbar →</a></span></li>
       <li class="entry entry--worklog" data-kind="worklog" id="w-0231" data-cid="w-0231" data-status="active" data-date="2026-07-11" data-ref="../docs/superpowers/plans/2026-07-11-v0.3.0-provider-distribution.md"><span class="log-when">07-11</span><span class="log-what">Completed and reviewed the dual-provider distribution wave.</span><span class="log-link"><a class="ref" href="../docs/superpowers/plans/2026-07-11-v0.3.0-provider-distribution.md">distribution →</a></span></li>
       <li class="entry entry--worklog" data-kind="worklog" id="w-0230" data-cid="w-0230" data-status="active" data-date="2026-07-11" data-ref="../docs/superpowers/plans/2026-07-11-v0.3.0-provider-runtime.md"><span class="log-when">07-11</span><span class="log-what">Completed and reviewed the provider-neutral runtime foundation.</span><span class="log-link"><a class="ref" href="../docs/superpowers/plans/2026-07-11-v0.3.0-provider-runtime.md">runtime →</a></span></li>
       <li class="entry entry--worklog" data-kind="worklog" id="w-0227" data-cid="w-0227" data-status="active" data-date="2026-07-11" data-ref="../.github/workflows/release.yml"><span class="log-when">07-11</span><span class="log-what">Recovered GitHub Release and hardened the isolated release job.</span><span class="log-link"><a class="ref" href="../.github/workflows/release.yml">workflow →</a></span></li>
