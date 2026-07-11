@@ -412,10 +412,11 @@ export function inspectInstallation(target, packageRoot, { runCommand = defaultR
     for (const script of ['brain-inject.js', 'brain-stamp-check.js']) {
       const installed = safeRead(target, join(target, '.sandpaper', 'hooks', script), 'shared hook script');
       const packaged = safeRead(packageRoot, join(packageRoot, 'bin', script), 'package hook script');
-      if (packaged.status === 'unsafe') {
+      if (packaged.status !== 'file') {
+        const missing = packaged.status === 'absent';
         addProblem(
-          'package-hook-script-unsafe',
-          `Executing package hook script ${script} is missing or unsafe.`,
+          missing ? 'package-hook-script-missing' : 'package-hook-script-unsafe',
+          `Executing package hook script ${script} is ${missing ? 'missing' : 'unsafe'}.`,
           'Repair or reinstall the executing Sandpaper package; target upgrade cannot repair package source.',
         );
       } else if (installed.status === 'unsafe') {

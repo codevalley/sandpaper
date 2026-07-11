@@ -346,6 +346,27 @@ test('unsafe generated trees and shared scripts require reversible path repair b
   assert.equal(readFileSync(outsideScript, 'utf8'), 'outside script bytes\n');
 });
 
+test('missing executing package hook scripts are package problems, never target drift', (t) => {
+  for (const script of ['brain-inject.js', 'brain-stamp-check.js']) {
+    const target = fixture(t, { integrations: ['claude'], defaultProvider: 'claude', hooksEnabled: false });
+    const packageRoot = mkdtempSync(join(tmpdir(), `sandpaper-package-missing-${script}-`));
+    t.after(() => rmSync(packageRoot, { recursive: true, force: true }));
+    cpSync(join(PACKAGE, 'skill'), join(packageRoot, 'skill'), { recursive: true });
+    cpSync(join(PACKAGE, 'bin'), join(packageRoot, 'bin'), { recursive: true });
+    rmSync(join(packageRoot, 'bin', script));
+
+    const result = inspectInstallation(target, packageRoot, { runCommand: readyRun });
+    const missing = result.problems.find(({ code, message }) => (
+      code === 'package-hook-script-missing' && message.includes(script)
+    ));
+    assert.ok(missing, script);
+    assert.match(missing.repair, /repair|reinstall/i);
+    assert.match(missing.repair, /executing Sandpaper package/i);
+    assert.doesNotMatch(missing.repair, /npx @nynb\/sandpaper upgrade/i);
+    assert.equal(result.problems.some(({ code }) => code === 'shared-hook-script-drift'), false);
+  }
+});
+
 test('irrelevant invalid hook configs do not block unselected or hooks-disabled installs', (t) => {
   const target = fixture(t, { integrations: ['codex'], defaultProvider: 'codex', hooksEnabled: false });
   mkdirSync(join(target, '.codex'), { recursive: true });

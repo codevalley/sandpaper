@@ -1315,12 +1315,46 @@ test('rebuild quarantine retains same-inode byte and mode edits at both cleanup 
       }));
 
       assert.equal(error.code, 'SANDPAPER_RECOVERY_REQUIRED', `${checkpoint}:${mutationName}`);
+      assert.equal(error.phase, 'brain_cleanup_recovery', `${checkpoint}:${mutationName}`);
       assert.equal(typeof error.brainRecoveryPath, 'string', `${checkpoint}:${mutationName}`);
       assert.equal(existsSync(error.brainRecoveryPath), true, `${checkpoint}:${mutationName}`);
       assert.equal(typeof error.brainBackupPath, 'string', `${checkpoint}:${mutationName}`);
       assert.equal(readFileSync(join(error.brainBackupPath, 'old-only.txt'), 'utf8'), 'old backup bytes\n');
     }
   }
+});
+
+test('rebuild retains provider and both brain recoveries when backup restore meets concurrent brain', (t) => {
+  const target = mkdtempSync(join(tmpdir(), 'sandpaper-composed-restore-recovery-'));
+  t.after(() => rmSync(target, { recursive: true, force: true }));
+  write(target, 'package.json', JSON.stringify({ name: '@fixture/composed-restore-recovery' }));
+  quietInstall(target, { integrations: ['claude', 'codex'], defaultProvider: 'codex', hooksEnabled: true });
+  write(target, 'brain/old-only.txt', 'old backup remains authoritative\n');
+
+  const error = thrown(() => quietLifecycle(setup.rebuild, target, PACKAGE, {}, {
+    integrationHooks: {
+      afterInstall({ label }) {
+        if (label === 'claude-namespace') throw new Error('injected provider precommit failure');
+      },
+      beforeRecursiveCleanup() { throw new Error('retain provider transaction'); },
+    },
+    brainCleanupHooks: {
+      beforeRecursiveCleanup() {
+        mkdirSync(join(target, 'brain'));
+        writeFileSync(join(target, 'brain', 'concurrent.txt'), 'concurrent active brain\n');
+      },
+    },
+  }));
+
+  assert.equal(error.code, 'SANDPAPER_RECOVERY_REQUIRED');
+  assert.equal(error.phase, 'precommit_recovery');
+  assert.ok(error.phase.length <= 80);
+  for (const key of ['providerRecoveryPath', 'brainBackupPath', 'brainRecoveryPath']) {
+    assert.equal(typeof error[key], 'string', key);
+    assert.equal(existsSync(error[key]), true, key);
+  }
+  assert.equal(readFileSync(join(error.brainBackupPath, 'old-only.txt'), 'utf8'), 'old backup remains authoritative\n');
+  assert.equal(readFileSync(join(error.brainRecoveryPath, 'concurrent.txt'), 'utf8'), 'concurrent active brain\n');
 });
 
 test('rebuild composes provider rollback recovery with fresh-brain drift recovery', (t) => {

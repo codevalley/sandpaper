@@ -799,11 +799,18 @@ function safeThemeSnapshot(brain) {
 function lifecycleRecovery({ providerError = null, brainError = null, brainBackupPath = null, activeBrainPath = null }) {
   const recovery = new Error('Sandpaper lifecycle recovery required');
   recovery.code = 'SANDPAPER_RECOVERY_REQUIRED';
-  recovery.phase = providerError?.phase || brainError?.phase || 'precommit_recovery';
-  recovery.destinationsCommitted = Boolean(providerError?.destinationsCommitted);
-  if (providerError?.recoveryPath) recovery.providerRecoveryPath = providerError.recoveryPath;
-  if (brainBackupPath) recovery.brainBackupPath = brainBackupPath;
-  const brainRecoveryPath = brainError?.brainRecoveryPath || brainError?.recoveryPath || activeBrainPath;
+  const phase = [providerError?.phase, brainError?.phase]
+    .find((value) => value && value !== 'unknown') || 'precommit_recovery';
+  recovery.phase = String(phase).slice(0, 80);
+  recovery.destinationsCommitted = Boolean(
+    providerError?.destinationsCommitted || brainError?.destinationsCommitted,
+  );
+  const providerRecoveryPath = providerError?.providerRecoveryPath || providerError?.recoveryPath;
+  if (providerRecoveryPath) recovery.providerRecoveryPath = providerRecoveryPath;
+  const retainedBackup = brainError?.brainBackupPath || brainBackupPath;
+  if (retainedBackup) recovery.brainBackupPath = retainedBackup;
+  const brainErrorPath = brainError?.recoveryPath !== retainedBackup ? brainError?.recoveryPath : null;
+  const brainRecoveryPath = brainError?.brainRecoveryPath || brainErrorPath || activeBrainPath;
   if (brainRecoveryPath) recovery.brainRecoveryPath = brainRecoveryPath;
   recovery.recoveryPath = recovery.providerRecoveryPath
     || brainError?.recoveryPath
@@ -1009,6 +1016,9 @@ export function rebuild(target, pkg, overrides = {}, dependencies = {}) {
             expectedExactTree: generatedInventory,
           });
         } catch (cleanupError) {
+          if (!cleanupError?.phase || cleanupError.phase === 'unknown') {
+            cleanupError.phase = 'brain_cleanup_recovery';
+          }
           throw lifecycleRecovery({
             providerError: providerRecovery,
             brainError: cleanupError,
@@ -1019,13 +1029,15 @@ export function rebuild(target, pkg, overrides = {}, dependencies = {}) {
       }
       if (backup) renameSync(backup, brain);
     } catch (recoveryError) {
-      if (recoveryError?.code === 'SANDPAPER_RECOVERY_REQUIRED') throw recoveryError;
-      const recovery = new Error('Sandpaper rebuild recovery required; old brain retained at backup path');
-      recovery.code = 'SANDPAPER_RECOVERY_REQUIRED';
-      recovery.recoveryPath = backup;
-      recovery.brainBackupPath = backup;
-      recovery.activeBrainPath = brain;
-      throw recovery;
+      if (!recoveryError?.phase || recoveryError.phase === 'unknown') {
+        recoveryError.phase = 'brain_restore_recovery';
+      }
+      throw lifecycleRecovery({
+        providerError: providerRecovery,
+        brainError: recoveryError,
+        brainBackupPath: backup,
+        activeBrainPath: brain,
+      });
     }
     if (providerRecovery) {
       providerRecovery.providerRecoveryPath ||= providerRecovery.recoveryPath;
