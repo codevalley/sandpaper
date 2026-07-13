@@ -188,18 +188,18 @@ test('selected historical Claude-specific evidence remains byte-for-byte present
   assert.match(read('brain/index.html'), /data-cid="w-0176"[\s\S]*?wired the SessionStart <strong>handoff<\/strong> so Claude Code uses it\. Dogfood board 002\./);
 });
 
-test('brain stamp records one qualified release candidate while leaving publication open', () => {
+test('brain stamp records the published release and closes the provider initiative', () => {
   const project = read('brain/project/index.html');
   assert.match(project, /<li[^>]*data-status="done"[^>]*id="t-0049"/);
-  assert.match(project, /<li[^>]*data-status="wip"[^>]*data-session="S43"[^>]*id="t-0050"/);
-  assert.doesNotMatch(project, /<li[^>]*data-status="done"[^>]*id="t-0050"/);
+  assert.match(project, /<article[^>]*id="i-providers"[^>]*data-status="done"/);
+  assert.match(project, /<li[^>]*data-status="done"[^>]*data-session="S43"[^>]*id="t-0050"/);
 
-  const worklog = /id="w-0235"[^>]*[\s\S]*?Prepared v0\.3\.0 release notes and stamped the final candidate\./g;
+  const worklog = /id="w-0236"[^>]*[\s\S]*?Released v0\.3\.0 with first-class Claude and Codex support\./g;
   assert.equal((read('brain/log.html').match(worklog) || []).length, 1);
   assert.equal((read('brain/index.html').match(worklog) || []).length, 1);
   assert.match(read('brain/index.html'), /"session":"S43"/);
-  assert.match(read('brain/index.html'), /"focus":\{ "one":"v0\.3\.0 release notes are approved; final gates and tag confirmation remain\."/);
-  assert.match(read('brain/index.html'), /id="now"[^>]*><code>v0\.3\.0<\/code> release notes are approved; final gates and tag confirmation remain\./);
+  assert.match(read('brain/index.html'), /"focus":\{ "one":"v0\.3\.0 is published with first-class Claude and Codex support\."/);
+  assert.match(read('brain/index.html'), /id="now"[^>]*><code>v0\.3\.0<\/code> is published with first-class Claude and Codex support\./);
   assert.match(read('brain/index.html'), />stamped 07-13<\/a>/);
 
   const evidence = elementById('brain/engineering/index.html', 'section', 'release-candidate-evidence');
@@ -209,7 +209,7 @@ test('brain stamp records one qualified release candidate while leaving publicat
   ]) assert.match(evidence, new RegExp(exact.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   assert.match(evidence, /post-reset[^<]{0,100}(?:without resume|fresh opaque scope)/i);
   assert.match(evidence, /legacy installation[^.<]{0,160}hook migration[^.<]{0,100}counter derivation[^.<]{0,100}open routing/i);
-  assert.match(evidence, /tag[^.<]{0,80}push[^.<]{0,80}publish[^.<]{0,80}(?:not run|remain pending)/i);
+  assert.match(evidence, /published[\s\S]{0,120}npm with provenance[\s\S]{0,200}GitHub Release/i);
   assert.doesNotMatch(evidence, /resumeId|session[_ -]?id|token|credential/i);
 });
 
