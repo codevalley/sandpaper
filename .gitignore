@@ -8,6 +8,8 @@ brain.bak-*/
 # npm pack output / browser-automation scratch
 *.tgz
 .playwright-mcp/
+test-results/
+playwright-report/
 
 # logs
 *.log
