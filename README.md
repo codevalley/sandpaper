@@ -21,12 +21,16 @@ Install both Claude Code and Codex integrations into the current repository:
 npx @nynb/sandpaper install-skill
 ```
 
-Then initialize the same brain from either agent:
+For a newly scaffolded brain, initialize it from either agent:
 
 ```text
 /sandpaper:init       # Claude Code
 $sandpaper init       # Codex
 ```
+
+When `brain/` is already populated, rerun `install-skill` to migrate a legacy installation;
+the installer preserves the brain, derives missing ID counters, replaces only exact legacy
+Sandpaper hooks, and points both agents to `open` instead of asking them to initialize again.
 
 Open it in a browser:
 

@@ -5,7 +5,11 @@
       {
         "matcher": "*",
         "hooks": [
-          { "type": "command", "command": "node bin/brain-inject.js", "timeout": 10 }
+          {
+            "type": "command",
+            "command": "node .sandpaper/hooks/brain-inject.js",
+            "timeout": 10
+          }
         ]
       }
     ],
@@ -13,7 +17,11 @@
       {
         "matcher": "*",
         "hooks": [
-          { "type": "command", "command": "node bin/brain-stamp-check.js", "timeout": 20 }
+          {
+            "type": "command",
+            "command": "node .sandpaper/hooks/brain-stamp-check.js",
+            "timeout": 20
+          }
         ]
       }
     ]

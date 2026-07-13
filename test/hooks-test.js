@@ -63,6 +63,34 @@ test('fresh Claude and Codex merges use their exact supported schemas', (t) => {
   });
 });
 
+test('Claude merge replaces exact self-hosted legacy Sandpaper hooks without claiming similar user hooks', (t) => {
+  const root = fixture(t, 'sandpaper-claude-legacy-hooks-');
+  const legacyInject = 'node bin/brain-inject.js';
+  const legacyStamp = 'node bin/brain-stamp-check.js';
+  const similar = { type: 'command', command: `${legacyInject} --user-mode`, timeout: 10 };
+  write(root, '.claude/settings.json', `${JSON.stringify({
+    $comment: 'preserve user configuration',
+    hooks: {
+      SessionStart: [
+        { matcher: '*', hooks: [exactHandler(legacyInject, 10)] },
+        { matcher: '*', hooks: [similar] },
+      ],
+      Stop: [{ matcher: '*', hooks: [exactHandler(legacyStamp, 20)] }],
+    },
+  }, null, 2)}\n`);
+
+  assert.deepEqual(mergeClaudeHooks(root, { enabled: true }), { ok: true, changed: true });
+  const after = JSON.parse(readFileSync(config(root, 'claude'), 'utf8'));
+  assert.equal(after.$comment, 'preserve user configuration');
+  assert.deepEqual(after.hooks.SessionStart, [
+    { matcher: '*', hooks: [similar] },
+    { matcher: '*', hooks: [exactHandler(INJECT, 10)] },
+  ]);
+  assert.deepEqual(after.hooks.Stop, [
+    { matcher: '*', hooks: [exactHandler(STAMP, 20)] },
+  ]);
+});
+
 test('Codex merge preserves order and unrelated bytes semantically while deduping only exact ownership', (t) => {
   const root = fixture(t);
   const similar = [

@@ -13,8 +13,8 @@ const PROVIDERS = Object.freeze({
   claude: {
     file: join('.claude', 'settings.json'),
     events: [
-      ['SessionStart', '*', 'node .sandpaper/hooks/brain-inject.js', 10],
-      ['Stop', '*', 'node .sandpaper/hooks/brain-stamp-check.js', 20],
+      ['SessionStart', '*', 'node .sandpaper/hooks/brain-inject.js', 10, ['node bin/brain-inject.js']],
+      ['Stop', '*', 'node .sandpaper/hooks/brain-stamp-check.js', 20, ['node bin/brain-stamp-check.js']],
     ],
   },
   codex: {
@@ -61,7 +61,7 @@ function validateEvent(config, event) {
   return groups;
 }
 
-function updateEvent(config, [event, matcher, command, timeout], enabled) {
+function updateEvent(config, [event, matcher, command, timeout, legacyCommands = []], enabled) {
   const current = validateEvent(config, event);
   if (!current) {
     if (!enabled) return false;
@@ -76,8 +76,14 @@ function updateEvent(config, [event, matcher, command, timeout], enabled) {
   let changed = false;
   const next = [];
   for (const group of current) {
-    if (!exactOwnedGroup(group, matcher, command, timeout)) {
+    const exactCurrent = exactOwnedGroup(group, matcher, command, timeout);
+    const exactLegacy = legacyCommands.some((legacy) => exactOwnedGroup(group, matcher, legacy, timeout));
+    if (!exactCurrent && !exactLegacy) {
       next.push(group);
+      continue;
+    }
+    if (exactLegacy) {
+      changed = true;
       continue;
     }
     if (enabled && !retained) {

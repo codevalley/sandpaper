@@ -143,7 +143,7 @@ test('cover has one truthful current board while preserving board 0011 as dated 
     /Claude Code/, /Codex/, /explicit provider selection/i, /no silent fallback/i,
     /page\/provider-scoped resume/i, /project\/page\/provider transcript/i, /New session/,
     /one global lifecycle/i, /selected-document bytes/i, /best-effort external-path warning/i,
-    /58-file/, /335 unit/, /101 Chromium/,
+    /58-file/, /340 unit/, /101 Chromium/,
   ]) assert.match(latest, anchor);
 
   const historical = elementById('brain/index.html', 'article', 'board-0011');
@@ -191,22 +191,24 @@ test('selected historical Claude-specific evidence remains byte-for-byte present
 test('brain stamp records one qualified release candidate while leaving publication open', () => {
   const project = read('brain/project/index.html');
   assert.match(project, /<li[^>]*data-status="done"[^>]*id="t-0049"/);
-  assert.match(project, /<li[^>]*data-status="wip"[^>]*data-session="S41"[^>]*id="t-0050"/);
+  assert.match(project, /<li[^>]*data-status="wip"[^>]*data-session="S42"[^>]*id="t-0050"/);
   assert.doesNotMatch(project, /<li[^>]*data-status="done"[^>]*id="t-0050"/);
 
-  const worklog = /id="w-0233"[^>]*[\s\S]*?Qualified the v0\.3\.0 release candidate; awaiting final tag and push confirmation\./g;
+  const worklog = /id="w-0234"[^>]*[\s\S]*?Hardened legacy dual-provider installation before release\./g;
   assert.equal((read('brain/log.html').match(worklog) || []).length, 1);
   assert.equal((read('brain/index.html').match(worklog) || []).length, 1);
-  assert.match(read('brain/index.html'), /"session":"S41"/);
-  assert.match(read('brain/index.html'), /"focus":\{ "one":"v0\.3\.0 is qualified; awaiting final tag and push confirmation\."/);
-  assert.match(read('brain/index.html'), /id="now"[^>]*><code>v0\.3\.0<\/code> is qualified; awaiting final tag and push confirmation\./);
+  assert.match(read('brain/index.html'), /"session":"S42"/);
+  assert.match(read('brain/index.html'), /"focus":\{ "one":"v0\.3\.0 is requalified after legacy-install dogfood; awaiting main push\."/);
+  assert.match(read('brain/index.html'), /id="now"[^>]*><code>v0\.3\.0<\/code> is requalified after legacy-install dogfood; awaiting main push\./);
+  assert.match(read('brain/index.html'), />stamped 07-13<\/a>/);
 
   const evidence = elementById('brain/engineering/index.html', 'section', 'release-candidate-evidence');
   for (const exact of [
-    '335 unit', '101 Chromium', '58 files', '129,521 packed bytes', '486,114 unpacked bytes',
+    '340 unit', '101 Chromium', '58 files', '130,304 packed bytes', '488,984 unpacked bytes',
     'Claude 2/2', 'Codex 2/2', 'npm run verify-publish', 'npm pack --dry-run --json',
   ]) assert.match(evidence, new RegExp(exact.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   assert.match(evidence, /post-reset[^<]{0,100}(?:without resume|fresh opaque scope)/i);
+  assert.match(evidence, /legacy installation[^.<]{0,160}hook migration[^.<]{0,100}counter derivation[^.<]{0,100}open routing/i);
   assert.match(evidence, /tag[^.<]{0,80}push[^.<]{0,80}publish[^.<]{0,80}(?:not run|remain pending)/i);
   assert.doesNotMatch(evidence, /resumeId|session[_ -]?id|token|credential/i);
 });

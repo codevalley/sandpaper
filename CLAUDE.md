@@ -47,3 +47,9 @@ The living brain is `brain/index.html` (the cover) plus `brain/log.html`, `brain
 **The wiki** (`brain/wiki/`) is a SECOND layer with a lighter cadence — it is NOT part of the per-turn stamp. Regenerate a whole wiki section only when the capability / architecture / tech-choice it describes actually changes. The wiki holds real readable prose (it's the canonical "understand the project" docs); the living books keep link-never-copy.
 
 **Refining the brain in-house:** `node bin/cli.js brain/` serves the brain with the on-page toolbar — **Sand** refines one page in place (scoped, single-file); **⇥ Sling** copies a terminal-ready instruction for cross-cutting / multi-file work. Run from the repo root (`node bin/cli.js .`, open `/brain/index.html`) if you also want the `spec ↗` / `engg ↗` links to resolve while serving.
+<!-- sandpaper:begin -->
+## Sandpaper project brain
+
+Repository files are the shared truth for implementation and rendered output. `brain/` is the shared truth for durable intent, decisions, plans, progress, work history, and learnings.
+Read `brain/index.html` first. Enter through `/sandpaper:<action>` when working with the shared brain.
+<!-- sandpaper:end -->

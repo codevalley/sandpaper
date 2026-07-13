@@ -34,6 +34,9 @@ own work — via `/sandpaper:release`, never written from scratch.
   exactly once, and unavailable providers report recovery guidance without silent fallback.
 - Integration upgrades, rebuilds, hooks, manifests, sessions, transcript rehydration, disclosure
   controls, and direct-edit recovery now preserve authoritative bytes across races and failures.
+- Installing over a populated manifestless brain now derives its existing numeric ID counters,
+  rolls back if the brain advances before that manifest settles, migrates exact self-hosted legacy
+  hooks without double execution, and directs agents to `open` instead of rerunning initialization.
 
 ### Security
 - Provider installation and recovery use bounded, transactional, non-following filesystem checks

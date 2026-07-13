@@ -169,6 +169,65 @@ test('default installation creates exact Claude and Codex integration trees from
   }
 });
 
+test('installing over an existing manifestless brain seeds counters from its highest numeric cids', (t) => {
+  const target = mkdtempSync(join(tmpdir(), 'sandpaper-existing-brain-counters-'));
+  t.after(() => rmSync(target, { recursive: true, force: true }));
+  write(target, 'package.json', JSON.stringify({ name: '@fixture/existing-brain' }));
+  write(target, 'brain/index.html', page([
+    '<article id="w-0042" data-cid="w-0042"></article>',
+    '<article id="t-0009" data-cid="t-0009"></article>',
+    '<article id="d-0007" data-cid="d-0007"></article>',
+    '<article id="l-0006" data-cid="l-0006"></article>',
+    '<article id="i-0005" data-cid="i-0005"></article>',
+    '<article id="d-semantic" data-cid="d-semantic"></article>',
+  ].join('')));
+  write(target, 'brain/nested/history.html', page('<article id="w-0039" data-cid="w-0039"></article>'));
+
+  quietInstall(target);
+
+  const manifest = JSON.parse(readFileSync(join(target, '.sandpaper', 'manifest.json'), 'utf8'));
+  assert.deepEqual(manifest.counters, { w: 42, t: 9, d: 7, l: 6, i: 5 });
+});
+
+test('manifestless installation aborts if the brain advances after counter derivation', (t) => {
+  const target = mkdtempSync(join(tmpdir(), 'sandpaper-counter-drift-'));
+  t.after(() => rmSync(target, { recursive: true, force: true }));
+  write(target, 'package.json', JSON.stringify({ name: '@fixture/counter-drift' }));
+  write(target, 'brain/index.html', page('<article id="w-0001" data-cid="w-0001"></article>'));
+
+  assert.throws(() => quietInstall(target, undefined, {
+    beforeIntegrationCommit() {
+      const cover = join(target, 'brain', 'index.html');
+      writeFileSync(cover, readFileSync(cover, 'utf8').replaceAll('w-0001', 'w-0099'));
+    },
+  }), /integration transaction/i);
+
+  assert.equal(existsSync(join(target, '.sandpaper', 'manifest.json')), false);
+  assert.equal(existsSync(join(target, '.claude', 'commands', 'sandpaper')), false);
+  assert.equal(existsSync(join(target, '.agents', 'skills', 'sandpaper')), false);
+});
+
+test('manifestless installation rolls back if the brain advances after manifest installation', (t) => {
+  const target = mkdtempSync(join(tmpdir(), 'sandpaper-counter-postinstall-drift-'));
+  t.after(() => rmSync(target, { recursive: true, force: true }));
+  write(target, 'package.json', JSON.stringify({ name: '@fixture/counter-postinstall-drift' }));
+  write(target, 'brain/index.html', page('<article id="w-0001" data-cid="w-0001"></article>'));
+
+  assert.throws(() => quietInstall(target, undefined, {
+    integrationHooks: {
+      afterInstall({ label }) {
+        if (label !== 'manifest') return;
+        const cover = join(target, 'brain', 'index.html');
+        writeFileSync(cover, readFileSync(cover, 'utf8').replaceAll('w-0001', 'w-0099'));
+      },
+    },
+  }), /integration transaction/i);
+
+  assert.equal(existsSync(join(target, '.sandpaper', 'manifest.json')), false);
+  assert.equal(existsSync(join(target, '.claude', 'commands', 'sandpaper')), false);
+  assert.equal(existsSync(join(target, '.agents', 'skills', 'sandpaper')), false);
+});
+
 test('solo and no-hooks installations keep hook wiring truthful while always copying scripts', (t) => {
   for (const provider of ['claude', 'codex']) {
     const target = mkdtempSync(join(tmpdir(), `sandpaper-solo-hooks-${provider}-`));
@@ -212,6 +271,25 @@ test('install output states the Codex project and per-command trust boundary', (
   assert.match(output, /✓\s+manifest/);
   assert.match(output, /✓\s+Claude hook config/);
   assert.match(output, /✓\s+Codex hook config/);
+  assert.match(output, /run\s+\/sandpaper:init.*\$sandpaper init/is);
+});
+
+test('installing into a populated brain points both providers to open instead of rerunning init', (t) => {
+  const target = mkdtempSync(join(tmpdir(), 'sandpaper-populated-next-step-'));
+  t.after(() => rmSync(target, { recursive: true, force: true }));
+  write(target, 'package.json', JSON.stringify({ name: '@fixture/populated' }));
+  for (const relative of [
+    'index.html', 'product/index.html', 'engineering/index.html', 'project/index.html',
+    'log.html', 'decisions.html', 'learnings.html',
+  ]) write(target, `brain/${relative}`, page('<article data-cid="existing">Already populated</article>'));
+
+  const lines = [];
+  const log = console.log;
+  console.log = (...args) => lines.push(args.join(' '));
+  try { setup.installSkill(target, PACKAGE); } finally { console.log = log; }
+  const output = lines.join('\n');
+  assert.match(output, /run\s+\/sandpaper:open.*\$sandpaper open/is);
+  assert.doesNotMatch(output, /run\s+\/sandpaper:init|\$sandpaper init/is);
 });
 
 test('rolled-back installation output never claims transaction-owned surfaces succeeded', (t) => {

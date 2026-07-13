@@ -44,6 +44,11 @@
   </section>
 
   <section class="zone flush col">
+    <aside class="entry entry--learning callout gotcha" data-kind="learning" data-lens="engineering" id="l-legacy-install-migration" data-cid="l-legacy-install-migration" data-status="active" data-date="2026-07-13" data-ref="../src/setup.js" data-area="distribution" data-tags="install legacy migration hooks counters init open dogfood">
+      <div class="eyebrow">▲ Gotcha · legacy installation</div>
+      <p><strong>Installing integrations over a populated manifestless brain is a migration, not a fresh scaffold.</strong> Derive counters from existing CIDs, replace only exact legacy Sandpaper hooks, and direct the owner to <code>open</code>; otherwise the installer can create collisions, double-run hooks, and prompt a destructive-looking redundant init. <a class="ref" href="../src/setup.js">installer →</a></p>
+    </aside>
+
     <aside class="entry entry--learning callout gotcha" data-kind="learning" data-lens="engineering" id="l-release-import-parser" data-cid="l-release-import-parser" data-status="active" data-date="2026-07-12" data-ref="../src/package-contract.js" data-area="distribution" data-tags="package release import closure acorn parser regex lexer javascript">
       <div class="eyebrow">▲ Gotcha · package closure</div>
       <p><strong>JavaScript import closure is a parser problem, not a regex problem.</strong> Release verification may use a pinned mature development-only parser while the shipped runtime remains dependency-free; do not grow a hand-written regex lexer for comments, templates, dynamic imports, or re-exports. <a class="ref" href="../src/package-contract.js">package contract →</a></p>

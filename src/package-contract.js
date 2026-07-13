@@ -66,7 +66,7 @@ export const APPROVED_FILE_RULES = Object.freeze([
 // These are explicit, rounded release envelopes. They are tightened against the
 // measured candidate after each intentional distribution-surface change.
 export const MAX_PACKED_KB = 140;
-export const MAX_UNPACKED_KB = 475;
+export const MAX_UNPACKED_KB = 478;
 
 // Development-only tooling is allowed in devDependencies. Every npm field that can
 // install, bundle, advertise, relax, or rewrite runtime dependencies is forbidden.

@@ -117,14 +117,16 @@ function banner() {
 }
 const section = (name) => console.log(`  ${bold(name)}`);
 const row = (label, target, note) => console.log(`   ${green('✓')}  ${label.padEnd(18)}${(target + '  ').padEnd(32)}${note ? dim(note) : ''}`); // the two spaces guarantee a gap when target overruns the column
-const nextStep = (integrations = ['claude']) => {
+const nextStep = (integrations = ['claude'], { needsInit = true } = {}) => {
+  const action = needsInit ? 'init' : 'open';
   const entry = integrations.length === 2
-    ? `${bold('/sandpaper:init')} in Claude Code or ${bold('$sandpaper init')} in Codex`
+    ? `${bold(`/sandpaper:${action}`)} in Claude Code or ${bold(`$sandpaper ${action}`)} in Codex`
     : integrations[0] === 'codex'
-      ? `${bold('$sandpaper init')} in Codex`
-      : `${bold('/sandpaper:init')} in Claude Code`;
-  console.log(`\n  ${clay('▸ NEXT')}   run  ${entry} — it reads this repo`);
-  console.log('           and fills your brain: the cover, the lenses, and the books.\n');
+      ? `${bold(`$sandpaper ${action}`)} in Codex`
+      : `${bold(`/sandpaper:${action}`)} in Claude Code`;
+  console.log(`\n  ${clay('▸ NEXT')}   run  ${entry}${needsInit ? ' — it reads this repo' : ' — your existing brain is ready'}`);
+  if (needsInit) console.log('           and fills your brain: the cover, the lenses, and the books.');
+  console.log('');
 };
 
 // ---- the out-link source base: what keeps brain/ publishable away from its repo ----
@@ -203,6 +205,11 @@ function readEditorialFile(trustedRoot, file, pathClass) {
   } finally {
     if (descriptor !== undefined) closeSync(descriptor);
   }
+}
+
+function brainNeedsInit(brain) {
+  return htmlPages(brain).some((file) => readEditorialFile(brain, file, 'brain init state')
+    .bytes.toString('utf8').includes('<!-- FILL:'));
 }
 
 function writeEditorialFile(trustedRoot, file, bytes, {
@@ -300,6 +307,30 @@ export function ensureSourceMeta(brain, source) {
   return touched;
 }
 
+const FRESH_COUNTERS = Object.freeze({ w: 1, t: 0, d: 0, l: 0, i: 0 });
+
+function countersFromExistingBrain(target) {
+  const counters = { ...FRESH_COUNTERS };
+  const brain = join(target, 'brain');
+  let stats;
+  try { stats = lstatSync(brain); }
+  catch (error) {
+    if (error?.code === 'ENOENT') return counters;
+    throw new Error('Sandpaper brain counters could not be inspected safely');
+  }
+  if (stats.isSymbolicLink() || !stats.isDirectory()) {
+    throw new Error('Sandpaper brain path is unsafe');
+  }
+  for (const file of htmlPages(brain)) {
+    const html = readEditorialFile(brain, file, 'brain counter source').bytes.toString('utf8');
+    for (const match of html.matchAll(/\b(?:id|data-cid)\s*=\s*["']([wtdli])-(\d+)["']/g)) {
+      const value = Number(match[2]);
+      if (Number.isSafeInteger(value) && value > counters[match[1]]) counters[match[1]] = value;
+    }
+  }
+  return counters;
+}
+
 function freshManifest(target, pkg, setupOptions) {
   return migrateManifest({
     version: 2,
@@ -311,7 +342,7 @@ function freshManifest(target, pkg, setupOptions) {
     lenses: ['product', 'engineering', 'project'],
     books: ['log', 'decisions', 'learnings'],
     cidPrefixes: { worklog: 'w', task: 't', decision: 'd', learning: 'l', initiative: 'i' },
-    counters: { w: 1, t: 0, d: 0, l: 0, i: 0 },
+    counters: countersFromExistingBrain(target),
     ...setupOptions,
   });
 }
@@ -323,7 +354,13 @@ function planInstallationManifest(target, pkg, setupOptions) {
   const value = existing
     ? migrateManifest({ ...existing, ...setupOptions })
     : freshManifest(target, pkg, setupOptions);
-  return { file, hadMan, existing, value, bytes: Buffer.from(serializeManifest(value)), mode: 0o600 };
+  const validateInvariant = hadMan ? null : () => {
+    const current = countersFromExistingBrain(target);
+    if (Object.keys(FRESH_COUNTERS).some((prefix) => current[prefix] !== value.counters[prefix])) {
+      throw new Error('Sandpaper brain counters changed during installation');
+    }
+  };
+  return { file, hadMan, existing, value, bytes: Buffer.from(serializeManifest(value)), mode: 0o600, validateInvariant };
 }
 
 // Do the brain scaffold work (assets · manifest · multi-page skeleton) and print its BRAIN rows.
@@ -367,7 +404,7 @@ function scaffoldBrain(target, pkg, options, {
   } else {
     row('source meta', 'none yet', 'no git remote — re-run after `git remote add`');
   }
-  return { hadManifest: hadMan };
+  return { hadManifest: hadMan, needsInit: brainNeedsInit(brain), integrations: setupOptions.integrations };
 }
 
 export function installSkill(target, pkg, opts = {}, dependencies = {}) {
@@ -414,7 +451,7 @@ export function installSkill(target, pkg, opts = {}, dependencies = {}) {
         console.log('   and each command hook is separately reviewed and trusted during startup review or through /hooks.');
       }
     }
-    nextStep(options.integrations);
+    nextStep(options.integrations, { needsInit: scaffold.needsInit });
   } catch (error) {
     try { installation.abort(); }
     catch (recoveryError) { throw recoveryError; }
@@ -427,8 +464,8 @@ export function scaffold(target, pkg, options) {
   banner();
   console.log(`  ${clay('▸')} scaffolding the brain into  ${bold(projectName(target))}\n`);
   section('BRAIN');
-  scaffoldBrain(target, pkg, options, { updateExistingManifest: true });
-  nextStep();
+  const scaffold = scaffoldBrain(target, pkg, options, { updateExistingManifest: true });
+  nextStep(scaffold.integrations, { needsInit: scaffold.needsInit });
 }
 
 function readOptional(file) {

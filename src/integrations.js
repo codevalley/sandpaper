@@ -522,6 +522,7 @@ function prepareTransaction({
             finalType: 'directory',
           });
           validateCurrent(operation, fs, pathApi);
+          operation.validateInvariant?.();
           if (operation.expectedIdentity) {
             fs.renameSync(operation.destination, operation.backup);
             addOwnedArtifact(owned, transaction, operation.backup, operation.expectedContents, pathApi);
@@ -549,6 +550,7 @@ function prepareTransaction({
             throw new Error('Sandpaper installed path changed before cleanup');
           }
           if (!operation.staged && current) throw new Error('Sandpaper removed path reappeared before cleanup');
+          operation.validateInvariant?.();
         }
       } catch {
         settled = true;
@@ -847,6 +849,7 @@ export function prepareInstallIntegrations(target, packageRoot, options = {}, {
       expectedContents: fileIdentityTree(identity(manifestInspection.stats)),
       expectedBytes: source,
       expectedMode: manifestSource?.mode ?? null,
+      validateInvariant: typeof manifest.validateInvariant === 'function' ? manifest.validateInvariant : null,
     });
   }
 
