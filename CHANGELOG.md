@@ -9,40 +9,36 @@ own work — via `/sandpaper:release`, never written from scratch.
 
 ## [Unreleased]
 
-## [0.3.0] — 2026-07-11
+## [0.3.0] — 2026-07-13
 
 ### Added
 - Codex is now a first-class provider alongside Claude Code, with saved `codex login`
-  authentication, provider diagnostics, resumable page/provider sessions, and native token usage.
-- The floating toolbar now provides an accessible tab-local provider selector, an explicit
-  `Make default` action, provider-scoped histories, and transactional `New session` reset.
-- Default installation now provisions both Claude Code and Codex integrations; `--integration`
-  supports explicit Claude-only or Codex-only installations and clean upgrades.
+  authentication, diagnostics, resumable provider-scoped sessions, and native token usage.
+- The floating toolbar now provides provider selection, an explicit `Make default` action,
+  isolated histories, and transactional `New session` reset.
+- Installation now provisions both Claude and Codex integrations by default, with explicit
+  single-provider options available.
 
 ### Changed
-- Provider dispatch now runs through one internal registry and provider-neutral hooks, workflows,
-  manifests, setup, lifecycle recovery, CLI diagnostics, and release/package contracts.
-- Toolbar turns, frames, replays, transcripts, usage, edits, and reset state are provider-tagged;
-  switching providers preserves independent continuity without hidden context handoff.
-- Claude displays only supplied cost and Codex displays only supplied token totals, while actual
-  selected-document bytes remain the authority for Saved, Replied, and Undo outcomes.
+- Provider dispatch now uses one provider-neutral registry across hooks, workflows, manifests,
+  setup, diagnostics, lifecycle recovery, and package contracts.
+- Toolbar turns, transcripts, usage, edits, and resets are provider-tagged without hidden context
+  transfer.
+- Claude reports supplied cost while Codex reports supplied token totals.
 
 ### Fixed
-- The GitHub Release job now checks out repository context before creating the release object,
-  so a successful npm publish is followed by a successful GitHub Release.
-- Provider validation now occurs before global turn reservation, failed starts release lifecycle
-  exactly once, and unavailable providers report recovery guidance without silent fallback.
-- Integration upgrades, rebuilds, hooks, manifests, sessions, transcript rehydration, disclosure
-  controls, and direct-edit recovery now preserve authoritative bytes across races and failures.
-- Installing over a populated manifestless brain now derives its existing numeric ID counters,
-  rolls back if the brain advances before that manifest settles, migrates exact self-hosted legacy
-  hooks without double execution, and directs agents to `open` instead of rerunning initialization.
+- GitHub Release creation now has the repository context required after npm publication.
+- Unavailable providers fail explicitly without silent fallback.
+- Provider installation, sessions, transcript restoration, and direct-edit recovery preserve
+  authoritative bytes across failures and races.
+- Legacy installations preserve existing brain counters, remove duplicate historical hooks,
+  safely reject concurrent counter changes, and direct populated brains to `open` rather than
+  `init`.
 
 ### Security
-- Provider installation and recovery use bounded, transactional, non-following filesystem checks
-  that detect concurrent replacement and preserve user-owned or displaced bytes for recovery.
-- Provider preference, session, mutation, replay, and toolbar state validate ownership and shape;
-  external-path reporting remains best effort and never claims unverifiable undo coverage.
+- Provider installation uses bounded, transactional, non-following filesystem operations.
+- Provider preferences, sessions, mutations, and browser state validate ownership and structure.
+- External-path reporting remains best-effort and never promises unverifiable undo coverage.
 
 ## [0.2.1] — 2026-07-11
 
