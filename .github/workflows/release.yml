@@ -152,7 +152,7 @@ jobs:
       # Each job gets a fresh runner. gh release create needs repository context
       # to resolve the tag/repository before creating the release object.
       - uses: actions/checkout@v7
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: release-notes
           path: /tmp/release-artifact
