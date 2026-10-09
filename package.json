@@ -97,6 +97,6 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",
-    "acorn": "8.17.0"
+    "acorn": "8.19.0"
   }
 }
